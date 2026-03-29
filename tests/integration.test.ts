@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runIndex } from "../src/commands/index.ts";
 import { runInit } from "../src/commands/init.ts";
+import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
@@ -175,11 +176,51 @@ describe("symballist vertical slice", () => {
     expect(shown.endLine).toBe(6);
   });
 
+  test("query prefers declarations over imports and supports kind filters", async () => {
+    const root = await createFixtureRepo();
+    await writeFile(
+      join(root, "models.py"),
+      'class AgentConfig:\n    pass\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "uses.py"),
+      'from models import AgentConfig\n\n\ndef build_agent_config() -> AgentConfig:\n    return AgentConfig()\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const ranked = searchSymbols(db, "AgentConfig", 5);
+    const importsOnly = searchSymbols(db, "AgentConfig", 5, { kinds: ["import"] });
+    db.close();
+
+    expect(ranked[0]?.kind).toBe("class");
+    expect(ranked[0]?.name).toBe("AgentConfig");
+    expect(importsOnly.length).toBeGreaterThan(0);
+    expect(importsOnly.every((result) => result.kind === "import")).toBeTrue();
+
+    const output = await captureConsoleLog(async () => {
+      await runQuery(root, "AgentConfig", 5, ["import"]);
+    });
+    const queryPayload = JSON.parse(output) as {
+      kinds: string[];
+      results: Array<{ kind: string }>;
+    };
+
+    expect(queryPayload.kinds).toEqual(["import"]);
+    expect(queryPayload.results.length).toBeGreaterThan(0);
+    expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
+  });
+
   test("cli args accept an explicit root path", () => {
-    const parsed = parseCliArgs(["query", "greet", "--root", "D:/Projects/co-ma", "--limit", "3"]);
+    const parsed = parseCliArgs(["query", "greet", "--root", "D:/Projects/co-ma", "--limit", "3", "--kind", "class,function"]);
     expect(parsed.command).toBe("query");
     expect(parsed.root).toBe("D:/Projects/co-ma");
     expect(parsed.limit).toBe(3);
+    expect(parsed.kinds).toEqual(["class", "function"]);
     expect(parsed.positionals).toEqual(["query", "greet"]);
   });
 });

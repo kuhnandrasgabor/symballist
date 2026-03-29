@@ -23,6 +23,18 @@ export type StatusSummary = {
 
 type SearchRow = Omit<QueryResult, "snippet" | "fallback"> & { body: string; fallback: number };
 type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
+type SearchOptions = {
+  kinds?: string[];
+};
+
+const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
+  ["class", -1.1],
+  ["function", -1.0],
+  ["title", -0.75],
+  ["element", -0.5],
+  ["import", 0.75],
+  ["file", 1.0]
+]);
 
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
@@ -145,6 +157,24 @@ function makeSnippet(body: string): string {
     return normalized;
   }
   return `${normalized.slice(0, 197).trimEnd()}...`;
+}
+
+function rerankResults(rows: SearchRow[], limit: number): QueryResult[] {
+  return rows
+    .map(({ body, ...row }) => ({
+      ...row,
+      fallback: Boolean(row.fallback),
+      snippet: makeSnippet(body),
+      adjustedScore: row.score + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
+    }))
+    .sort((left, right) => {
+      if (left.adjustedScore !== right.adjustedScore) {
+        return left.adjustedScore - right.adjustedScore;
+      }
+      return left.score - right.score;
+    })
+    .slice(0, limit)
+    .map(({ adjustedScore: _adjustedScore, ...result }) => result);
 }
 
 export function replaceFileIndex(
@@ -297,7 +327,12 @@ export function getSymbolById(db: Database, id: number): SymbolDetails | null {
   };
 }
 
-export function searchSymbols(db: Database, query: string, limit: number): QueryResult[] {
+export function searchSymbols(db: Database, query: string, limit: number, options: SearchOptions = {}): QueryResult[] {
+  const kinds = [...new Set((options.kinds ?? []).map((kind) => kind.trim()).filter(Boolean))];
+  const whereKindClause = kinds.length > 0
+    ? ` AND symbols.kind IN (${kinds.map(() => "?").join(", ")})`
+    : "";
+
   const statement = db.query(`
     SELECT
       symbols.id,
@@ -317,14 +352,12 @@ export function searchSymbols(db: Database, query: string, limit: number): Query
     FROM symbols_fts
     JOIN symbols ON symbols.id = symbols_fts.symbol_id
     WHERE symbols_fts MATCH ?
+    ${whereKindClause}
     ORDER BY score
     LIMIT ?
   `);
 
-  const rows = statement.all(query, limit) as SearchRow[];
-  return rows.map(({ body, ...row }) => ({
-    ...row,
-    fallback: Boolean(row.fallback),
-    snippet: makeSnippet(body)
-  }));
+  const candidateLimit = Math.max(limit * 5, limit);
+  const rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
+  return rerankResults(rows, limit);
 }
