@@ -86,6 +86,8 @@ describe("symballist vertical slice", () => {
     expect(await Bun.file(join(root, ".symballist", "instructions", "symballist-adoption.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "AGENTS.symballist.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "CLAUDE.symballist.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "tools", "symballist-tools.json")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "tools", "README.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, "AGENTS.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, "CLAUDE.md")).exists()).toBeTrue();
   });
@@ -103,20 +105,21 @@ describe("symballist vertical slice", () => {
     const wrapperCmd = await readFile(join(root, ".symballist", "bin", "symballist.cmd"), "utf8");
     const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
     const localGuide = await readFile(join(root, ".symballist", "instructions", "symballist-adoption.md"), "utf8");
+    const toolManifest = await readFile(join(root, ".symballist", "tools", "symballist-tools.json"), "utf8");
     const gitignore = await readFile(join(root, ".gitignore"), "utf8");
 
     expect(agentsText).toContain("# Project Notes");
     expect(claudeText).toContain("# Claude Notes");
     expect(agentsText.match(/<!-- SYMBALLIST RETRIEVAL START -->/g)?.length ?? 0).toBe(1);
     expect(claudeText.match(/<!-- SYMBALLIST RETRIEVAL START -->/g)?.length ?? 0).toBe(1);
-    expect(agentsText).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
-    expect(claudeText).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
-    expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd query "<text>" --root ${root}`);
-    expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd lookup "<text>" --root ${root}`);
-    expect(localAgentsSnippet).toContain("changeAwareness");
+    expect(agentsText).toContain(".symballist\\tools\\symballist-tools.json");
+    expect(claudeText).toContain(".symballist\\tools\\symballist-tools.json");
+    expect(localAgentsSnippet).toContain("symballist_lookup");
+    expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
     expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd index --root ${root}`);
     expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd lookup "<text>" --root ${root}`);
-    expect(localGuide).toContain("changeAwareness");
+    expect(localGuide).toContain("setup-type hybrid");
+    expect(toolManifest).toContain("\"name\": \"symballist_lookup\"");
     expect(wrapperCmd).toContain('bun "D:\\Projects\\symballist\\src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
@@ -143,10 +146,34 @@ describe("symballist vertical slice", () => {
     await runInit(root);
 
     const preserved = await readConfig(root);
+    expect(preserved?.setupType).toBe("hybrid");
     expect(preserved?.embeddings.enabled).toBeTrue();
     expect(preserved?.embeddings.baseUrl).toBe("http://127.0.0.1:11434");
     expect(preserved?.embeddings.model).toBe("nomic-embed-text");
     expect(preserved?.embeddings.dimensions).toBe(384);
+  });
+
+  test("init supports cli-only and tool-first setup modes", async () => {
+    const cliRoot = await createFixtureRepo();
+    await runInit(cliRoot, "cli");
+
+    const cliConfig = await readConfig(cliRoot);
+    const cliAgents = await readFile(join(cliRoot, "AGENTS.md"), "utf8");
+    expect(cliConfig?.setupType).toBe("cli");
+    expect(await Bun.file(join(cliRoot, ".symballist", "tools", "symballist-tools.json")).exists()).toBeFalse();
+    expect(cliAgents).toContain(`.symballist\\bin\\symballist.cmd status --root ${cliRoot}`);
+    expect(cliAgents).not.toContain(".symballist\\tools\\symballist-tools.json");
+
+    const toolRoot = await createFixtureRepo();
+    await runInit(toolRoot, "tool");
+
+    const toolConfig = await readConfig(toolRoot);
+    const toolAgents = await readFile(join(toolRoot, "AGENTS.md"), "utf8");
+    const toolManifest = await readFile(join(toolRoot, ".symballist", "tools", "symballist-tools.json"), "utf8");
+    expect(toolConfig?.setupType).toBe("tool");
+    expect(await Bun.file(join(toolRoot, ".symballist", "tools", "symballist-tools.json")).exists()).toBeTrue();
+    expect(toolAgents).toContain(".symballist\\tools\\symballist-tools.json");
+    expect(toolManifest).toContain("\"name\": \"symballist_status\"");
   });
 
   test("init creates or appends .symballist ignore rules without duplicating them", async () => {
@@ -1184,6 +1211,17 @@ describe("symballist vertical slice", () => {
     expect(parsed.positionals).toEqual(["greet"]);
     expect(parsed.helpRequested).toBeFalse();
     expect(parsed.error).toBeNull();
+  });
+
+  test("cli args accept init setup-type selection", () => {
+    const parsed = parseCliArgs(["init", "--root", "D:/Projects/co-ma", "--setup-type", "tool"]);
+    expect(parsed.command).toBe("init");
+    expect(parsed.root).toBe("D:/Projects/co-ma");
+    expect(parsed.setupType).toBe("tool");
+    expect(parsed.error).toBeNull();
+
+    const invalid = parseCliArgs(["init", "--setup-type", "weird"]);
+    expect(invalid.error).toContain("cli, tool, or hybrid");
   });
 
   test("watch can perform an initial index pass and incremental refresh in one-shot mode", async () => {

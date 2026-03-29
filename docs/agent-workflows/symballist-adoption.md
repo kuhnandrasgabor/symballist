@@ -1,6 +1,6 @@
 # Symballist Adoption Workflow
 
-Use this workflow when another project wants to adopt `symballist` as a CLI-first retrieval helper for AI agents.
+Use this workflow when another project wants to adopt `symballist` as a repo-local retrieval helper for AI agents.
 
 ## Purpose
 
@@ -18,14 +18,36 @@ Do not treat it as authoritative yet. Agents should use `symballist` to narrow t
 
 ## Recommended Usage Model
 
-- keep `symballist` CLI-first
+- keep `symballist` CLI-reliable even when you add tool definitions
 - use it as a read-only helper
 - prefer explicit `--root <project-root>` targeting
 - rerun `index` when the target repo is stale
 - optionally enable local Ollama embeddings in `.symballist/config.json` when concept queries need more help
 - fall back to normal file reads or search when results are weak or missing
 
+`symballist init` now supports three downstream setup modes:
+
+- `--setup-type hybrid`
+  - default
+  - generates repo-local tool definitions and keeps CLI wrappers as fallback
+- `--setup-type tool`
+  - generates tool-definition assets and tool-first managed guidance
+- `--setup-type cli`
+  - skips tool-definition assets and keeps the integration CLI-only
+
 ## Basic Loop
+
+In `hybrid` or `tool` setups, the generated tool definitions live in:
+
+```text
+.symballist/tools/symballist-tools.json
+```
+
+The execution backend and universal fallback remains:
+
+```text
+.symballist/bin/symballist.cmd
+```
 
 Preferred downstream entrypoint after `symballist init`:
 
@@ -97,15 +119,16 @@ Skip it or fall back quickly when:
 
 Use these dedicated snippet files as the canonical copy-paste source for downstream projects:
 
-- [downstream-agents-symballist.md](/D:/Projects/symballist/docs/snippets/downstream-agents-symballist.md)
-- [downstream-claude-symballist.md](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md)
+- [downstream-agents-symballist.md](../snippets/downstream-agents-symballist.md)
+- [downstream-claude-symballist.md](../snippets/downstream-claude-symballist.md)
 
 Copy the snippet that matches the target file, then replace `<PROJECT_ROOT>` with the repo you are integrating.
 If you use `symballist init` in the target repo, these placeholders are filled automatically and the managed instruction blocks are updated for you.
+The snippet files reflect the default `hybrid` posture; `cli` and `tool` setups are rendered by `init`.
 
 ## Notes
 
 - `symballist` currently works best as a helper for Python, HTML, and Markdown.
 - optional embeddings currently start with Ollama via `.symballist/config.json`.
 - For fast-moving repos, freshness matters as much as ranking quality.
-- Start with CLI-only adoption. Defer MCP or deeper tool integration until the workflow is stable.
+- Prefer `hybrid` as the default setup. Keep CLI wrappers even when tool definitions are available so the integration stays portable across agent runtimes.

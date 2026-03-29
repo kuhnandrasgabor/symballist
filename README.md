@@ -7,7 +7,7 @@
 It is designed to stay:
 
 - local-first
-- CLI-first
+- CLI-reliable
 - agent-friendly
 - explicit about freshness and fallbacks
 
@@ -24,6 +24,7 @@ It is designed to stay:
 - one-hop graph-aware reranking using containment/import neighborhoods
 - lightweight follow-up context through relations and related symbols
 - repo-local downstream agent bootstrap during `init`
+- configurable downstream setup modes for CLI, tool, or hybrid integration
 
 ## Quick Install
 
@@ -69,7 +70,7 @@ backlog draft list
 The simplest way to try `symballist` on another local project is:
 
 ```powershell
-symballist init --root <PROJECT_ROOT>
+symballist init --root <PROJECT_ROOT> --setup-type hybrid
 symballist index --root <PROJECT_ROOT>
 symballist lookup "your query here" --root <PROJECT_ROOT>
 ```
@@ -78,9 +79,20 @@ After `init`, the target repo gets:
 
 - `.symballist/` repo-local state
 - local wrapper commands in `.symballist/bin/`
+- generated tool definitions in `.symballist/tools/` for `tool` or `hybrid` setups
 - adoption docs in `.symballist/instructions/`
 - managed `AGENTS.md` / `CLAUDE.md` retrieval blocks
 - a `.gitignore` entry for `.symballist/`
+
+Available setup types:
+
+- `hybrid`
+  - default
+  - prefers generated tool definitions with CLI fallback
+- `tool`
+  - writes tool-definition assets and slimmer tool-first guidance
+- `cli`
+  - skips tool-definition assets and keeps the integration CLI-only
 
 If you prefer the repo-local wrapper instead of a linked global command:
 
@@ -115,6 +127,7 @@ symballist watch --once --root <PROJECT_ROOT>
 
 - `symballist init`
   - bootstraps repo-local state and downstream agent instructions
+  - supports `--setup-type cli|tool|hybrid`
 - `symballist index`
   - performs a full incremental-aware index pass
 - `symballist watch --once`
@@ -229,6 +242,7 @@ Current behavior:
   config.json
   index.db
   bin/
+  tools/
   instructions/
   cache/
   logs/
@@ -244,7 +258,7 @@ For downstream projects that want to use `symballist` as a retrieval helper for 
 
 The intended downstream posture is:
 
-- CLI-first
+- hybrid by default, CLI-reliable by design
 - read-only helper
 - verify freshness before trusting results
 - fall back to normal file reads/search when needed
