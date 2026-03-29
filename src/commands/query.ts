@@ -12,7 +12,7 @@ export async function runQuery(root: string, rawQuery: string, limit: number, ki
     .map((term) => term.replace(/"/g, ""))
     .filter(Boolean);
   const ftsQuery = terms.length > 1 ? terms.join(" OR ") : terms[0] ?? normalizedQuery;
-  const results = searchSymbols(db, ftsQuery, limit, { kinds });
+  const results = searchSymbols(db, ftsQuery, limit, { kinds, rawQuery: normalizedQuery });
   db.close();
 
   console.log(JSON.stringify({ query: rawQuery, kinds, results }, null, 2));
