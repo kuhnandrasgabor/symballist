@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 14:08'
+updated_date: '2026-03-28 14:13'
 labels: []
 dependencies: []
 priority: high
@@ -28,10 +28,10 @@ Build the first useful end-to-end slice for symballist as an agent-first code re
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Improve query relevance with kind-aware ranking so declaration-like results are preferred over lower-signal matches such as imports when scores are otherwise similar.
-2. Add a simple --kind filter to the query command so agents can restrict results to selected symbol kinds without adding a new command surface.
-3. Extend the SQLite search path and CLI argument parsing to support the richer query options while keeping the existing JSON output stable.
-4. Expand integration coverage to verify ranking/filter behavior against the fixture repo and preserve the existing query -> show flow.
+1. Improve query relevance with exact-name and direct-match boosting so symbols whose names closely match the query rise above generic reference hits.
+2. Extend the reranking path to consider exact name matches, normalized token matches, and direct signature/body matches without breaking the existing kind-aware ranking and filtering.
+3. Expand integration coverage with cases where a type definition and multiple contextual references compete for the same query.
+4. Verify the live co-ma AgentConfig case to confirm direct symbol matches move closer to the top while keeping query/show stable.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -84,4 +84,8 @@ Added kind-aware query reranking so declaration-like results get a small boost o
 Added a --kind filter to the query command and CLI parser so agents can restrict results to selected symbol kinds such as class,function.
 
 Verified the live co-ma AgentConfig case: imports no longer dominate the default results, and --kind class,function removes import rows entirely while preserving ranked declaration/context hits.
+
+Added exact-name and direct-match boosting on top of the existing kind-aware reranking, and widened the search candidate pool so strong symbol matches have a chance to rise above generic context hits.
+
+Verified the boosting logic in tests, but the live co-ma AgentConfig case still appears constrained by indexing coverage rather than ranking alone; the likely true definition lives in a large file that is currently falling back instead of yielding class symbols.
 <!-- SECTION:NOTES:END -->

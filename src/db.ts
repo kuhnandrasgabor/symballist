@@ -25,6 +25,7 @@ type SearchRow = Omit<QueryResult, "snippet" | "fallback"> & { body: string; fal
 type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
 type SearchOptions = {
   kinds?: string[];
+  rawQuery?: string;
 };
 
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
@@ -159,13 +160,53 @@ function makeSnippet(body: string): string {
   return `${normalized.slice(0, 197).trimEnd()}...`;
 }
 
-function rerankResults(rows: SearchRow[], limit: number): QueryResult[] {
+function normalizeLookupValue(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function computeDirectMatchAdjustment(row: SearchRow, rawQuery: string): number {
+  const normalizedQuery = normalizeLookupValue(rawQuery);
+  if (!normalizedQuery) {
+    return 0;
+  }
+
+  const normalizedName = normalizeLookupValue(row.name);
+  if (normalizedName === normalizedQuery) {
+    return -4.5;
+  }
+  if (normalizedName.startsWith(normalizedQuery)) {
+    return -2.5;
+  }
+  if (normalizedName.includes(normalizedQuery)) {
+    return -1.5;
+  }
+
+  const queryLower = rawQuery.trim().toLowerCase();
+  if (!queryLower) {
+    return 0;
+  }
+
+  const signatureLower = (row.signature ?? "").toLowerCase();
+  const bodyLower = row.body.toLowerCase();
+  if (signatureLower.includes(queryLower)) {
+    return -0.4;
+  }
+  if (bodyLower.includes(queryLower)) {
+    return -0.2;
+  }
+
+  return 0;
+}
+
+function rerankResults(rows: SearchRow[], limit: number, rawQuery: string): QueryResult[] {
   return rows
     .map(({ body, ...row }) => ({
       ...row,
       fallback: Boolean(row.fallback),
       snippet: makeSnippet(body),
-      adjustedScore: row.score + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
+      adjustedScore: row.score
+        + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
+        + computeDirectMatchAdjustment({ body, ...row }, rawQuery)
     }))
     .sort((left, right) => {
       if (left.adjustedScore !== right.adjustedScore) {
@@ -357,7 +398,7 @@ export function searchSymbols(db: Database, query: string, limit: number, option
     LIMIT ?
   `);
 
-  const candidateLimit = Math.max(limit * 5, limit);
+  const candidateLimit = Math.max(limit * 10, 100);
   const rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
-  return rerankResults(rows, limit);
+  return rerankResults(rows, limit, options.rawQuery ?? query);
 }
