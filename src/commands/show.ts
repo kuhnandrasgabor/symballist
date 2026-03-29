@@ -86,6 +86,9 @@ export async function runShow(
 
   console.log(JSON.stringify({
     indexFreshness,
+    trustSemantics: {
+      trustLevel: "extraction trust only; show resolves a symbol directly and does not recompute query-time retrieval trust"
+    },
     symbol: {
       ...symbol,
       body: body.body

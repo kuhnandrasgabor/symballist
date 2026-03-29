@@ -30,9 +30,9 @@ references:
   - TASK-020
   - TASK-021
   - TASK-022
+  - TASK-023
   - DRAFT-008
   - DRAFT-010
-  - DRAFT-011
 priority: high
 ---
 
@@ -65,7 +65,7 @@ Current v1 shape:
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
 2. Treat completed slice work as closed subtasks: TASK-002 through TASK-022.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term priority order from latest feedback: DRAFT-011, DRAFT-010, DRAFT-008.
+4. Near-term priority order from latest feedback: DRAFT-010, DRAFT-008.
 5. Medium-term follow-ups: DRAFT-008, then broader helper-integration questions in DRAFT-001.
 <!-- SECTION:PLAN:END -->
 
@@ -98,6 +98,7 @@ Retrieval quality and context
 - Done: concept-oriented queries now supplement lexical hits with source-path candidates so canonical implementations surface more reliably.
 - Done: query-time trust now combines extraction quality with match strength, and generic lexical leftovers surface as `token_overlap` instead of misleading `body_text`.
 - Done: `--prefer-implementation` now acts as a real code-oriented intent, suppressing Markdown/doc noise for non-doc queries and producing visible ranking changes.
+- Done: query and show now use `trustLevel` consistently for extraction trust, while query separately exposes `retrievalTrustLevel`.
 - Done: show returns symbol bodies plus lightweight relations and related symbols, summarizing very large bodies by default and supporting `--full` expansion.
 
 Adoption and workflow
@@ -117,7 +118,7 @@ Priority order from latest live feedback
 - Done: TASK-020 added summary defaults and `--full` expansion for large `show` results.
 - Done: TASK-021 ensures init adds `.symballist/` to `.gitignore` by default.
 - Done: TASK-022 strengthened and clarified `--prefer-implementation` so the flag produces a visible code-focused ranking change.
-- Next: DRAFT-011 reconcile query trust levels with show extraction semantics.
+- Done: TASK-023 reconciled query/show trust semantics by splitting extraction trust from retrieval trust.
 - Next: DRAFT-010 prefer canonical docs and suppress duplicate operational docs in docs-only retrieval.
 - Later: DRAFT-008 explore diff-aware and session-aware change tracking.
 - Later: DRAFT-001 decide when and how to add an agent-facing symballist query helper.
@@ -144,4 +145,5 @@ Completed subtasks
 - TASK-020 large-show summary defaults and explicit `--full` expansion.
 - TASK-021 `.gitignore` bootstrap and tracked-state cleanup hint during init.
 - TASK-022 `--prefer-implementation` semantics and visible ranking behavior.
+- TASK-023 query/show trust-semantics reconciliation.
 <!-- SECTION:NOTES:END -->

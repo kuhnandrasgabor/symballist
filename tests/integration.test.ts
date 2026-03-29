@@ -156,6 +156,7 @@ describe("symballist vertical slice", () => {
     expect(greet?.matchReason).toBe("exact_symbol_name");
     expect(greet?.extraction).toBe("parsed");
     expect(greet?.trustLevel).toBe("high");
+    expect(greet?.retrievalTrustLevel).toBe("high");
     expect(searchPanel).toBeDefined();
     expect(searchPanel?.startLine).toBe(8);
     expect(searchPanel?.snippet).toContain("search-panel");
@@ -424,6 +425,8 @@ describe("symballist vertical slice", () => {
         distance: string;
         confidenceOrder: string[];
         trustLevels: string[];
+        trustLevel: string;
+        retrievalTrustLevel: string;
       };
       results: Array<{
         kind: string;
@@ -432,6 +435,7 @@ describe("symballist vertical slice", () => {
         matchReason: string;
         extraction: string;
         trustLevel: string;
+        retrievalTrustLevel: string;
       }>;
     };
 
@@ -440,10 +444,13 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.indexFreshness.stale).toBeFalse();
     expect(queryPayload.resultSemantics.distance).toBe("lower is better");
     expect(queryPayload.resultSemantics.confidenceOrder).toEqual(["exact", "strong", "related", "fallback"]);
+    expect(queryPayload.resultSemantics.trustLevel).toContain("extraction trust");
+    expect(queryPayload.resultSemantics.retrievalTrustLevel).toContain("retrieval trust");
     expect(queryPayload.results.length).toBeGreaterThan(0);
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
     expect(queryPayload.results.every((result) => typeof result.distance === "number")).toBeTrue();
     expect(queryPayload.results.every((result) => typeof result.confidence === "string")).toBeTrue();
+    expect(queryPayload.results.every((result) => typeof result.retrievalTrustLevel === "string")).toBeTrue();
     expect(queryPayload.results.every((result) => ["import_reference", "normalized_symbol_name"].includes(result.matchReason))).toBeTrue();
   });
 
@@ -596,8 +603,64 @@ describe("symballist vertical slice", () => {
     expect(recoveredMemoryStore?.confidence).toBe("exact");
     expect(recoveredMemoryStore?.matchReason).toBe("normalized_symbol_name");
     expect(recoveredMemoryStore?.extraction).toBe("recovered");
-    expect(recoveredMemoryStore?.trustLevel).toBe("high");
+    expect(recoveredMemoryStore?.trustLevel).toBe("medium");
+    expect(recoveredMemoryStore?.retrievalTrustLevel).toBe("high");
     expect(looseToken.some((result) => result.matchReason === "token_overlap")).toBeTrue();
+  });
+
+  test("query and show agree on extraction trust while query also exposes retrieval trust", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+
+    const oversizedSource = [
+      "class DistillationEngine:",
+      "    pass",
+      "",
+      "# filler",
+      "# filler\n".repeat(5000)
+    ].join("\n");
+
+    await writeFile(join(root, "src", "distiller.py"), oversizedSource, "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const queryPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "DistillationEngine", 5);
+    })) as {
+      results: Array<{
+        id: number;
+        name: string;
+        extraction: string;
+        trustLevel: string;
+        retrievalTrustLevel: string;
+      }>;
+    };
+
+    const queryResult = queryPayload.results.find((result) => result.name === "DistillationEngine");
+    expect(queryResult).toBeDefined();
+    expect(queryResult?.extraction).toBe("recovered");
+    expect(queryResult?.trustLevel).toBe("medium");
+    expect(queryResult?.retrievalTrustLevel).toBe("high");
+
+    const showPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "DistillationEngine");
+    })) as {
+      trustSemantics: {
+        trustLevel: string;
+      };
+      symbol: {
+        id: number;
+        name: string;
+        extraction: string;
+        trustLevel: string;
+      };
+    };
+
+    expect(showPayload.trustSemantics.trustLevel).toContain("extraction trust only");
+    expect(showPayload.symbol.id).toBe(queryResult?.id);
+    expect(showPayload.symbol.name).toBe("DistillationEngine");
+    expect(showPayload.symbol.extraction).toBe("recovered");
+    expect(showPayload.symbol.trustLevel).toBe("medium");
   });
 
   test("query intent flags can filter docs, exclude tests, and prefer implementation", async () => {
@@ -805,7 +868,7 @@ describe("symballist vertical slice", () => {
     expect(agentConfig?.kind).toBe("class");
     expect(agentConfig?.startLine).toBe(3);
     expect(agentConfig?.extraction).toBe("recovered");
-    expect(agentConfig?.trustLevel).toBe("high");
+    expect(agentConfig?.trustLevel).toBe("medium");
     expect(fileFallback).toBeUndefined();
     expect(details?.body).toContain("class AgentConfig");
     expect(details?.endLine).toBeGreaterThan(agentConfig?.startLine ?? 0);

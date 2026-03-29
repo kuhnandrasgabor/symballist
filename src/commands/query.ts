@@ -32,7 +32,9 @@ export async function runQuery(
     resultSemantics: {
       distance: "lower is better",
       confidenceOrder: ["exact", "strong", "related", "fallback"],
-      trustLevels: ["high", "medium", "low"]
+      trustLevels: ["high", "medium", "low"],
+      trustLevel: "extraction trust; how confidently the symbol boundaries/body were extracted",
+      retrievalTrustLevel: "retrieval trust; how confidently this query matched the result"
     },
     results
   }, null, 2));

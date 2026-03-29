@@ -70,8 +70,7 @@ type MatchAnalysis = {
 };
 
 type QueryTrustDetails = {
-  extraction: ExtractionKind;
-  trustLevel: TrustLevel;
+  retrievalTrustLevel: TrustLevel;
 };
 
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
@@ -275,28 +274,24 @@ function getExtractionDetails(row: { fallback: number | boolean; doc: string | n
 function getQueryTrustDetails(extraction: ExtractionDetails, confidence: ResultConfidence): QueryTrustDetails {
   if (extraction.extraction === "fallback" || confidence === "fallback") {
     return {
-      extraction: extraction.extraction,
-      trustLevel: "low"
+      retrievalTrustLevel: "low"
     };
   }
 
   if (confidence === "exact") {
     return {
-      extraction: extraction.extraction,
-      trustLevel: "high"
+      retrievalTrustLevel: "high"
     };
   }
 
   if (confidence === "strong") {
     return {
-      extraction: extraction.extraction,
-      trustLevel: extraction.extraction === "parsed" ? "high" : "medium"
+      retrievalTrustLevel: extraction.extraction === "parsed" ? "high" : "medium"
     };
   }
 
   return {
-    extraction: extraction.extraction,
-    trustLevel: extraction.extraction === "parsed" ? "medium" : "low"
+    retrievalTrustLevel: extraction.extraction === "parsed" ? "medium" : "low"
   };
 }
 
@@ -639,8 +634,9 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
         snippet: makeSnippet(row.body),
         confidence: match.confidence,
         matchReason: match.reason,
-        extraction: queryTrust.extraction,
-        trustLevel: queryTrust.trustLevel,
+        extraction: extraction.extraction,
+        trustLevel: extraction.trustLevel,
+        retrievalTrustLevel: queryTrust.retrievalTrustLevel,
         rawScore: row.rawScore,
         adjustedScore
       };
