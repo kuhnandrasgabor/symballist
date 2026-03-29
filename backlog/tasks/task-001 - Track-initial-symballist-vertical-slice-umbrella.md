@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-29 15:19'
+updated_date: '2026-03-29 15:43'
 labels: []
 dependencies: []
 references:
@@ -165,4 +165,6 @@ Completed subtasks
 2026-03-29: Completed TASK-027. symballist watch now provides low-overhead repo-local automatic refresh via polling, with --once for a safe one-shot sweep and --interval-ms for foreground watch mode. This closes the first roadmap step and leaves optional local embeddings + hybrid retrieval as the next major slice.
 
 2026-03-29: Completed TASK-028. Symballist now supports optional local embeddings and hybrid retrieval with an Ollama-first adapter, repo-local config, indexed symbol vectors, and explicit lexical fallback when embeddings are disabled or unavailable. This closes the second roadmap step and leaves graph-aware retrieval / staged graph-RAG as the next major slice.
+
+2026-03-29 feedback intake: created DRAFT-013 for punctuation-safe literal query handling, DRAFT-014 for hybrid retrieval transparency, and DRAFT-015 for duplicate operational-doc suppression in weak-result retrieval. Recommended near-term order from the latest agent feedback: DRAFT-013 first as the clearest correctness bug, then DRAFT-014 for hybrid observability and fusion tuning, then DRAFT-015 for weak-result ranking polish.
 <!-- SECTION:NOTES:END -->
