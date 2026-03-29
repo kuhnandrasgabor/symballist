@@ -645,8 +645,6 @@ describe("symballist vertical slice", () => {
     });
     const preferImplementation = searchSymbols(db, buildFtsQuery("memory store"), 5, {
       rawQuery: "memory store",
-      codeOnly: true,
-      excludeTests: true,
       preferImplementation: true
     });
     db.close();
@@ -656,28 +654,62 @@ describe("symballist vertical slice", () => {
     expect(docsOnly.length).toBeGreaterThan(0);
     expect(docsOnly.every((result) => result.language === "markdown")).toBeTrue();
     expect(excludeTests.every((result) => !result.path.startsWith("tests\\"))).toBeTrue();
+    expect(preferImplementation.every((result) => result.language !== "markdown")).toBeTrue();
     expect(preferImplementation[0]?.path).toBe("src\\memory_store.py");
 
     const payload = JSON.parse(await captureConsoleLog(async () => {
       await runQuery(root, "memory store", 5, [], {
-        codeOnly: true,
-        excludeTests: true,
         preferImplementation: true
       });
     })) as {
       intent: {
-        codeOnly: boolean;
+        codeOnly?: boolean;
         docsOnly?: boolean;
-        excludeTests: boolean;
         preferImplementation: boolean;
       };
       results: Array<{ path: string }>;
     };
 
-    expect(payload.intent.codeOnly).toBeTrue();
-    expect(payload.intent.excludeTests).toBeTrue();
     expect(payload.intent.preferImplementation).toBeTrue();
     expect(payload.results[0]?.path).toBe("src\\memory_store.py");
+    expect(payload.results.every((result) => !result.path.endsWith(".md"))).toBeTrue();
+  });
+
+  test("prefer-implementation alone suppresses doc noise and visibly changes default ranking", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "ROADMAP.md"),
+      "# Deferred\n\nGateway config api live reload notes.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "config_api.py"),
+      'async def apply_config(payload):\n    """gateway config api live reload"""\n    return payload\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "registry.py"),
+      'def reload_config() -> str:\n    return "gateway config api live reload"\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const defaultResults = searchSymbols(db, buildFtsQuery("gateway config api live reload"), 5, {
+      rawQuery: "gateway config api live reload"
+    });
+    const preferResults = searchSymbols(db, buildFtsQuery("gateway config api live reload"), 5, {
+      rawQuery: "gateway config api live reload",
+      preferImplementation: true
+    });
+    db.close();
+
+    expect(defaultResults.some((result) => result.language === "markdown")).toBeTrue();
+    expect(preferResults.every((result) => result.language !== "markdown")).toBeTrue();
+    expect(preferResults[0]?.path.startsWith("src\\")).toBeTrue();
   });
 
   test("status and query report stale indexes after source changes", async () => {
