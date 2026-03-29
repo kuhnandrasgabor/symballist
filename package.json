@@ -6,5 +6,10 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test"
+  },
+  "dependencies": {
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-html": "^0.23.2",
+    "tree-sitter-python": "^0.21.0"
   }
 }

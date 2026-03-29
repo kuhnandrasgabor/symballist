@@ -1,44 +1,27 @@
+import Parser from "tree-sitter";
+import Html from "tree-sitter-html";
+import type { SyntaxNode } from "tree-sitter";
 import type { SymbolRecord } from "../types.ts";
 
-const TITLE_RE = /<title>([\s\S]*?)<\/title>/i;
-const ID_RE = /<([A-Za-z][A-Za-z0-9:-]*)[^>]*\sid=["']([^"']+)["'][^>]*>/g;
+const parser = new Parser();
+parser.setLanguage(Html);
+const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 
-export function extractHtmlSymbols(path: string, source: string): SymbolRecord[] {
-  const symbols: SymbolRecord[] = [];
-  const title = source.match(TITLE_RE);
-
-  if (title) {
-    symbols.push({
-      path,
-      language: "html",
-      kind: "title",
-      name: title[1].trim(),
-      signature: "<title>",
-      body: title[0],
-      doc: null,
-      fallback: false
-    });
+function nodeText(source: string, node: SyntaxNode | null): string {
+  if (!node) {
+    return "";
   }
+  return source.slice(node.startIndex, node.endIndex);
+}
 
-  for (const match of source.matchAll(ID_RE)) {
-    const tag = match[1];
-    const id = match[2];
-    symbols.push({
-      path,
-      language: "html",
-      kind: "element",
-      name: id,
-      signature: `<${tag} id="${id}">`,
-      body: match[0],
-      doc: null,
-      fallback: false
-    });
+function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
+  callback(node);
+  for (const child of node.namedChildren) {
+    visit(child, callback);
   }
+}
 
-  if (symbols.length > 0) {
-    return symbols;
-  }
-
+function fallbackRecord(path: string, source: string, reason: string): SymbolRecord[] {
   return [
     {
       path,
@@ -47,8 +30,88 @@ export function extractHtmlSymbols(path: string, source: string): SymbolRecord[]
       name: path,
       signature: null,
       body: source.slice(0, 500).trim(),
-      doc: "Fallback record created because no HTML symbols were extracted.",
+      doc: reason,
       fallback: true
     }
   ];
+}
+
+export function extractHtmlSymbols(path: string, source: string): SymbolRecord[] {
+  if (source.length > MAX_TREE_SITTER_SOURCE_CHARS) {
+    return fallbackRecord(
+      path,
+      source,
+      `Fallback record created because HTML source exceeded the safe tree-sitter size limit (${MAX_TREE_SITTER_SOURCE_CHARS} chars) on this runtime.`
+    );
+  }
+
+  const symbols: SymbolRecord[] = [];
+  let tree;
+  try {
+    tree = parser.parse(source);
+  } catch (error) {
+    return fallbackRecord(path, source, `Fallback record created because HTML parsing failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  visit(tree.rootNode, (node) => {
+    if (node.type !== "element") {
+      return;
+    }
+
+    const startTag = node.namedChildren.find((child) => child.type === "start_tag") ?? null;
+    const endTag = node.namedChildren.find((child) => child.type === "end_tag") ?? null;
+    const tagNameNode = startTag?.namedChildren.find((child) => child.type === "tag_name") ?? null;
+    const tagName = nodeText(source, tagNameNode).trim().toLowerCase();
+
+    if (tagName === "title") {
+      const textNode = node.namedChildren.find((child) => child.type === "text") ?? null;
+      const title = nodeText(source, textNode).trim();
+      if (title) {
+        symbols.push({
+          path,
+          language: "html",
+          kind: "title",
+          name: title,
+          signature: "<title>",
+          body: nodeText(source, node),
+          doc: null,
+          fallback: false
+        });
+      }
+    }
+
+    if (!startTag) {
+      return;
+    }
+
+    for (const child of startTag.namedChildren) {
+      if (child.type !== "attribute") {
+        continue;
+      }
+      const nameNode = child.namedChildren.find((grandchild) => grandchild.type === "attribute_name") ?? null;
+      const quotedValueNode = child.namedChildren.find((grandchild) => grandchild.type === "quoted_attribute_value") ?? null;
+      const valueNode = quotedValueNode?.namedChildren.find((grandchild) => grandchild.type === "attribute_value") ?? quotedValueNode;
+      const attrName = nodeText(source, nameNode).trim().toLowerCase();
+      const rawValue = nodeText(source, valueNode).trim();
+      const normalizedValue = rawValue.replace(/^['"]|['"]$/g, "");
+      if (attrName === "id" && normalizedValue) {
+        symbols.push({
+          path,
+          language: "html",
+          kind: "element",
+          name: normalizedValue,
+          signature: nodeText(source, startTag) || `<${tagName}>`,
+          body: nodeText(source, node) || nodeText(source, startTag) + nodeText(source, endTag),
+          doc: null,
+          fallback: false
+        });
+      }
+    }
+  });
+
+  if (symbols.length > 0) {
+    return symbols;
+  }
+
+  return fallbackRecord(path, source, "Fallback record created because no HTML symbols were extracted.");
 }
