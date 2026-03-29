@@ -4,11 +4,14 @@ import { dirname, join, normalize } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
 import type {
   ExtractionKind,
+  HybridContribution,
   MatchReason,
   QueryResult,
+  RetrievalChannel,
   RelatedSymbol,
   RelationDetails,
   ResultConfidence,
+  SearchDiagnostics,
   SymbolDetails,
   SymbolLookupOptions,
   QueryIntentOptions,
@@ -66,6 +69,9 @@ type SearchRow = {
   endColumn: number;
   rawScore: number;
   semanticSimilarity: number | null;
+  lexicalCandidate: boolean;
+  conceptCandidate: boolean;
+  semanticCandidate: boolean;
 };
 type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
 type RelationRow = {
@@ -92,6 +98,14 @@ type MatchAnalysis = {
 
 type QueryTrustDetails = {
   retrievalTrustLevel: TrustLevel;
+};
+type RankedQueryResult = QueryResult & {
+  rawScore: number;
+  adjustedScore: number;
+};
+type SearchExecution = {
+  results: QueryResult[];
+  diagnostics: SearchDiagnostics;
 };
 
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
@@ -506,7 +520,10 @@ function getLiteralFallbackCandidates(
 
   return rows.map((row) => ({
     ...row,
-    rawScore: syntheticLiteralRawScore(row, trimmedQuery, normalizedQuery)
+    rawScore: syntheticLiteralRawScore(row, trimmedQuery, normalizedQuery),
+    lexicalCandidate: true,
+    conceptCandidate: false,
+    semanticCandidate: false
   }));
 }
 
@@ -828,7 +845,7 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   return 0;
 }
 
-function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, options: SearchOptions): QueryResult[] {
+function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, options: SearchOptions): RankedQueryResult[] {
   return rows
     .filter((row) => rowMatchesIntent(row, options))
     .map((row) => {
@@ -859,6 +876,8 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
         trustLevel: extraction.trustLevel,
         retrievalTrustLevel: queryTrust.retrievalTrustLevel,
         semanticSimilarity: row.semanticSimilarity,
+        retrievalChannels: getRetrievalChannels(row),
+        hybridContribution: getHybridContribution(row),
         rawScore: row.rawScore,
         adjustedScore
       };
@@ -870,9 +889,9 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
       return left.rawScore - right.rawScore;
     })
     .slice(0, limit)
-    .map(({ adjustedScore, rawScore: _rawScore, ...result }) => ({
+    .map((result) => ({
       ...result,
-      distance: adjustedScore
+      distance: result.adjustedScore
     }));
 }
 
@@ -1221,6 +1240,15 @@ export function getRelatedSymbolsForSymbol(db: Database, symbol: SymbolDetails, 
 }
 
 export function searchSymbols(db: Database, query: string, limit: number, options: SearchOptions = {}): QueryResult[] {
+  return searchSymbolsWithDiagnostics(db, query, limit, options).results;
+}
+
+export function searchSymbolsWithDiagnostics(
+  db: Database,
+  query: string,
+  limit: number,
+  options: SearchOptions = {}
+): SearchExecution {
   const kinds = [...new Set((options.kinds ?? []).map((kind) => kind.trim()).filter(Boolean))];
   const whereKindClause = kinds.length > 0
     ? ` AND symbols.kind IN (${kinds.map(() => "?").join(", ")})`
@@ -1255,7 +1283,12 @@ export function searchSymbols(db: Database, query: string, limit: number, option
   const rawQuery = options.rawQuery ?? query;
   let rows: SearchRow[];
   try {
-    rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
+    rows = (statement.all(query, ...kinds, candidateLimit) as SearchRow[]).map((row) => ({
+      ...row,
+      lexicalCandidate: true,
+      conceptCandidate: false,
+      semanticCandidate: false
+    }));
   } catch {
     rows = getLiteralFallbackCandidates(db, rawQuery, kinds, candidateLimit);
   }
@@ -1268,8 +1301,16 @@ export function searchSymbols(db: Database, query: string, limit: number, option
   const semanticRows = shouldUseSemanticSearch(options)
     ? getSemanticCandidates(db, options.queryEmbedding ?? [], options.embeddingProvider ?? null, options.embeddingModel ?? null, kinds, candidateLimit)
     : [];
+  const mergedRows = mergeSearchRows(rows, supplementalRows, semanticRows);
+  const rankedResults = rerankResults(mergedRows, limit, rawQuery, options);
 
-  return rerankResults(mergeSearchRows(rows, supplementalRows, semanticRows), limit, rawQuery, options);
+  return {
+    results: rankedResults.map(({ adjustedScore, rawScore: _rawScore, ...result }) => ({
+      ...result,
+      distance: adjustedScore
+    })),
+    diagnostics: buildSearchDiagnostics(rows, supplementalRows, semanticRows, rankedResults)
+  };
 }
 
 function shouldExpandConceptCandidates(rawQuery: string, options: SearchOptions): boolean {
@@ -1293,7 +1334,10 @@ function mergeSearchRows(...rowSets: SearchRow[][]): SearchRow[] {
       merged.set(row.id, {
         ...existing,
         rawScore: Math.min(existing.rawScore, row.rawScore),
-        semanticSimilarity: Math.max(existing.semanticSimilarity ?? Number.NEGATIVE_INFINITY, row.semanticSimilarity ?? Number.NEGATIVE_INFINITY)
+        semanticSimilarity: Math.max(existing.semanticSimilarity ?? Number.NEGATIVE_INFINITY, row.semanticSimilarity ?? Number.NEGATIVE_INFINITY),
+        lexicalCandidate: existing.lexicalCandidate || row.lexicalCandidate,
+        conceptCandidate: existing.conceptCandidate || row.conceptCandidate,
+        semanticCandidate: existing.semanticCandidate || row.semanticCandidate
       });
     }
   }
@@ -1365,7 +1409,10 @@ function getConceptPathCandidates(
   return rows.map((row) => ({
     ...row,
     rawScore: syntheticConceptRawScore(row, rawQuery),
-    semanticSimilarity: null
+    semanticSimilarity: null,
+    lexicalCandidate: false,
+    conceptCandidate: true,
+    semanticCandidate: false
   }));
 }
 
@@ -1454,7 +1501,10 @@ function getSemanticCandidates(
       return {
         ...row,
         rawScore: -similarity,
-        semanticSimilarity: similarity
+        semanticSimilarity: similarity,
+        lexicalCandidate: false,
+        conceptCandidate: false,
+        semanticCandidate: true
       };
     })
     .filter((row) => row.semanticSimilarity !== null && (row.semanticSimilarity ?? 0) >= SEMANTIC_RELATED_THRESHOLD)
@@ -1471,6 +1521,65 @@ function syntheticConceptRawScore(row: SearchRow, rawQuery: string): number {
     return -7.5;
   }
   return -5.5;
+}
+
+function getRetrievalChannels(row: SearchRow): RetrievalChannel[] {
+  const channels: RetrievalChannel[] = [];
+  if (row.lexicalCandidate) {
+    channels.push("lexical");
+  }
+  if (row.conceptCandidate) {
+    channels.push("concept_path");
+  }
+  if (row.semanticCandidate) {
+    channels.push("semantic");
+  }
+  return channels;
+}
+
+function getHybridContribution(row: SearchRow): HybridContribution {
+  if (row.semanticCandidate && (row.lexicalCandidate || row.conceptCandidate)) {
+    return "semantic_assisted";
+  }
+  if (row.semanticCandidate) {
+    return "semantic_only";
+  }
+  return "lexical_only";
+}
+
+function buildSearchDiagnostics(
+  lexicalRows: SearchRow[],
+  conceptRows: SearchRow[],
+  semanticRows: SearchRow[],
+  rankedResults: RankedQueryResult[]
+): SearchDiagnostics {
+  const retainedRanks = new Map<number, number>();
+  for (const [index, result] of rankedResults.entries()) {
+    retainedRanks.set(result.id, index + 1);
+  }
+
+  const mergedSemanticIds = new Set<number>(semanticRows.map((row) => row.id));
+  const semanticRetained = rankedResults.filter((result) => result.retrievalChannels.includes("semantic"));
+  const topSemanticCandidate = [...semanticRows]
+    .sort((left, right) => (right.semanticSimilarity ?? 0) - (left.semanticSimilarity ?? 0))[0] ?? null;
+
+  return {
+    lexicalCandidates: lexicalRows.length,
+    conceptCandidates: conceptRows.length,
+    semanticCandidatesRetrieved: semanticRows.length,
+    semanticCandidatesMerged: mergedSemanticIds.size,
+    semanticCandidatesRetained: semanticRetained.length,
+    topResultHasSemanticSignal: rankedResults[0]?.retrievalChannels.includes("semantic") ?? false,
+    topSemanticCandidate: topSemanticCandidate ? {
+      id: topSemanticCandidate.id,
+      path: topSemanticCandidate.path,
+      kind: topSemanticCandidate.kind,
+      name: topSemanticCandidate.name,
+      semanticSimilarity: topSemanticCandidate.semanticSimilarity ?? 0,
+      retained: retainedRanks.has(topSemanticCandidate.id),
+      resultRank: retainedRanks.get(topSemanticCandidate.id) ?? null
+    } : null
+  };
 }
 
 function extractImportRelations(statement: string, sourcePath: string, availablePaths: Set<string>): RelationDetails[] {

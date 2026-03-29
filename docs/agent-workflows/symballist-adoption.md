@@ -63,6 +63,7 @@ Typical agent flow:
 6. If the symbol body is large, rerun `show` with `--full` to expand it.
 7. Verify important conclusions in the underlying file.
 8. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
+9. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
 
 Useful query refinements:
 

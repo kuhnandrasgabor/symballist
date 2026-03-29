@@ -1227,11 +1227,27 @@ describe("symballist vertical slice", () => {
             queryEmbedded: boolean;
             queryError: string | null;
           };
+          hybrid: {
+            lexicalCandidates: number;
+            conceptCandidates: number;
+            semanticCandidatesRetrieved: number;
+            semanticCandidatesMerged: number;
+            semanticCandidatesRetained: number;
+            topResultHasSemanticSignal: boolean;
+            topSemanticCandidate: {
+              name: string;
+              semanticSimilarity: number;
+              retained: boolean;
+              resultRank: number | null;
+            } | null;
+          } | null;
         };
         results: Array<{
           name: string;
           matchReason: string;
           semanticSimilarity: number | null;
+          retrievalChannels: string[];
+          hybridContribution: string;
         }>;
       };
 
@@ -1240,9 +1256,36 @@ describe("symballist vertical slice", () => {
       expect(output.retrieval.embeddings.matchedEmbeddings).toBeGreaterThan(0);
       expect(output.retrieval.embeddings.queryEmbedded).toBeTrue();
       expect(output.retrieval.embeddings.queryError).toBeNull();
+      expect(output.retrieval.hybrid?.semanticCandidatesRetrieved).toBeGreaterThan(0);
+      expect(output.retrieval.hybrid?.semanticCandidatesMerged).toBeGreaterThan(0);
+      expect(output.retrieval.hybrid?.semanticCandidatesRetained).toBeGreaterThan(0);
+      expect(output.retrieval.hybrid?.topResultHasSemanticSignal).toBeTrue();
+      expect(output.retrieval.hybrid?.topSemanticCandidate?.name).toBe("MeaningStore");
+      expect(output.retrieval.hybrid?.topSemanticCandidate?.retained).toBeTrue();
+      expect(output.retrieval.hybrid?.topSemanticCandidate?.resultRank).toBe(1);
       expect(output.results[0]?.name).toBe("MeaningStore");
       expect(output.results[0]?.matchReason).toBe("semantic_similarity");
       expect(output.results[0]?.semanticSimilarity).toBeGreaterThan(0.8);
+      expect(output.results[0]?.retrievalChannels).toContain("semantic");
+      expect(["semantic_only", "semantic_assisted"]).toContain(output.results[0]?.hybridContribution ?? "");
+
+      const exactOutput = JSON.parse(await captureConsoleLog(async () => {
+        await runQuery(root, "MeaningStore", 5);
+      })) as {
+        results: Array<{
+          name: string;
+          matchReason: string;
+          semanticSimilarity: number | null;
+          retrievalChannels: string[];
+          hybridContribution: string;
+        }>;
+      };
+
+      expect(exactOutput.results[0]?.name).toBe("MeaningStore");
+      expect(exactOutput.results[0]?.matchReason).toBe("exact_symbol_name");
+      expect(exactOutput.results[0]?.semanticSimilarity).toBeGreaterThan(0.8);
+      expect(exactOutput.results[0]?.retrievalChannels).toContain("semantic");
+      expect(exactOutput.results[0]?.hybridContribution).toBe("semantic_assisted");
     });
   });
 

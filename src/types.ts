@@ -15,6 +15,9 @@ export type MatchReason =
   | "import_reference"
   | "fallback_file";
 
+export type RetrievalChannel = "lexical" | "concept_path" | "semantic";
+export type HybridContribution = "lexical_only" | "semantic_only" | "semantic_assisted";
+
 export type SymbolRecord = {
   path: string;
   language: SupportedLanguage;
@@ -45,12 +48,32 @@ export type QueryResult = {
   trustLevel: TrustLevel;
   retrievalTrustLevel: TrustLevel;
   semanticSimilarity: number | null;
+  retrievalChannels: RetrievalChannel[];
+  hybridContribution: HybridContribution;
   fallback: boolean;
   startLine: number;
   startColumn: number;
   endLine: number;
   endColumn: number;
   snippet: string;
+};
+
+export type SearchDiagnostics = {
+  lexicalCandidates: number;
+  conceptCandidates: number;
+  semanticCandidatesRetrieved: number;
+  semanticCandidatesMerged: number;
+  semanticCandidatesRetained: number;
+  topResultHasSemanticSignal: boolean;
+  topSemanticCandidate: {
+    id: number;
+    path: string;
+    kind: string;
+    name: string;
+    semanticSimilarity: number;
+    retained: boolean;
+    resultRank: number | null;
+  } | null;
 };
 
 export type SymbolDetails = {

@@ -1,4 +1,4 @@
-import { buildFtsQuery, getIndexedFiles, openDatabase, searchSymbols } from "../db.ts";
+import { buildFtsQuery, getIndexedFiles, openDatabase, searchSymbolsWithDiagnostics } from "../db.ts";
 import { embedTexts, getActiveEmbeddingsConfig, summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
@@ -31,7 +31,7 @@ export async function runQuery(
     }
   }
   const ftsQuery = buildFtsQuery(normalizedQuery);
-  const results = searchSymbols(db, ftsQuery, limit, {
+  const search = searchSymbolsWithDiagnostics(db, ftsQuery, limit, {
     kinds,
     rawQuery: normalizedQuery,
     embeddingProvider: activeEmbeddings?.provider ?? null,
@@ -53,15 +53,18 @@ export async function runQuery(
         ...embeddingSupport,
         queryEmbedded: queryEmbedding !== null,
         queryError: embeddingQueryError
-      }
+      },
+      hybrid: queryEmbedding ? search.diagnostics : null
     },
     resultSemantics: {
       distance: "lower is better",
       confidenceOrder: ["exact", "strong", "related", "fallback"],
       trustLevels: ["high", "medium", "low"],
       trustLevel: "extraction trust; how confidently the symbol boundaries/body were extracted",
-      retrievalTrustLevel: "retrieval trust; how confidently this query matched the result"
+      retrievalTrustLevel: "retrieval trust; how confidently this query matched the result",
+      retrievalChannels: ["lexical", "concept_path", "semantic"],
+      hybridContribution: "lexical_only means no semantic candidate was retained; semantic_only means the result came from embeddings without lexical admission; semantic_assisted means both channels admitted the result"
     },
-    results
+    results: search.results
   }, null, 2));
 }
