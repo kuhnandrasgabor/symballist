@@ -128,4 +128,4 @@ Current first-slice behavior:
 
 ## Near-Term Direction
 
-The long-term direction is graph-aware retrieval for agents, with hybrid lexical and semantic ranking as the default path when available. V1 keeps that architecture in view, but ships the smallest useful vertical slice first.
+The long-term direction is graph-aware retrieval for agents, with hybrid lexical and semantic ranking as the default path when available. V1 keeps that architecture in view, but ships the smallest useful vertical slice first. The staged plan for that evolution lives in [graph-aware-retrieval-roadmap.md](/D:/Projects/symballist/docs/graph-aware-retrieval-roadmap.md).
