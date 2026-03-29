@@ -30,6 +30,7 @@ Preferred downstream entrypoint after `symballist init`:
 ```powershell
 .symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd index --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd watch --once --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd lookup "<text>" --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd query "<text>" --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd show <id> --root <PROJECT_ROOT>
@@ -42,6 +43,7 @@ If `symballist` has been installed or linked as a real command, that command nam
 ```powershell
 symballist status --root <PROJECT_ROOT>
 symballist index --root <PROJECT_ROOT>
+symballist watch --once --root <PROJECT_ROOT>
 symballist lookup "<text>" --root <PROJECT_ROOT>
 symballist query "<text>" --root <PROJECT_ROOT>
 symballist show <id> --root <PROJECT_ROOT>
@@ -53,10 +55,11 @@ Typical agent flow:
 
 1. Run `status`.
 2. If `indexFreshness.stale` is `true`, run `index`.
-3. Use `lookup` when you want the common `query -> best hit -> show` flow in one response.
-4. Use `query` and `show` separately when you want to inspect multiple candidates more manually.
-5. If the symbol body is large, rerun `show` with `--full` to expand it.
-6. Verify important conclusions in the underlying file.
+3. If you want a single command to sweep for stale files and reuse incremental indexing, run `watch --once`.
+4. Use `lookup` when you want the common `query -> best hit -> show` flow in one response.
+5. Use `query` and `show` separately when you want to inspect multiple candidates more manually.
+6. If the symbol body is large, rerun `show` with `--full` to expand it.
+7. Verify important conclusions in the underlying file.
 
 Useful query refinements:
 
@@ -64,6 +67,8 @@ Useful query refinements:
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
 - use the `changeAwareness` block from `status` when you want a cheap answer to "what changed since the last index?" or, in git repos, "what changed since HEAD?"
+- use `watch --once` when you want a safe repo-local auto-refresh sweep without leaving a long-running process behind
+- use `watch --interval-ms 2000` or similar only when you explicitly want a foreground polling loop while you work
 
 ## When Agents Should Use It
 

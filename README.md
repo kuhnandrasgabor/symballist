@@ -64,6 +64,8 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
   - writes local wrapper commands into `.symballist/bin/`
   - creates or refreshes managed `AGENTS.md` and `CLAUDE.md` symballist retrieval blocks
 - `symballist index`
+- `symballist watch --once`
+- `symballist watch --interval-ms 2000`
 - `symballist status`
 - `symballist lookup "<text>" --code-only --exclude-tests --prefer-implementation`
 - `symballist query "<text>" --kind class,function`
@@ -81,6 +83,7 @@ Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:
 `--prefer-implementation` is intended for code-oriented queries. When used outside `--docs-only`, it now suppresses Markdown/doc noise and pushes `src/` implementations harder so the flag produces a visible ranking change.
 `--docs-only` now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors such as `AGENTS.md` and `CLAUDE.md`.
 `status` now includes a `changeAwareness` block for lightweight file-level changes since the last index and, when available, since current `git HEAD`.
+`watch` is the low-overhead automatic refresh loop for repo-local indexing. Start with `watch --once` for an explicit freshness sweep, then use a polling interval if you want foreground auto-refresh while you work.
 `lookup` is the convenience helper for the common `query -> best hit -> show` workflow, returning the selected result, its full context, and a short alternative list in one payload.
 
 ## Local State
