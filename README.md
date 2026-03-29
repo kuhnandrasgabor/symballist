@@ -55,6 +55,7 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 
 - `symballist init`
 - `symballist index`
+- `symballist status`
 - `symballist query "<text>"`
 
 ## Local State
