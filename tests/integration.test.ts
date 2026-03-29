@@ -131,6 +131,12 @@ describe("symballist vertical slice", () => {
       indexedSymbols: number;
       fallbackSymbols: number;
       indexedSchemaVersion: number | null;
+      indexFreshness: {
+        stale: boolean;
+        changedFiles: number;
+        newFiles: number;
+        deletedFiles: number;
+      };
     };
 
     expect(status.initialized).toBeTrue();
@@ -140,6 +146,7 @@ describe("symballist vertical slice", () => {
     expect(status.indexedSymbols).toBe(9);
     expect(status.fallbackSymbols).toBe(1);
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
+    expect(status.indexFreshness.stale).toBeFalse();
   });
 
   test("show resolves a queried symbol id into full stored context", async () => {
@@ -162,18 +169,22 @@ describe("symballist vertical slice", () => {
       await runShow(root, String(greet?.id));
     });
     const shown = JSON.parse(output) as {
-      id: number;
-      name: string;
-      body: string;
-      startLine: number;
-      endLine: number;
+      indexFreshness: { stale: boolean };
+      symbol: {
+        id: number;
+        name: string;
+        body: string;
+        startLine: number;
+        endLine: number;
+      };
     };
 
-    expect(shown.id).toBe(greet?.id);
-    expect(shown.name).toBe("greet");
-    expect(shown.body).toContain('return f"Hello, {name}"');
-    expect(shown.startLine).toBe(5);
-    expect(shown.endLine).toBe(6);
+    expect(shown.indexFreshness.stale).toBeFalse();
+    expect(shown.symbol.id).toBe(greet?.id);
+    expect(shown.symbol.name).toBe("greet");
+    expect(shown.symbol.body).toContain('return f"Hello, {name}"');
+    expect(shown.symbol.startLine).toBe(5);
+    expect(shown.symbol.endLine).toBe(6);
   });
 
   test("query prefers declarations over imports and supports kind filters", async () => {
@@ -207,12 +218,53 @@ describe("symballist vertical slice", () => {
     });
     const queryPayload = JSON.parse(output) as {
       kinds: string[];
+      indexFreshness: { stale: boolean };
       results: Array<{ kind: string }>;
     };
 
     expect(queryPayload.kinds).toEqual(["import"]);
+    expect(queryPayload.indexFreshness.stale).toBeFalse();
     expect(queryPayload.results.length).toBeGreaterThan(0);
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
+  });
+
+  test("status and query report stale indexes after source changes", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    await writeFile(join(root, "helpers.py"), 'def slugify(value: str) -> str:\n    return value.lower()\n', "utf8");
+
+    const statusOutput = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(statusOutput) as {
+      indexFreshness: {
+        stale: boolean;
+        changedFiles: number;
+        newFiles: number;
+        deletedFiles: number;
+      };
+    };
+
+    const queryOutput = await captureConsoleLog(async () => {
+      await runQuery(root, "slugify", 5);
+    });
+    const queryPayload = JSON.parse(queryOutput) as {
+      indexFreshness: {
+        stale: boolean;
+        changedFiles: number;
+        newFiles: number;
+        deletedFiles: number;
+      };
+    };
+
+    expect(status.indexFreshness.stale).toBeTrue();
+    expect(status.indexFreshness.changedFiles).toBe(1);
+    expect(status.indexFreshness.newFiles).toBe(0);
+    expect(status.indexFreshness.deletedFiles).toBe(0);
+    expect(queryPayload.indexFreshness.stale).toBeTrue();
+    expect(queryPayload.indexFreshness.changedFiles).toBe(1);
   });
 
   test("oversized python files recover top-level symbols instead of a single file fallback", async () => {

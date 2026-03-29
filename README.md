@@ -15,6 +15,7 @@ V1 is intentionally narrow:
 - optional Ollama embeddings for hybrid retrieval later
 - incremental reindexing for changed files
 - rich query results with symbol spans and snippets
+- stale-index detection in status and retrieval commands
 
 ## Query Pipeline
 
