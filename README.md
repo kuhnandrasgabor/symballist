@@ -87,6 +87,7 @@ Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:
 `watch` is the low-overhead automatic refresh loop for repo-local indexing. Start with `watch --once` for an explicit freshness sweep, then use a polling interval if you want foreground auto-refresh while you work.
 `lookup` is the convenience helper for the common `query -> best hit -> show` workflow, returning the selected result, its full context, and a short alternative list in one payload.
 When embeddings are enabled and indexed, `query` and `lookup` now report `retrieval.mode = "hybrid"` and blend lexical plus semantic candidates automatically. Hybrid mode is now strong enough to visibly influence weak conceptual queries instead of staying purely diagnostic. The output also exposes a `retrieval.hybrid` block so you can see how many semantic candidates were retrieved, how many survived into the final result set, and whether the top result carried a semantic signal. Individual results include `retrievalChannels` and `hybridContribution` so semantic assistance is visible even when lexical matching still dominates the final explanation.
+The first graph-aware slice is also in now: result rows can expose `graphSignals` such as `same_file_cluster`, `imports_candidate`, and `imported_by_candidate` when one-hop local structure helped rerank the candidate neighborhood.
 
 ## Optional Embeddings
 

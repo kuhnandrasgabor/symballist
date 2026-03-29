@@ -4,6 +4,7 @@ import { dirname, join, normalize } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
 import type {
   ExtractionKind,
+  GraphSignal,
   HybridContribution,
   MatchReason,
   QueryResult,
@@ -109,6 +110,10 @@ type RankedQueryResult = QueryResult & {
 type SearchExecution = {
   results: QueryResult[];
   diagnostics: SearchDiagnostics;
+};
+type GraphSupport = {
+  adjustment: number;
+  signals: GraphSignal[];
 };
 
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
@@ -936,7 +941,7 @@ function collapseWeakOperationalDocDuplicates(
 }
 
 function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, options: SearchOptions): RankedQueryResult[] {
-  const ranked = rows
+  return rows
     .filter((row) => rowMatchesIntent(row, options))
     .map((row) => {
       const match = computeMatchAnalysis(row, rawQuery);
@@ -972,6 +977,7 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
         semanticSimilarity: row.semanticSimilarity,
         retrievalChannels: getRetrievalChannels(row),
         hybridContribution: getHybridContribution(row),
+        graphSignals: [],
         rawScore: row.rawScore,
         adjustedScore
       };
@@ -981,9 +987,121 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
         return left.adjustedScore - right.adjustedScore;
       }
       return left.rawScore - right.rawScore;
+    })
+    .slice(0, limit)
+    .map((result) => ({
+      ...result,
+      distance: result.adjustedScore
+    }));
+}
+
+function buildGraphSupportById(
+  db: Database,
+  candidates: RankedQueryResult[],
+  options: SearchOptions,
+  rawQuery: string
+): Map<number, GraphSupport> {
+  const supportById = new Map<number, GraphSupport>();
+  if (candidates.length < 2 || options.docsOnly) {
+    return supportById;
+  }
+
+  const codeCandidates = candidates.filter((candidate) => candidate.language !== "markdown");
+  if (codeCandidates.length < 2) {
+    return supportById;
+  }
+
+  const candidatePaths = [...new Set(codeCandidates.map((candidate) => candidate.path))];
+  const pathCounts = new Map<string, number>();
+  for (const candidate of codeCandidates) {
+    pathCounts.set(candidate.path, (pathCounts.get(candidate.path) ?? 0) + 1);
+  }
+
+  const placeholders = candidatePaths.map(() => "?").join(", ");
+  const importEdges = db.query(`
+    SELECT DISTINCT source_path AS sourcePath, target_path AS targetPath
+    FROM relations
+    WHERE relation_kind = 'imports'
+      AND target_path IS NOT NULL
+      AND source_path IN (${placeholders})
+      AND target_path IN (${placeholders})
+  `).all(...candidatePaths, ...candidatePaths) as Array<{ sourcePath: string; targetPath: string }>;
+
+  const outgoing = new Map<string, number>();
+  const incoming = new Map<string, number>();
+  for (const edge of importEdges) {
+    outgoing.set(edge.sourcePath, (outgoing.get(edge.sourcePath) ?? 0) + 1);
+    incoming.set(edge.targetPath, (incoming.get(edge.targetPath) ?? 0) + 1);
+  }
+
+  const graphEnabled = !options.codeOnly || options.preferImplementation || !isDocOrientedQuery(rawQuery);
+
+  for (const candidate of codeCandidates) {
+    if (!graphEnabled) {
+      continue;
+    }
+
+    let adjustment = 0;
+    const signals: GraphSignal[] = [];
+    const samePathCount = pathCounts.get(candidate.path) ?? 0;
+    if (samePathCount > 1) {
+      adjustment -= 0.22 * Math.min(samePathCount - 1, 3);
+      signals.push("same_file_cluster");
+    }
+
+    const outgoingCount = outgoing.get(candidate.path) ?? 0;
+    if (outgoingCount > 0) {
+      adjustment -= 0.38 * Math.min(outgoingCount, 2);
+      signals.push("imports_candidate");
+    }
+
+    const incomingCount = incoming.get(candidate.path) ?? 0;
+    if (incomingCount > 0) {
+      const incomingWeight = isDefinitionLikeKind(candidate.kind) ? 0.95 : 0.5;
+      adjustment -= incomingWeight * Math.min(incomingCount, 2);
+      signals.push("imported_by_candidate");
+    }
+
+    if (candidate.kind === "import") {
+      adjustment *= 0.35;
+    }
+
+    if (signals.length > 0) {
+      supportById.set(candidate.id, { adjustment, signals });
+    }
+  }
+
+  return supportById;
+}
+
+function applyGraphAwareReranking(
+  db: Database,
+  candidates: RankedQueryResult[],
+  finalLimit: number,
+  rawQuery: string,
+  options: SearchOptions
+): RankedQueryResult[] {
+  const graphSupport = buildGraphSupportById(db, candidates, options, rawQuery);
+  const reranked = candidates
+    .map((candidate) => {
+      const support = graphSupport.get(candidate.id);
+      if (!support) {
+        return candidate;
+      }
+      return {
+        ...candidate,
+        graphSignals: support.signals,
+        adjustedScore: candidate.adjustedScore + support.adjustment
+      };
+    })
+    .sort((left, right) => {
+      if (left.adjustedScore !== right.adjustedScore) {
+        return left.adjustedScore - right.adjustedScore;
+      }
+      return left.rawScore - right.rawScore;
     });
 
-  return collapseWeakOperationalDocDuplicates(ranked, rawQuery, options, limit)
+  return collapseWeakOperationalDocDuplicates(reranked, rawQuery, options, finalLimit)
     .map((result) => ({
       ...result,
       distance: result.adjustedScore
@@ -1417,7 +1535,9 @@ export function searchSymbolsWithDiagnostics(
     ? getSemanticCandidates(db, options.queryEmbedding ?? [], options.embeddingProvider ?? null, options.embeddingModel ?? null, kinds, candidateLimit)
     : [];
   const mergedRows = mergeSearchRows(rows, supplementalRows, semanticRows);
-  const rankedResults = rerankResults(mergedRows, limit, rawQuery, options);
+  const candidatePoolLimit = Math.max(limit * 4, 20);
+  const rankedPool = rerankResults(mergedRows, candidatePoolLimit, rawQuery, options);
+  const rankedResults = applyGraphAwareReranking(db, rankedPool, limit, rawQuery, options);
 
   return {
     results: rankedResults.map(({ adjustedScore, rawScore: _rawScore, ...result }) => ({

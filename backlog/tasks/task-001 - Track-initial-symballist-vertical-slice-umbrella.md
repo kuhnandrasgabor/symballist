@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-29 16:38'
+updated_date: '2026-03-29 16:45'
 labels: []
 dependencies: []
 references:
@@ -177,4 +177,6 @@ Completed subtasks
 2026-03-29: Completed TASK-032. Hybrid fusion now uses source-rank-based scoring rather than directly mixing BM25 and cosine scales, allowing semantic candidates to influence weak-query ranking in live repos. Confirmed live in co-ma: 'sqlite backed persisted memories' now returns MemoryStore first with retained semantic influence.
 
 2026-03-29: Completed TASK-033. Captured the graph-aware retrieval path in docs/graph-aware-retrieval-roadmap.md and explicitly sequenced the future work as graph-aware reranking first, bounded one-hop expansion second, graph-backed context assembly third, and deeper graph-RAG exploration only after that.
+
+2026-03-29: Completed TASK-034. Added the first graph-aware retrieval slice via one-hop candidate agreement in the existing reranking path. Query and lookup results now expose graphSignals, and bounded same-file/import structure can influence ambiguous candidate ordering without needing deeper traversal.
 <!-- SECTION:NOTES:END -->
