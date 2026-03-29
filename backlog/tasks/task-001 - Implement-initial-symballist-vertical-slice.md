@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 13:13'
+updated_date: '2026-03-28 14:03'
 labels: []
 dependencies: []
 priority: high
@@ -28,10 +28,10 @@ Build the first useful end-to-end slice for symballist as an agent-first code re
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Add a status command that reports repo-local index health, including index path, supported languages, and current file/symbol counts.
-2. Extend the SQLite layer with the aggregate queries needed for status output without disturbing the existing index and query flow.
-3. Refine indexing progress output so TTY and PowerShell runs stay readable during large repo scans.
-4. Expand integration coverage for the new status surface and the updated indexing output behavior where practical.
+1. Add a show command that loads a single indexed symbol by id and returns its full stored context, span metadata, and file path.
+2. Extend the SQLite access layer with a symbol-by-id lookup that reuses the existing retrieval schema without disturbing query ranking.
+3. Update the CLI surface and README so the core agent loop is query -> show in addition to init/index/status.
+4. Expand integration coverage to verify a queried symbol id can be resolved into a full record with stable metadata.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -72,4 +72,10 @@ Added a CLI status command that reports repo-local index health, including paths
 Refined index progress output so non-interactive runs log periodic snapshots instead of every file, while TTY runs keep a width-aware in-place progress line.
 
 Verified the new status command and repeated incremental index behavior against D:\Projects\co-ma; status reported 110 indexed files and 1769 symbols before the latest re-run, and the next index skipped 110 of 111 discovered files with clean snapshot output.
+
+Added a show command that resolves a symbol id into the full stored record, including body, file path, language, and span metadata.
+
+Verified the agent loop against the fixture repo: query returns ranked ids, and show returns the full symbol body for the selected id.
+
+Normalized fallback fields in query/show output to real booleans instead of SQLite 0/1 values.
 <!-- SECTION:NOTES:END -->

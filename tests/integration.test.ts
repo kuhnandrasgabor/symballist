@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runIndex } from "../src/commands/index.ts";
 import { runInit } from "../src/commands/init.ts";
+import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
-import { openDatabase, searchSymbols } from "../src/db.ts";
+import { getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { parseCliArgs } from "../src/cli.ts";
 
 const tempRoots: string[] = [];
@@ -138,6 +139,40 @@ describe("symballist vertical slice", () => {
     expect(status.indexedSymbols).toBe(9);
     expect(status.fallbackSymbols).toBe(1);
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
+  });
+
+  test("show resolves a queried symbol id into full stored context", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const greet = searchSymbols(db, "greet", 5).find((result) => result.name === "greet");
+    const fromDb = greet ? getSymbolById(db, greet.id) : null;
+    db.close();
+
+    expect(greet).toBeDefined();
+    expect(fromDb).toBeDefined();
+    expect(fromDb?.body).toContain('return f"Hello, {name}"');
+    expect(fromDb?.startLine).toBe(5);
+    expect(fromDb?.endLine).toBe(6);
+
+    const output = await captureConsoleLog(async () => {
+      await runShow(root, String(greet?.id));
+    });
+    const shown = JSON.parse(output) as {
+      id: number;
+      name: string;
+      body: string;
+      startLine: number;
+      endLine: number;
+    };
+
+    expect(shown.id).toBe(greet?.id);
+    expect(shown.name).toBe("greet");
+    expect(shown.body).toContain('return f"Hello, {name}"');
+    expect(shown.startLine).toBe(5);
+    expect(shown.endLine).toBe(6);
   });
 
   test("cli args accept an explicit root path", () => {

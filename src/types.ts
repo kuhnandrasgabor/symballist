@@ -31,3 +31,19 @@ export type QueryResult = {
   endColumn: number;
   snippet: string;
 };
+
+export type SymbolDetails = {
+  id: number;
+  path: string;
+  language: SupportedLanguage;
+  kind: string;
+  name: string;
+  signature: string | null;
+  body: string;
+  doc: string | null;
+  fallback: boolean;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+};
