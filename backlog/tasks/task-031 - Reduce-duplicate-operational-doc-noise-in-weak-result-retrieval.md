@@ -1,9 +1,10 @@
 ---
-id: DRAFT-015
+id: TASK-031
 title: Reduce duplicate operational-doc noise in weak-result retrieval
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-29 15:42'
+updated_date: '2026-03-29 16:19'
 labels:
   - idea
   - spike
@@ -29,3 +30,9 @@ Suggested direction
 Expected outcome
 - Low-signal or no-longer-present queries degrade more gracefully, with less duplicated operational-document noise.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Reduced weak-result operational-doc noise by adding a narrow weak-signal penalty for mirrored operational markdown files and collapsing duplicate operational mirror results before final slicing. Added regression coverage for low-signal duplicate suppression; bun test now passes with 37 tests.
+<!-- SECTION:FINAL_SUMMARY:END -->
