@@ -6,7 +6,7 @@ definition_of_done: []
 date_format: yyyy-mm-dd
 max_column_width: 20
 default_editor: "notepad"
-auto_open_browser: true
+auto_open_browser: false
 default_port: 6422
 remote_operations: true
 auto_commit: false

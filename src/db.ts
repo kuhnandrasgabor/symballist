@@ -4,6 +4,13 @@ import { dirname } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
 import type { QueryResult, SymbolRecord } from "./types.ts";
 
+export type IndexedFileRow = {
+  path: string;
+  language: string;
+  size: number;
+  mtimeMs: number;
+};
+
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
   await mkdir(dirname(path), { recursive: true });
@@ -74,14 +81,7 @@ export function replaceFileIndex(
   file: { path: string; language: string; size: number; mtimeMs: number },
   symbols: SymbolRecord[]
 ): number {
-  const clearSymbols = db.query("SELECT id FROM symbols WHERE path = ?").all(file.path) as Array<{ id: number }>;
-  const deleteFts = db.query("DELETE FROM symbols_fts WHERE symbol_id = ?");
-  for (const row of clearSymbols) {
-    deleteFts.run(row.id);
-  }
-
-  db.query("DELETE FROM symbols WHERE path = ?").run(file.path);
-  db.query("DELETE FROM files WHERE path = ?").run(file.path);
+  deleteFileIndex(db, file.path);
   db.query("INSERT INTO files (path, language, size, mtime_ms) VALUES (?, ?, ?, ?)").run(
     file.path,
     file.language,
@@ -126,6 +126,29 @@ export function replaceFileIndex(
   }
 
   return count;
+}
+
+export function getIndexedFiles(db: Database): IndexedFileRow[] {
+  const rows = db.query(`
+    SELECT
+      path,
+      language,
+      size,
+      mtime_ms AS mtimeMs
+    FROM files
+  `);
+  return rows.all() as IndexedFileRow[];
+}
+
+export function deleteFileIndex(db: Database, path: string): void {
+  const clearSymbols = db.query("SELECT id FROM symbols WHERE path = ?").all(path) as Array<{ id: number }>;
+  const deleteFts = db.query("DELETE FROM symbols_fts WHERE symbol_id = ?");
+  for (const row of clearSymbols) {
+    deleteFts.run(row.id);
+  }
+
+  db.query("DELETE FROM symbols WHERE path = ?").run(path);
+  db.query("DELETE FROM files WHERE path = ?").run(path);
 }
 
 export function searchSymbols(db: Database, query: string, limit: number): QueryResult[] {
