@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-29 15:43'
+updated_date: '2026-03-29 15:58'
 labels: []
 dependencies: []
 references:
@@ -167,4 +167,6 @@ Completed subtasks
 2026-03-29: Completed TASK-028. Symballist now supports optional local embeddings and hybrid retrieval with an Ollama-first adapter, repo-local config, indexed symbol vectors, and explicit lexical fallback when embeddings are disabled or unavailable. This closes the second roadmap step and leaves graph-aware retrieval / staged graph-RAG as the next major slice.
 
 2026-03-29 feedback intake: created DRAFT-013 for punctuation-safe literal query handling, DRAFT-014 for hybrid retrieval transparency, and DRAFT-015 for duplicate operational-doc suppression in weak-result retrieval. Recommended near-term order from the latest agent feedback: DRAFT-013 first as the clearest correctness bug, then DRAFT-014 for hybrid observability and fusion tuning, then DRAFT-015 for weak-result ranking polish.
+
+2026-03-29: Completed TASK-029. Punctuation-heavy literal queries no longer break the retrieval loop; FTS query construction now tokenizes safely and search falls back to a literal scan path when necessary. Recommended next feedback-driven slice remains DRAFT-014 for hybrid retrieval transparency, followed by DRAFT-015 for weak-result operational-doc suppression.
 <!-- SECTION:NOTES:END -->

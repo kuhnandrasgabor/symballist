@@ -1,9 +1,10 @@
 ---
-id: DRAFT-013
+id: TASK-029
 title: Fix punctuation-safe literal query handling for FTS and exact-token search
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-29 15:42'
+updated_date: '2026-03-29 15:58'
 labels:
   - idea
   - spike
@@ -29,3 +30,9 @@ Suggested direction
 Expected outcome
 - Punctuation-heavy searches no longer throw parse errors and return either meaningful literal hits or an empty result set cleanly.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented punctuation-safe query handling by switching FTS query construction to safe alphanumeric/underscore token extraction and adding a literal-search fallback when FTS returns nothing or rejects the query. This fixes hyphenated probe strings like SYMBALLIST-OMEGA-ALPHA-7291 without regressing broader ranking behavior. Verification: bun test (36 pass) plus a live hyphenated query against co-ma now returns clean JSON output instead of an FTS parse error.
+<!-- SECTION:FINAL_SUMMARY:END -->

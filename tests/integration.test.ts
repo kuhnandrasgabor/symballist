@@ -1386,4 +1386,31 @@ describe("symballist vertical slice", () => {
     expect(parsed.positionals).toEqual(["greet"]);
     expect(parsed.error).toBeNull();
   });
+
+  test("punctuation-heavy literal queries do not crash and can still find matching indexed content", async () => {
+    const root = await createFixtureRepo();
+    await writeFile(
+      join(root, "probe.md"),
+      "# Probe\n\nMarker: SYMBALLIST-OMEGA-ALPHA-7291\n",
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const payload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "SYMBALLIST-OMEGA-ALPHA-7291", 5);
+    })) as {
+      query: string;
+      results: Array<{
+        path: string;
+        snippet: string;
+      }>;
+    };
+
+    expect(payload.query).toBe("SYMBALLIST-OMEGA-ALPHA-7291");
+    expect(payload.results.length).toBeGreaterThan(0);
+    expect(payload.results[0]?.path).toBe("probe.md");
+    expect(payload.results[0]?.snippet).toContain("SYMBALLIST-OMEGA-ALPHA-7291");
+  });
 });

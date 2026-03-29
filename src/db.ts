@@ -268,6 +268,10 @@ function normalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function extractFtsTerms(value: string): string[] {
+  return value.match(/[A-Za-z0-9_]+/g) ?? [];
+}
+
 function tokenizeLookupTerms(value: string): string[] {
   return value
     .split(/[^A-Za-z0-9]+/)
@@ -399,14 +403,10 @@ function analyzeConceptPathMatch(row: SearchRow, rawQuery: string): MatchAnalysi
 }
 
 export function buildFtsQuery(rawQuery: string): string {
-  const terms = rawQuery
-    .trim()
-    .split(/\s+/)
-    .map((term) => term.replace(/"/g, ""))
-    .filter(Boolean);
+  const terms = extractFtsTerms(rawQuery).map((term) => term.replace(/"/g, ""));
 
   if (terms.length === 0) {
-    return rawQuery.trim();
+    return normalizeLookupValue(rawQuery);
   }
 
   const clauses = new Set(terms);
@@ -418,6 +418,116 @@ export function buildFtsQuery(rawQuery: string): string {
   }
 
   return clauses.size > 1 ? [...clauses].join(" OR ") : [...clauses][0] ?? rawQuery.trim();
+}
+
+function getLiteralFallbackCandidates(
+  db: Database,
+  rawQuery: string,
+  kinds: string[],
+  limit: number
+): SearchRow[] {
+  const trimmedQuery = rawQuery.trim();
+  const normalizedQuery = normalizeLookupValue(rawQuery);
+  if (!trimmedQuery && !normalizedQuery) {
+    return [];
+  }
+
+  const loweredRawQuery = trimmedQuery.toLowerCase();
+  const likeRaw = loweredRawQuery ? `%${loweredRawQuery}%` : "";
+  const likeNormalized = normalizedQuery ? `%${normalizedQuery}%` : "";
+  const kindClause = kinds.length > 0
+    ? ` AND kind IN (${kinds.map(() => "?").join(", ")})`
+    : "";
+
+  const rows = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      doc,
+      body,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn,
+      0.0 AS rawScore,
+      NULL AS semanticSimilarity
+    FROM symbols
+    WHERE (
+      lower(path) LIKE ?
+      OR lower(name) LIKE ?
+      OR lower(COALESCE(signature, '')) LIKE ?
+      OR lower(COALESCE(doc, '')) LIKE ?
+      OR lower(body) LIKE ?
+      OR replace(replace(replace(replace(lower(path), '\\', ''), '/', ''), '-', ''), ' ', '') LIKE ?
+      OR replace(replace(replace(replace(lower(name), '\\', ''), '/', ''), '-', ''), ' ', '') LIKE ?
+      OR replace(replace(replace(replace(lower(COALESCE(signature, '')), '\\', ''), '/', ''), '-', ''), ' ', '') LIKE ?
+      OR replace(replace(replace(replace(lower(COALESCE(doc, '')), '\\', ''), '/', ''), '-', ''), ' ', '') LIKE ?
+      OR replace(replace(replace(replace(lower(body), '\\', ''), '/', ''), '-', ''), ' ', '') LIKE ?
+    )
+    ${kindClause}
+    ORDER BY
+      CASE
+        WHEN lower(name) = ? THEN 0
+        WHEN lower(COALESCE(signature, '')) LIKE ? THEN 1
+        WHEN lower(body) LIKE ? THEN 2
+        ELSE 3
+      END,
+      CASE kind
+        WHEN 'class' THEN 0
+        WHEN 'function' THEN 1
+        WHEN 'heading' THEN 2
+        ELSE 3
+      END,
+      start_line ASC,
+      id ASC
+    LIMIT ?
+  `).all(
+    likeRaw,
+    likeRaw,
+    likeRaw,
+    likeRaw,
+    likeRaw,
+    likeNormalized,
+    likeNormalized,
+    likeNormalized,
+    likeNormalized,
+    likeNormalized,
+    ...kinds,
+    loweredRawQuery,
+    likeRaw,
+    likeRaw,
+    limit
+  ) as SearchRow[];
+
+  return rows.map((row) => ({
+    ...row,
+    rawScore: syntheticLiteralRawScore(row, trimmedQuery, normalizedQuery)
+  }));
+}
+
+function syntheticLiteralRawScore(row: SearchRow, rawQuery: string, normalizedQuery: string): number {
+  const loweredRawQuery = rawQuery.toLowerCase();
+  const loweredName = row.name.toLowerCase();
+  const loweredSignature = (row.signature ?? "").toLowerCase();
+  const loweredBody = row.body.toLowerCase();
+  const normalizedName = normalizeLookupValue(row.name);
+  const normalizedBody = normalizeLookupValue(row.body);
+
+  if (loweredName === loweredRawQuery || normalizedName === normalizedQuery) {
+    return -6.5;
+  }
+  if (loweredSignature.includes(loweredRawQuery)) {
+    return -5.0;
+  }
+  if (loweredBody.includes(loweredRawQuery) || normalizedBody.includes(normalizedQuery)) {
+    return -4.0;
+  }
+  return -2.5;
 }
 
 function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
@@ -1143,7 +1253,15 @@ export function searchSymbols(db: Database, query: string, limit: number, option
 
   const candidateLimit = Math.max(limit * 10, 100);
   const rawQuery = options.rawQuery ?? query;
-  const rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
+  let rows: SearchRow[];
+  try {
+    rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
+  } catch {
+    rows = getLiteralFallbackCandidates(db, rawQuery, kinds, candidateLimit);
+  }
+  if (rows.length === 0) {
+    rows = getLiteralFallbackCandidates(db, rawQuery, kinds, candidateLimit);
+  }
   const supplementalRows = shouldExpandConceptCandidates(rawQuery, options)
     ? getConceptPathCandidates(db, rawQuery, kinds, candidateLimit)
     : [];
