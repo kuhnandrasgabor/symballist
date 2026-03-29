@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 09:51'
+updated_date: '2026-03-28 10:04'
 labels: []
 dependencies: []
 priority: high
@@ -28,11 +28,10 @@ Build the first useful end-to-end slice for symballist as an agent-first code re
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Replace the regex-based Python and HTML extraction path with tree-sitter-backed parsing while preserving file-level fallback behavior.
-2. Add CLI support for targeting an explicit repository root via --root so symballist can be run against other repos without changing the implementation model.
-3. Keep the SQLite schema and lexical query path stable so the parser upgrade remains an internal improvement.
-4. Expand fixture and integration coverage to exercise typed Python functions, HTML ids, fallback parsing, and explicit root targeting.
-5. Manually dogfood the CLI against another local repository after tests pass.
+1. Add progress reporting to the indexing command so long-running repo scans surface file and symbol counts while they run.
+2. Extend the SQLite-backed file metadata model to support incremental indexing decisions based on file size and modification time.
+3. Skip unchanged files during index runs while still re-indexing changed files and removing stale symbol rows for files that are updated.
+4. Expand integration coverage to prove repeated index runs avoid unnecessary work and still return correct query results.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes

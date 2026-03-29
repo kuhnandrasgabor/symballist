@@ -1,4 +1,3 @@
-
 <!-- BACKLOG.MD MCP GUIDELINES START -->
 
 <CRITICAL_INSTRUCTION>
@@ -11,8 +10,10 @@ This project uses the repo-local Backlog.md setup in `D:\Projects\symballist\bac
 
 - Prefer the local `backlog` CLI for task, draft, milestone, and document operations in this repo.
 - Run Backlog commands from the repo root so they operate on this repository's local backlog state.
+- If you use MCP for Backlog in this repo, the server must be pinned to this repo with `backlog mcp start --cwd D:\Projects\symballist` or an equivalent `BACKLOG_CWD` setting.
+- Do not rely on a shared auto-detect Backlog MCP server when multiple projects are active.
 - Use MCP workflow resources only for generic Backlog workflow guidance, or when you have verified the MCP server is scoped to this repo's backlog.
-- Do not assume a shared MCP Backlog server is pointed at this project.
+- Treat CLI writes as the source of truth unless repo-scoped MCP is explicitly confirmed.
 
 Recommended local commands:
 
@@ -23,6 +24,15 @@ Recommended local commands:
 - `backlog draft create ...`
 - `backlog task view <id>`
 - `backlog draft view <id>`
+- `backlog mcp start --cwd D:\Projects\symballist`
+- `backlog browser --port 6422 --no-open`
+
+Multi-project safety rules:
+
+- Use a distinct MCP server entry per repo, for example `backlog-symballist` and `backlog-co-ma`.
+- Use a unique browser port per repo.
+- Keep debug logging off unless you are actively diagnosing a Backlog issue.
+- If multiple Backlog services are running, keep any redirected logs in repo-local files so outputs do not get mixed.
 
 If your client supports MCP resources and they are verified to be repo-scoped, read `backlog://workflow/overview` to understand when and how to use Backlog workflows.
 If your client only supports tools or the above request fails, call `backlog.get_workflow_overview()` to load the workflow overview.
