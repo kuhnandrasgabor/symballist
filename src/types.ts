@@ -17,6 +17,7 @@ export type MatchReason =
 
 export type RetrievalChannel = "lexical" | "concept_path" | "semantic";
 export type HybridContribution = "lexical_only" | "semantic_only" | "semantic_assisted";
+export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_by_candidate";
 
 export type SymbolRecord = {
   path: string;
@@ -50,6 +51,7 @@ export type QueryResult = {
   semanticSimilarity: number | null;
   retrievalChannels: RetrievalChannel[];
   hybridContribution: HybridContribution;
+  graphSignals: GraphSignal[];
   fallback: boolean;
   startLine: number;
   startColumn: number;

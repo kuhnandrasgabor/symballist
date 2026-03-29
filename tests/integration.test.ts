@@ -992,6 +992,41 @@ describe("symballist vertical slice", () => {
     expect(preferResults[0]?.path.startsWith("src\\")).toBeTrue();
   });
 
+  test("graph-aware reranking promotes import-connected implementation neighborhoods", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "store.py"),
+      'class MemoryStore:\n    """Store implementation."""\n    pass\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "bootstrap.py"),
+      'from src.store import MemoryStore\n\n\ndef bootstrap_store() -> MemoryStore:\n    """bootstrap memory store flow"""\n    return MemoryStore()\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "notes.py"),
+      'def bootstrap_notes() -> str:\n    """bootstrap notes helper"""\n    return "bootstrap notes"\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, buildFtsQuery("bootstrap memory store"), 5, {
+      rawQuery: "bootstrap memory store"
+    });
+    db.close();
+
+    expect(results.length).toBeGreaterThanOrEqual(3);
+    expect(results[0]?.path).toBe("src\\bootstrap.py");
+    expect(results[1]?.path).toBe("src\\store.py");
+    expect(results[1]?.graphSignals).toContain("imported_by_candidate");
+    expect(results.findIndex((result) => result.path === "src\\store.py")).toBeLessThan(results.findIndex((result) => result.path === "src\\notes.py"));
+  });
+
   test("status and query report stale indexes after source changes", async () => {
     const root = await createFixtureRepo();
     await runInit(root);

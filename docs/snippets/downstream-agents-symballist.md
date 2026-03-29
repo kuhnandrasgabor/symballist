@@ -17,6 +17,7 @@ Use `symballist` as a CLI-first read-only retrieval helper for this repo.
   - `.symballist\bin\symballist.cmd lookup "<text>" --root <PROJECT_ROOT>`
 - If embeddings are enabled, inspect the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
 - Use `retrieval.hybrid`, `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` when you need to tell whether semantic retrieval actually contributed to a result or stayed in the background.
+- Use `graphSignals` when you need to understand whether one-hop file/import structure helped rerank nearby code results.
 - Use query for discovery:
   - `.symballist\bin\symballist.cmd query "<text>" --root <PROJECT_ROOT>`
   - Add `--code-only --exclude-tests` for implementation-heavy results.

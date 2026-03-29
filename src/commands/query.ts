@@ -63,7 +63,8 @@ export async function runQuery(
       trustLevel: "extraction trust; how confidently the symbol boundaries/body were extracted",
       retrievalTrustLevel: "retrieval trust; how confidently this query matched the result",
       retrievalChannels: ["lexical", "concept_path", "semantic"],
-      hybridContribution: "lexical_only means no semantic candidate was retained; semantic_only means the result came from embeddings without lexical admission; semantic_assisted means both channels admitted the result"
+      hybridContribution: "lexical_only means no semantic candidate was retained; semantic_only means the result came from embeddings without lexical admission; semantic_assisted means both channels admitted the result",
+      graphSignals: "same_file_cluster, imports_candidate, and imported_by_candidate reflect one-hop graph-aware reranking signals from the current candidate neighborhood"
     },
     results: search.results
   }, null, 2));
