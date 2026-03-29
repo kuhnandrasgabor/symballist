@@ -1,7 +1,63 @@
 import { getBestSymbolByName, getIndexedFiles, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 
-export async function runShow(root: string, rawId: string, rawName?: string): Promise<void> {
+const DEFAULT_SHOW_MAX_LINES = 40;
+const DEFAULT_SHOW_MAX_CHARS = 4000;
+
+type ShowBodyPresentation = {
+  mode: "full" | "summary";
+  truncated: boolean;
+  totalLines: number;
+  shownLines: number;
+  totalChars: number;
+  shownChars: number;
+};
+
+function summarizeBody(body: string, full: boolean): { body: string; presentation: ShowBodyPresentation } {
+  const lines = body.split(/\r?\n/);
+  const totalLines = lines.length;
+  const totalChars = body.length;
+
+  if (full || (totalLines <= DEFAULT_SHOW_MAX_LINES && totalChars <= DEFAULT_SHOW_MAX_CHARS)) {
+    return {
+      body,
+      presentation: {
+        mode: "full",
+        truncated: false,
+        totalLines,
+        shownLines: totalLines,
+        totalChars,
+        shownChars: totalChars
+      }
+    };
+  }
+
+  const limitedLines = lines.slice(0, DEFAULT_SHOW_MAX_LINES);
+  let summarizedBody = limitedLines.join("\n");
+  if (summarizedBody.length > DEFAULT_SHOW_MAX_CHARS) {
+    summarizedBody = `${summarizedBody.slice(0, DEFAULT_SHOW_MAX_CHARS - 3).trimEnd()}...`;
+  }
+  summarizedBody = `${summarizedBody}\n... [truncated, rerun show with --full for the complete body]`;
+
+  return {
+    body: summarizedBody,
+    presentation: {
+      mode: "summary",
+      truncated: true,
+      totalLines,
+      shownLines: Math.min(limitedLines.length, DEFAULT_SHOW_MAX_LINES),
+      totalChars,
+      shownChars: summarizedBody.length
+    }
+  };
+}
+
+export async function runShow(
+  root: string,
+  rawId: string,
+  rawName?: string,
+  options: { full?: boolean } = {}
+): Promise<void> {
   const db = await openDatabase(root);
   let symbol = null;
   if (rawName?.trim()) {
@@ -26,9 +82,15 @@ export async function runShow(root: string, rawId: string, rawName?: string): Pr
     throw new Error(`No indexed symbol found for id ${rawId}.`);
   }
 
+  const body = summarizeBody(symbol.body, options.full === true);
+
   console.log(JSON.stringify({
     indexFreshness,
-    symbol,
+    symbol: {
+      ...symbol,
+      body: body.body
+    },
+    bodyPresentation: body.presentation,
     relations,
     related
   }, null, 2));

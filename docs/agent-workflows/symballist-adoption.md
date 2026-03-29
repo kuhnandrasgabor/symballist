@@ -33,6 +33,7 @@ Preferred downstream entrypoint after `symballist init`:
 .symballist\bin\symballist.cmd query "<text>" --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd show <id> --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd show --name <symbol> --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd show --name <symbol> --full --root <PROJECT_ROOT>
 ```
 
 If `symballist` has been installed or linked as a real command, that command name is also fine:
@@ -43,6 +44,7 @@ symballist index --root <PROJECT_ROOT>
 symballist query "<text>" --root <PROJECT_ROOT>
 symballist show <id> --root <PROJECT_ROOT>
 symballist show --name <symbol> --root <PROJECT_ROOT>
+symballist show --name <symbol> --full --root <PROJECT_ROOT>
 ```
 
 Typical agent flow:
@@ -50,8 +52,9 @@ Typical agent flow:
 1. Run `status`.
 2. If `indexFreshness.stale` is `true`, run `index`.
 3. Run `query` with a focused phrase or symbol name.
-4. Run `show` on the best hit to inspect full context plus related symbols.
-5. Verify important conclusions in the underlying file.
+4. Run `show` on the best hit to inspect context plus related symbols.
+5. If the symbol body is large, rerun `show` with `--full` to expand it.
+6. Verify important conclusions in the underlying file.
 
 Useful query refinements:
 

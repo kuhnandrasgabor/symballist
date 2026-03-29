@@ -27,9 +27,9 @@ references:
   - TASK-017
   - TASK-018
   - TASK-019
+  - TASK-020
   - DRAFT-008
   - DRAFT-010
-  - DRAFT-012
 priority: high
 ---
 
@@ -60,9 +60,9 @@ Current v1 shape:
 
 <!-- SECTION:PLAN:BEGIN -->
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
-2. Treat completed slice work as closed subtasks: TASK-002 through TASK-019.
+2. Treat completed slice work as closed subtasks: TASK-002 through TASK-020.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term priority order from latest feedback: DRAFT-012, DRAFT-010, DRAFT-008.
+4. Near-term priority order from latest feedback: DRAFT-010, DRAFT-008, DRAFT-001.
 5. Medium-term follow-ups: DRAFT-010, DRAFT-008, then broader helper-integration questions in DRAFT-001.
 <!-- SECTION:PLAN:END -->
 
@@ -94,7 +94,7 @@ Retrieval quality and context
 - Done: query supports explicit code-only, docs-only, test-excluding, and implementation-preferring intent controls.
 - Done: concept-oriented queries now supplement lexical hits with source-path candidates so canonical implementations surface more reliably.
 - Done: query-time trust now combines extraction quality with match strength, and generic lexical leftovers surface as `token_overlap` instead of misleading `body_text`.
-- Done: show returns full symbol bodies plus lightweight relations and related symbols.
+- Done: show returns symbol bodies plus lightweight relations and related symbols, summarizing very large bodies by default and supporting `--full` expansion.
 
 Adoption and workflow
 - Done: downstream adoption workflow docs and reusable snippets.
@@ -109,7 +109,7 @@ Priority order from latest live feedback
 - Done: TASK-017 added query intent filters for implementation, docs, and tests.
 - Done: TASK-018 strengthened semantic matching for concept-oriented queries through source-path candidate expansion and concept-aware reranking.
 - Done: TASK-019 calibrated confidence and match-reason heuristics so trust signals stay meaningful in live query output.
-- Next: DRAFT-012 add summary mode or truncation defaults for large show results.
+- Done: TASK-020 added summary defaults and `--full` expansion for large `show` results.
 - Later: DRAFT-010 ensure init adds .symballist to .gitignore by default.
 - Later: DRAFT-008 explore diff-aware and session-aware change tracking.
 - Later: DRAFT-001 decide when and how to add an agent-facing symballist query helper.
@@ -133,4 +133,5 @@ Completed subtasks
 - TASK-017 query intent filters for implementation, docs, and tests.
 - TASK-018 semantic matching for concept-oriented queries.
 - TASK-019 trust-signal calibration for confidence, match reasons, and query-time trust.
+- TASK-020 large-show summary defaults and explicit `--full` expansion.
 <!-- SECTION:NOTES:END -->

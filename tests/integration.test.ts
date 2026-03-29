@@ -226,6 +226,10 @@ describe("symballist vertical slice", () => {
     });
     const shown = JSON.parse(output) as {
       indexFreshness: { stale: boolean };
+      bodyPresentation: {
+        mode: string;
+        truncated: boolean;
+      };
       symbol: {
         id: number;
         name: string;
@@ -255,6 +259,8 @@ describe("symballist vertical slice", () => {
     };
 
     expect(shown.indexFreshness.stale).toBeFalse();
+    expect(shown.bodyPresentation.mode).toBe("full");
+    expect(shown.bodyPresentation.truncated).toBeFalse();
     expect(shown.symbol.id).toBe(greet?.id);
     expect(shown.symbol.name).toBe("greet");
     expect(shown.symbol.body).toContain('return f"Hello, {name}"');
@@ -291,6 +297,54 @@ describe("symballist vertical slice", () => {
 
     expect(shown.symbol.id).toBe(greet?.id);
     expect(shown.symbol.name).toBe("greet");
+  });
+
+  test("show summarizes very large symbol bodies by default and supports --full expansion", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    const largeBody = [
+      "class MemoryStore:",
+      "    \"\"\"Large body for summary testing.\"\"\"",
+      ...Array.from({ length: 5000 }, (_, index) => `    field_${index} = ${index}`)
+    ].join("\n");
+
+    await writeFile(join(root, "src", "memory_store.py"), largeBody, "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const summaryOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "MemoryStore");
+    })) as {
+      bodyPresentation: {
+        mode: string;
+        truncated: boolean;
+        totalLines: number;
+        shownLines: number;
+      };
+      symbol: {
+        body: string;
+      };
+    };
+
+    const fullOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "MemoryStore", { full: true });
+    })) as {
+      bodyPresentation: {
+        mode: string;
+        truncated: boolean;
+      };
+      symbol: {
+        body: string;
+      };
+    };
+
+    expect(summaryOutput.bodyPresentation.mode).toBe("summary");
+    expect(summaryOutput.bodyPresentation.truncated).toBeTrue();
+    expect(summaryOutput.bodyPresentation.totalLines).toBeGreaterThan(summaryOutput.bodyPresentation.shownLines);
+    expect(summaryOutput.symbol.body).toContain("[truncated, rerun show with --full");
+    expect(fullOutput.bodyPresentation.mode).toBe("full");
+    expect(fullOutput.bodyPresentation.truncated).toBeFalse();
+    expect(fullOutput.symbol.body).toContain("field_119");
   });
 
   test("query prefers declarations over imports and supports kind filters", async () => {
@@ -726,9 +780,13 @@ describe("symballist vertical slice", () => {
     const showParsed = parseCliArgs(["show", "--name", "greet", "--root", "D:/Projects/co-ma"]);
     expect(showParsed.command).toBe("show");
     expect(showParsed.showName).toBe("greet");
+    expect(showParsed.showFull).toBeFalse();
     expect(showParsed.root).toBe("D:/Projects/co-ma");
     expect(showParsed.positionals).toEqual([]);
     expect(showParsed.error).toBeNull();
+
+    const showFullParsed = parseCliArgs(["show", "--name", "greet", "--full"]);
+    expect(showFullParsed.showFull).toBeTrue();
   });
 
   test("query help is handled as CLI help instead of query text", async () => {
