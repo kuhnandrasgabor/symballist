@@ -1,5 +1,7 @@
 # symballist
 
+![symballist banner](docs/symballist.jpg)
+
 `symballist` is a local-first retrieval tool for AI agents. It indexes a repository into symbols, docs, search metadata, and lightweight relations so agents can find useful code and project context faster than plain text search alone.
 
 It is designed to stay:
