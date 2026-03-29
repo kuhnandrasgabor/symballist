@@ -44,6 +44,9 @@ references:
   - DRAFT-014
   - DRAFT-015
   - DRAFT-016
+  - DRAFT-017
+  - DRAFT-018
+  - DRAFT-019
 priority: high
 ---
 
@@ -76,7 +79,7 @@ Current v1 shape:
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
 2. Treat completed slice work as closed subtasks: TASK-002 through TASK-026.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term roadmap after the vertical slice: DRAFT-014, then DRAFT-015, then DRAFT-016.
+4. Near-term roadmap after the vertical slice: DRAFT-014, then DRAFT-016, then DRAFT-015, then DRAFT-017, then DRAFT-019, then DRAFT-018.
 5. Longer-term roadmap after that: DRAFT-010, then DRAFT-011, then DRAFT-012.
 6. Exploratory follow-up beyond that: DRAFT-008 and DRAFT-009.
 <!-- SECTION:PLAN:END -->
@@ -123,7 +126,7 @@ Adoption and workflow
 - Done: shell-aware onboarding now recommends the right local wrapper for PowerShell/cmd versus bash-like shells and surfaces that guidance in both docs and status output.
 - Done: init now ensures `.gitignore` contains `.symballist/` and prints a manual cleanup hint if that directory already appears to be Git-tracked.
 - Done: real dogfooding in co-ma confirms the tool is now genuinely useful for day-to-day discovery, especially for implementation-oriented queries.
-- Open polish area: fresh-session onboarding still has avoidable shell and wrapper friction, especially for agents starting in bash-like shells on Windows.
+- Open polish area: compact agent output and conceptual retrieval quality still lag behind the stronger exact-symbol and docs-oriented workflows.
 
 Priority order from latest live feedback
 - Done: TASK-013 fixed query CLI flag parsing and help handling, including query subcommand help and `--top` alias support.
@@ -141,8 +144,11 @@ Priority order from latest live feedback
 - Done: TASK-025 added lightweight file-level change awareness since index and git HEAD.
 - Done: TASK-026 added a CLI-first agent-facing lookup helper on top of query/show.
 - New feedback follow-up: DRAFT-014 compact output mode for agent-facing symballist responses.
-- New feedback follow-up: DRAFT-015 explicit result quality and no-strong-match signaling.
 - New feedback follow-up: DRAFT-016 stronger conceptual retention and implementation preference for fuzzy queries.
+- New feedback follow-up: DRAFT-015 explicit result quality and no-strong-match signaling.
+- New feedback follow-up: DRAFT-017 clearer lookup versus query descriptions and tool guidance.
+- New feedback follow-up: DRAFT-019 actionable target paths in import relations.
+- New feedback follow-up: DRAFT-018 smarter agent-oriented show body defaults.
 - Roadmap next: DRAFT-010 automatic repo-local reindexing and watch-driven refresh.
 - Roadmap later: DRAFT-011 optional local embeddings and hybrid retrieval.
 - Roadmap later: DRAFT-012 graph-aware retrieval and staged graph-RAG evolution.
@@ -200,4 +206,6 @@ Completed subtasks
 2026-03-29 feedback intake: created DRAFT-013 for shell-aware onboarding and first-run invocation guidance, DRAFT-014 for compact output mode, DRAFT-015 for explicit result quality / no-strong-match signaling, and DRAFT-016 for stronger conceptual retention and implementation preference on fuzzy queries. The strongest near-term order from this feedback was onboarding first, then compactness, then weak-result signaling, then deeper conceptual tuning.
 
 2026-03-29: Completed TASK-036. Added shell-aware onboarding guidance for fresh sessions, including shell-specific local wrapper recommendations in generated docs/snippets, a machine-readable `shellGuidance` block in status output, and clearer init-time quick-start logging.
+
+2026-03-30 feedback intake: reinforced DRAFT-014 (compact output mode) and DRAFT-016 (conceptual retrieval retention and implementation preference), and added DRAFT-017 for clarifying lookup versus query behavior in descriptions/tool guidance, DRAFT-019 for resolving import relations to actionable target paths, and DRAFT-018 for more agent-friendly show body defaults and expansion behavior.
 <!-- SECTION:NOTES:END -->
