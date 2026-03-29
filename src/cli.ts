@@ -12,6 +12,7 @@ export type CliArgs = {
   root: string;
   limit: number;
   kinds: string[];
+  showName: string | null;
   positionals: string[];
   helpRequested: boolean;
   error: string | null;
@@ -26,6 +27,7 @@ Usage:
   symballist index [--root PATH]
   symballist status [--root PATH]
   symballist show <id> [--root PATH]
+  symballist show --name <symbol> [--root PATH]
   symballist query "<text>" [--limit N|--top N] [--kind class,function] [--root PATH]
 `);
 }
@@ -42,7 +44,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist status [--root PATH]");
       return;
     case "show":
-      console.log("Usage:\n  symballist show <id> [--root PATH]");
+      console.log("Usage:\n  symballist show <id> [--root PATH]\n  symballist show --name <symbol> [--root PATH]");
       return;
     case "query":
       console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--root PATH]");
@@ -72,8 +74,9 @@ function buildUnknownOptionError(command: string | null, option: string): string
 
 export function parseCliArgs(argv: string[]): CliArgs {
   let root = cwd();
-  let limit = 10;
+  let limit = 5;
   const kinds: string[] = [];
+  let showName: string | null = null;
   let helpRequested = false;
   let error: string | null = null;
   let command: string | null = null;
@@ -85,6 +88,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       root,
       limit,
       kinds,
+      showName,
       positionals,
       helpRequested: false,
       error: null
@@ -98,6 +102,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       root,
       limit,
       kinds,
+      showName,
       positionals,
       helpRequested: true,
       error: null
@@ -146,6 +151,16 @@ export function parseCliArgs(argv: string[]): CliArgs {
       index += 1;
       continue;
     }
+    if (command === "show" && value === "--name") {
+      const next = argv[index + 1];
+      if (!next) {
+        error = "Expected a symbol name after --name.";
+        break;
+      }
+      showName = next;
+      index += 1;
+      continue;
+    }
     if (value.startsWith("-")) {
       error = buildUnknownOptionError(command, value);
       break;
@@ -158,6 +173,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     root,
     limit,
     kinds,
+    showName,
     positionals,
     helpRequested,
     error
@@ -192,7 +208,7 @@ export async function runCli(argv: string[]): Promise<void> {
       return;
     case "show": {
       const id = parsed.positionals[0] ?? "";
-      await runShow(parsed.root, id);
+      await runShow(parsed.root, id, parsed.showName ?? undefined);
       return;
     }
     case "query": {

@@ -48,6 +48,10 @@ export type SymbolDetails = {
   endColumn: number;
 };
 
+export type SymbolLookupOptions = {
+  kinds?: string[];
+};
+
 export type RelationDetails = {
   kind: "imports" | "contained_in";
   targetPath: string | null;

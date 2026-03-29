@@ -32,6 +32,7 @@ Preferred downstream entrypoint after `symballist init`:
 .symballist\bin\symballist.cmd index --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd query "<text>" --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd show <id> --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd show --name <symbol> --root <PROJECT_ROOT>
 ```
 
 If `symballist` has been installed or linked as a real command, that command name is also fine:
@@ -41,6 +42,7 @@ symballist status --root <PROJECT_ROOT>
 symballist index --root <PROJECT_ROOT>
 symballist query "<text>" --root <PROJECT_ROOT>
 symballist show <id> --root <PROJECT_ROOT>
+symballist show --name <symbol> --root <PROJECT_ROOT>
 ```
 
 Typical agent flow:

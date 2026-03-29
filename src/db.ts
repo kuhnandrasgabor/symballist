@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
-import type { QueryResult, RelatedSymbol, RelationDetails, SymbolDetails, SymbolRecord } from "./types.ts";
+import type { QueryResult, RelatedSymbol, RelationDetails, SymbolDetails, SymbolLookupOptions, SymbolRecord } from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 5;
 
@@ -512,6 +512,47 @@ export function getSymbolById(db: Database, id: number): SymbolDetails | null {
     ...details,
     fallback: Boolean(details.fallback)
   };
+}
+
+export function getBestSymbolByName(db: Database, rawName: string, options: SymbolLookupOptions = {}): SymbolDetails | null {
+  const normalizedName = rawName.trim();
+  if (!normalizedName) {
+    return null;
+  }
+
+  const kinds = [...new Set((options.kinds ?? []).map((kind) => kind.trim()).filter(Boolean))];
+  const whereKindClause = kinds.length > 0
+    ? ` AND kind IN (${kinds.map(() => "?").join(", ")})`
+    : "";
+
+  const rows = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      doc,
+      body,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn,
+      0.0 AS score
+    FROM symbols
+    WHERE lower(name) = lower(?)
+    ${whereKindClause}
+    LIMIT 50
+  `).all(normalizedName, ...kinds) as SearchRow[];
+
+  const [best] = rerankResults(rows, 1, normalizedName);
+  if (!best) {
+    return null;
+  }
+
+  return getSymbolById(db, best.id);
 }
 
 export function getRelationsForSymbol(db: Database, symbol: SymbolDetails): RelationDetails[] {

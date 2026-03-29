@@ -22,9 +22,9 @@ references:
   - TASK-012
   - TASK-013
   - TASK-014
+  - TASK-015
   - DRAFT-003
   - DRAFT-004
-  - DRAFT-006
   - DRAFT-008
   - DRAFT-009
   - DRAFT-010
@@ -60,7 +60,7 @@ Current v1 shape:
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
 2. Treat completed slice work as closed subtasks: TASK-002 through TASK-012.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term priority order from latest feedback: DRAFT-006, DRAFT-004, DRAFT-003.
+4. Near-term priority order from latest feedback: DRAFT-004, DRAFT-003.
 5. Medium-term follow-ups: DRAFT-009, DRAFT-010, DRAFT-008, then broader helper-integration questions in DRAFT-001.
 <!-- SECTION:PLAN:END -->
 
@@ -87,6 +87,7 @@ Retrieval quality and context
 - Done: stale-index detection surfaces freshness in status/query/show.
 - Done: freshness checks now ignore tiny mtime jitter immediately after indexing.
 - Done: symbol-shaped queries now prefer exact owning definitions over normalized references.
+- Done: query defaults are tighter, and show supports exact-name lookup without requiring an intermediate id.
 - Done: show returns full symbol bodies plus lightweight relations and related symbols.
 
 Adoption and workflow
@@ -97,8 +98,8 @@ Adoption and workflow
 Priority order from latest live feedback
 - Done: TASK-013 fixed query CLI flag parsing and help handling, including query subcommand help and `--top` alias support.
 - Done: TASK-014 improved exact-definition ranking for symbol-shaped queries such as `DistillationEngine`.
-- Now: DRAFT-006 improve query/show ergonomics for daily use.
-- Next: DRAFT-004 clarify retrieval confidence, score semantics, and trust signals.
+- Done: TASK-015 improved query/show ergonomics with tighter default result counts and `show --name`.
+- Now: DRAFT-004 clarify retrieval confidence, score semantics, and trust signals.
 - Next: DRAFT-003 add query intent filters for implementation, docs, and tests.
 - Later: DRAFT-009 strengthen semantic matching for concept-oriented queries.
 - Later: DRAFT-010 ensure init adds .symballist to .gitignore by default.
@@ -119,4 +120,5 @@ Completed subtasks
 - TASK-012 Windows invocation UX and a real symballist command.
 - TASK-013 query CLI flag parsing and help handling.
 - TASK-014 exact-symbol definition-first ranking.
+- TASK-015 query/show ergonomics for daily use.
 <!-- SECTION:NOTES:END -->
