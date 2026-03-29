@@ -545,11 +545,18 @@ function isDocRow(row: SearchRow): boolean {
   return row.language === "markdown";
 }
 
+function isImplementationFocusedIntent(options: SearchOptions, rawQuery?: string): boolean {
+  return options.preferImplementation === true && !options.docsOnly && !isDocOrientedQuery(rawQuery ?? options.rawQuery ?? "");
+}
+
 function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
   if (options.docsOnly && !isDocRow(row)) {
     return false;
   }
   if (options.codeOnly && isDocRow(row)) {
+    return false;
+  }
+  if (isImplementationFocusedIntent(options) && isDocRow(row)) {
     return false;
   }
   if (options.excludeTests && isTestPath(row.path)) {
@@ -560,7 +567,7 @@ function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
 
 function computePathAdjustment(row: SearchRow, rawQuery: string, options: SearchOptions): number {
   const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
-  const preferImplementation = options.preferImplementation === true;
+  const preferImplementation = isImplementationFocusedIntent(options, rawQuery);
 
   if (isDocOrientedQuery(rawQuery)) {
     if (normalizedPath.startsWith("docs/")) {
@@ -576,6 +583,9 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   }
 
   if (row.language === "markdown") {
+    if (preferImplementation) {
+      return 2.5;
+    }
     if (normalizedPath.startsWith("docs/")) {
       return 0.35;
     }
@@ -593,10 +603,10 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   }
 
   if (normalizedPath.startsWith("src/")) {
-    return preferImplementation ? -1.8 : -1.1;
+    return preferImplementation ? -2.6 : -1.1;
   }
   if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
-    return preferImplementation ? 1.25 : 0.75;
+    return preferImplementation ? 1.8 : 0.75;
   }
 
   return 0;

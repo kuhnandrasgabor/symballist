@@ -77,6 +77,8 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 For downstream projects that want to use `symballist` as a CLI-first retrieval helper for Codex or Claude, see [Symballist Adoption Workflow](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md).
 Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:/Projects/symballist/docs/snippets/downstream-agents-symballist.md) and [downstream CLAUDE snippet](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md).
 
+`--prefer-implementation` is intended for code-oriented queries. When used outside `--docs-only`, it now suppresses Markdown/doc noise and pushes `src/` implementations harder so the flag produces a visible ranking change.
+
 ## Local State
 
 ```text

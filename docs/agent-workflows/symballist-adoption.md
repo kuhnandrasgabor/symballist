@@ -59,7 +59,7 @@ Typical agent flow:
 Useful query refinements:
 
 - use `--code-only --exclude-tests` when you want implementation-heavy results
-- add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references
+- add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes
 
 ## When Agents Should Use It
