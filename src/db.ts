@@ -4,12 +4,16 @@ import { dirname } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
 import type { QueryResult, SymbolRecord } from "./types.ts";
 
+const CURRENT_SCHEMA_VERSION = 3;
+
 export type IndexedFileRow = {
   path: string;
   language: string;
   size: number;
   mtimeMs: number;
 };
+
+type SearchRow = Omit<QueryResult, "snippet"> & { body: string };
 
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
@@ -59,7 +63,16 @@ function migrate(db: Database): void {
       signature TEXT,
       body TEXT NOT NULL,
       doc TEXT,
-      fallback INTEGER NOT NULL DEFAULT 0
+      fallback INTEGER NOT NULL DEFAULT 0,
+      start_line INTEGER NOT NULL DEFAULT 1,
+      start_column INTEGER NOT NULL DEFAULT 1,
+      end_line INTEGER NOT NULL DEFAULT 1,
+      end_column INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
@@ -74,6 +87,55 @@ function migrate(db: Database): void {
       content
     );
   `);
+
+  ensureColumn(db, "symbols", "start_line", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn(db, "symbols", "start_column", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn(db, "symbols", "end_line", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn(db, "symbols", "end_column", "INTEGER NOT NULL DEFAULT 1");
+
+  const schemaVersion = getSchemaVersion(db);
+  if (schemaVersion < CURRENT_SCHEMA_VERSION) {
+    clearIndexData(db);
+    setSchemaVersion(db, CURRENT_SCHEMA_VERSION);
+  }
+}
+
+function ensureColumn(db: Database, tableName: string, columnName: string, definition: string): boolean {
+  const columns = db.query(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  if (columns.some((column) => column.name === columnName)) {
+    return false;
+  }
+  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  return true;
+}
+
+function getSchemaVersion(db: Database): number {
+  const row = db.query("SELECT value FROM metadata WHERE key = 'schema_version'").get() as { value?: string } | null;
+  return Number(row?.value ?? 0) || 0;
+}
+
+function setSchemaVersion(db: Database, version: number): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES ('schema_version', ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(String(version));
+}
+
+function clearIndexData(db: Database): void {
+  db.exec(`
+    DELETE FROM symbols_fts;
+    DELETE FROM symbols;
+    DELETE FROM files;
+  `);
+}
+
+function makeSnippet(body: string): string {
+  const normalized = body.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 200) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 197).trimEnd()}...`;
 }
 
 export function replaceFileIndex(
@@ -90,8 +152,21 @@ export function replaceFileIndex(
   );
 
   const insertSymbol = db.query(`
-    INSERT INTO symbols (path, language, kind, name, signature, body, doc, fallback)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO symbols (
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      body,
+      doc,
+      fallback,
+      start_line,
+      start_column,
+      end_line,
+      end_column
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertFts = db.query(`
     INSERT INTO symbols_fts (symbol_id, path, name, kind, signature, body, doc, language, content)
@@ -108,7 +183,11 @@ export function replaceFileIndex(
       symbol.signature,
       symbol.body,
       symbol.doc,
-      symbol.fallback ? 1 : 0
+      symbol.fallback ? 1 : 0,
+      symbol.startLine,
+      symbol.startColumn,
+      symbol.endLine,
+      symbol.endColumn
     );
     const symbolId = Number(result.lastInsertRowid);
     insertFts.run(
@@ -161,7 +240,12 @@ export function searchSymbols(db: Database, query: string, limit: number): Query
       symbols.name,
       symbols.signature,
       symbols.doc,
+      symbols.body,
       symbols.fallback,
+      symbols.start_line AS startLine,
+      symbols.start_column AS startColumn,
+      symbols.end_line AS endLine,
+      symbols.end_column AS endColumn,
       bm25(symbols_fts) AS score
     FROM symbols_fts
     JOIN symbols ON symbols.id = symbols_fts.symbol_id
@@ -170,5 +254,9 @@ export function searchSymbols(db: Database, query: string, limit: number): Query
     LIMIT ?
   `);
 
-  return statement.all(query, limit) as QueryResult[];
+  const rows = statement.all(query, limit) as SearchRow[];
+  return rows.map(({ body, ...row }) => ({
+    ...row,
+    snippet: makeSnippet(body)
+  }));
 }

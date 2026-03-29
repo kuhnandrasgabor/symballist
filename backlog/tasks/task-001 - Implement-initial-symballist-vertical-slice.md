@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 10:04'
+updated_date: '2026-03-28 12:44'
 labels: []
 dependencies: []
 priority: high
@@ -28,10 +28,10 @@ Build the first useful end-to-end slice for symballist as an agent-first code re
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Add progress reporting to the indexing command so long-running repo scans surface file and symbol counts while they run.
-2. Extend the SQLite-backed file metadata model to support incremental indexing decisions based on file size and modification time.
-3. Skip unchanged files during index runs while still re-indexing changed files and removing stale symbol rows for files that are updated.
-4. Expand integration coverage to prove repeated index runs avoid unnecessary work and still return correct query results.
+1. Update the README and repo guidance so symballist is explicitly CLI-first and MCP is deferred from v1.
+2. Extend indexed symbol records with source span metadata so query results can report line and column information for Python, HTML, and fallback file records.
+3. Enrich query results with short snippets derived from indexed symbol bodies so agents can inspect likely matches without an immediate second lookup.
+4. Expand integration coverage to verify the richer query payload while preserving the existing incremental-indexing behavior.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -60,4 +60,10 @@ Adjusted init to stop eagerly creating index.db and improved readonly SQLite err
 Hardened tree-sitter extraction so large or parser-hostile files fall back to file-level records instead of aborting indexing; co-ma core.py exceeds the safe parser limit on this runtime.
 
 Added a root .gitignore covering node_modules, repo-local .symballist state, local agent tool folders, and scratch artifacts before the next commit.
+
+Made the v1 README explicitly CLI-first and moved MCP out of scope for this slice.
+
+Extended indexed symbol records and query results with line/column spans plus normalized snippets so agents get directly usable retrieval context.
+
+Added an index metadata version so older local indexes are invalidated and rebuilt automatically when retrieval payload shape changes.
 <!-- SECTION:NOTES:END -->

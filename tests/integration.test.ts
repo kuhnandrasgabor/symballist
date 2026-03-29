@@ -36,7 +36,7 @@ describe("symballist vertical slice", () => {
     expect(await Bun.file(join(root, ".symballist", "index.db")).exists()).toBeTrue();
   });
 
-  test("indexes Python and HTML fixtures and returns lexical results", async () => {
+  test("indexes fixtures and returns rich lexical query results", async () => {
     const root = await createFixtureRepo();
     await runInit(root);
     const stats = await runIndex(root, { progress: false });
@@ -47,12 +47,23 @@ describe("symballist vertical slice", () => {
     const fallbackResults = searchSymbols(db, "No OR ids", 5);
     db.close();
 
+    const greet = greetResults.find((result) => result.name === "greet");
+    const searchPanel = htmlResults.find((result) => result.name === "search-panel");
+    const fallback = fallbackResults.find((result) => result.fallback);
+
     expect(stats.discoveredFiles).toBe(4);
     expect(stats.indexedFiles).toBe(4);
     expect(stats.skippedFiles).toBe(0);
-    expect(greetResults.some((result) => result.name === "greet")).toBeTrue();
-    expect(htmlResults.some((result) => result.name === "search-panel")).toBeTrue();
-    expect(fallbackResults.some((result) => result.fallback)).toBeTrue();
+    expect(greet).toBeDefined();
+    expect(greet?.startLine).toBe(5);
+    expect(greet?.startColumn).toBe(5);
+    expect(greet?.snippet).toContain("def greet");
+    expect(searchPanel).toBeDefined();
+    expect(searchPanel?.startLine).toBe(8);
+    expect(searchPanel?.snippet).toContain("search-panel");
+    expect(fallback).toBeDefined();
+    expect(fallback?.startLine).toBe(1);
+    expect(fallback?.snippet).toContain("No ids here");
   });
 
   test("repeated index runs skip unchanged files", async () => {
@@ -93,4 +104,3 @@ describe("symballist vertical slice", () => {
     expect(parsed.positionals).toEqual(["query", "greet"]);
   });
 });
-

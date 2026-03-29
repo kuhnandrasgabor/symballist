@@ -9,6 +9,10 @@ export type SymbolRecord = {
   body: string;
   doc: string | null;
   fallback: boolean;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
 };
 
 export type QueryResult = {
@@ -21,4 +25,9 @@ export type QueryResult = {
   doc: string | null;
   score: number;
   fallback: boolean;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+  snippet: string;
 };

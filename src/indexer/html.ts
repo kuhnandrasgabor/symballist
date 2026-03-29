@@ -21,6 +21,27 @@ function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
   }
 }
 
+function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
+  const lines = source.split(/\r?\n/);
+  const endLine = Math.max(lines.length, 1);
+  const endColumn = (lines.at(-1)?.length ?? 0) + 1;
+  return {
+    startLine: 1,
+    startColumn: 1,
+    endLine,
+    endColumn
+  };
+}
+
+function nodeSpan(node: SyntaxNode): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
+  return {
+    startLine: node.startPosition.row + 1,
+    startColumn: node.startPosition.column + 1,
+    endLine: node.endPosition.row + 1,
+    endColumn: node.endPosition.column + 1
+  };
+}
+
 function fallbackRecord(path: string, source: string, reason: string): SymbolRecord[] {
   return [
     {
@@ -31,7 +52,8 @@ function fallbackRecord(path: string, source: string, reason: string): SymbolRec
       signature: null,
       body: source.slice(0, 500).trim(),
       doc: reason,
-      fallback: true
+      fallback: true,
+      ...fullFileSpan(source)
     }
   ];
 }
@@ -75,7 +97,8 @@ export function extractHtmlSymbols(path: string, source: string): SymbolRecord[]
           signature: "<title>",
           body: nodeText(source, node),
           doc: null,
-          fallback: false
+          fallback: false,
+          ...nodeSpan(node)
         });
       }
     }
@@ -103,7 +126,8 @@ export function extractHtmlSymbols(path: string, source: string): SymbolRecord[]
           signature: nodeText(source, startTag) || `<${tagName}>`,
           body: nodeText(source, node) || nodeText(source, startTag) + nodeText(source, endTag),
           doc: null,
-          fallback: false
+          fallback: false,
+          ...nodeSpan(node)
         });
       }
     }
