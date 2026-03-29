@@ -7,7 +7,7 @@ import { runInit } from "../src/commands/init.ts";
 import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
-import { getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { parseCliArgs } from "../src/cli.ts";
 
 const tempRoots: string[] = [];
@@ -158,6 +158,7 @@ describe("symballist vertical slice", () => {
     const greet = searchSymbols(db, "greet", 5).find((result) => result.name === "greet");
     const fromDb = greet ? getSymbolById(db, greet.id) : null;
     const relationsFromDb = fromDb ? getRelationsForSymbol(db, fromDb) : [];
+    const relatedFromDb = fromDb ? getRelatedSymbolsForSymbol(db, fromDb) : [];
     db.close();
 
     expect(greet).toBeDefined();
@@ -167,6 +168,8 @@ describe("symballist vertical slice", () => {
     expect(fromDb?.endLine).toBe(6);
     expect(relationsFromDb.some((relation) => relation.kind === "contained_in" && relation.targetPath === "app.py")).toBeTrue();
     expect(relationsFromDb.some((relation) => relation.kind === "imports" && relation.targetPath === "helpers.py")).toBeTrue();
+    expect(relatedFromDb.some((entry) => entry.symbol.name === "Greeter" && entry.relation.kind === "contained_in")).toBeTrue();
+    expect(relatedFromDb.some((entry) => entry.symbol.name === "slugify" && entry.relation.kind === "imports")).toBeTrue();
 
     const output = await captureConsoleLog(async () => {
       await runShow(root, String(greet?.id));
@@ -185,6 +188,18 @@ describe("symballist vertical slice", () => {
         targetPath: string | null;
         targetLabel: string;
       }>;
+      related: Array<{
+        relation: {
+          kind: string;
+          targetPath: string | null;
+          targetLabel: string;
+        };
+        symbol: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }>;
     };
 
     expect(shown.indexFreshness.stale).toBeFalse();
@@ -195,6 +210,8 @@ describe("symballist vertical slice", () => {
     expect(shown.symbol.endLine).toBe(6);
     expect(shown.relations.some((relation) => relation.kind === "contained_in" && relation.targetPath === "app.py")).toBeTrue();
     expect(shown.relations.some((relation) => relation.kind === "imports" && relation.targetPath === "helpers.py")).toBeTrue();
+    expect(shown.related.some((entry) => entry.symbol.name === "Greeter" && entry.relation.kind === "contained_in")).toBeTrue();
+    expect(shown.related.some((entry) => entry.symbol.name === "slugify" && entry.relation.kind === "imports")).toBeTrue();
   });
 
   test("query prefers declarations over imports and supports kind filters", async () => {

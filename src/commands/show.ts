@@ -1,4 +1,4 @@
-import { getIndexedFiles, getRelationsForSymbol, getSymbolById, openDatabase } from "../db.ts";
+import { getIndexedFiles, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 
 export async function runShow(root: string, rawId: string): Promise<void> {
@@ -10,6 +10,7 @@ export async function runShow(root: string, rawId: string): Promise<void> {
   const db = await openDatabase(root);
   const symbol = getSymbolById(db, id);
   const relations = symbol ? getRelationsForSymbol(db, symbol) : [];
+  const related = symbol ? getRelatedSymbolsForSymbol(db, symbol) : [];
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
   db.close();
 
@@ -20,6 +21,7 @@ export async function runShow(root: string, rawId: string): Promise<void> {
   console.log(JSON.stringify({
     indexFreshness,
     symbol,
-    relations
+    relations,
+    related
   }, null, 2));
 }

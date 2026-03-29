@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
-import type { QueryResult, RelationDetails, SymbolDetails, SymbolRecord } from "./types.ts";
+import type { QueryResult, RelatedSymbol, RelationDetails, SymbolDetails, SymbolRecord } from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 5;
 
@@ -420,6 +420,34 @@ export function getRelationsForSymbol(db: Database, symbol: SymbolDetails): Rela
   }));
 }
 
+export function getRelatedSymbolsForSymbol(db: Database, symbol: SymbolDetails, limit = 5): RelatedSymbol[] {
+  const relations = getRelationsForSymbol(db, symbol);
+  const seenSymbolIds = new Set<number>();
+  const related: RelatedSymbol[] = [];
+
+  for (const relation of relations) {
+    if (related.length >= limit) {
+      break;
+    }
+
+    const candidates = relation.kind === "imports"
+      ? getImportedSymbolCandidates(db, relation)
+      : getContainerSymbolCandidates(db, symbol);
+
+    for (const candidate of candidates) {
+      if (candidate.id === symbol.id || seenSymbolIds.has(candidate.id)) {
+        continue;
+      }
+
+      seenSymbolIds.add(candidate.id);
+      related.push({ relation, symbol: candidate });
+      break;
+    }
+  }
+
+  return related;
+}
+
 export function searchSymbols(db: Database, query: string, limit: number, options: SearchOptions = {}): QueryResult[] {
   const kinds = [...new Set((options.kinds ?? []).map((kind) => kind.trim()).filter(Boolean))];
   const whereKindClause = kinds.length > 0
@@ -537,4 +565,102 @@ function resolvePythonModulePath(moduleName: string, sourcePath: string, availab
   }
 
   return null;
+}
+
+function getImportedSymbolCandidates(db: Database, relation: RelationDetails): SymbolDetails[] {
+  if (!relation.targetPath) {
+    return [];
+  }
+
+  const preferredName = relation.targetLabel.split(".").at(-1) ?? relation.targetLabel;
+  const rows = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      body,
+      doc,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn
+    FROM symbols
+    WHERE path = ?
+      AND kind NOT IN ('import', 'file')
+    ORDER BY
+      CASE
+        WHEN lower(name) = lower(?) THEN 0
+        WHEN lower(name) LIKE lower(?) THEN 1
+        ELSE 2
+      END,
+      CASE kind
+        WHEN 'class' THEN 0
+        WHEN 'function' THEN 1
+        WHEN 'title' THEN 2
+        WHEN 'element' THEN 3
+        ELSE 4
+      END,
+      start_line,
+      id
+    LIMIT 5
+  `).all(relation.targetPath, preferredName, `%${preferredName}%`) as SymbolDetailsRow[];
+
+  return rows.map((row) => ({
+    ...row,
+    fallback: Boolean(row.fallback)
+  }));
+}
+
+function getContainerSymbolCandidates(db: Database, symbol: SymbolDetails): SymbolDetails[] {
+  const rows = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      body,
+      doc,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn
+    FROM symbols
+    WHERE path = ?
+      AND id != ?
+      AND kind NOT IN ('import', 'file')
+      AND (
+        start_line < ?
+        OR (start_line = ? AND start_column <= ?)
+      )
+      AND (
+        end_line > ?
+        OR (end_line = ? AND end_column >= ?)
+      )
+    ORDER BY
+      ((end_line - start_line) * 1000 + (end_column - start_column)) ASC,
+      start_line ASC,
+      id ASC
+    LIMIT 3
+  `).all(
+    symbol.path,
+    symbol.id,
+    symbol.startLine,
+    symbol.startLine,
+    symbol.startColumn,
+    symbol.endLine,
+    symbol.endLine,
+    symbol.endColumn
+  ) as SymbolDetailsRow[];
+
+  return rows.map((row) => ({
+    ...row,
+    fallback: Boolean(row.fallback)
+  }));
 }

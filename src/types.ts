@@ -53,3 +53,8 @@ export type RelationDetails = {
   targetPath: string | null;
   targetLabel: string;
 };
+
+export type RelatedSymbol = {
+  relation: RelationDetails;
+  symbol: SymbolDetails;
+};
