@@ -49,6 +49,13 @@ The execution backend and universal fallback remains:
 .symballist/bin/symballist.cmd
 ```
 
+Shell-aware local wrapper choices:
+
+- PowerShell / cmd.exe:
+  - `.\.symballist\bin\symballist.cmd`
+- bash / zsh / sh:
+  - `./.symballist/bin/symballist`
+
 Preferred downstream entrypoint after `symballist init`:
 
 ```powershell
@@ -88,6 +95,7 @@ Typical agent flow:
 9. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
 10. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
 11. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import structure contributed to reranking.
+12. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
 
 Useful query refinements:
 

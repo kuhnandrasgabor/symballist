@@ -100,6 +100,12 @@ If you prefer the repo-local wrapper instead of a linked global command:
 .symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
 ```
 
+If you are in a bash-like shell, use the POSIX wrapper instead:
+
+```bash
+./.symballist/bin/symballist status --root <PROJECT_ROOT>
+```
+
 ## 60-Second Workflow
 
 Typical usage looks like this:
@@ -135,7 +141,7 @@ symballist watch --once --root <PROJECT_ROOT>
 - `symballist watch --interval-ms 2000`
   - keeps a foreground polling loop alive
 - `symballist status`
-  - shows index health, freshness, change awareness, and embeddings state
+  - shows index health, freshness, change awareness, embeddings state, and shell-aware entrypoint guidance
 - `symballist query "<text>"`
   - returns ranked candidates
 - `symballist lookup "<text>"`
@@ -193,6 +199,8 @@ Important behavior:
   - whether the indexed repo is stale relative to the filesystem
 - `changeAwareness`
   - file-level change summaries since index and, when available, since `git HEAD`
+- `shellGuidance`
+  - the best local wrapper to use for the current shell plus shell-specific alternatives
 - `retrieval.mode`
   - `lexical` or `hybrid`
 - `retrieval.hybrid`

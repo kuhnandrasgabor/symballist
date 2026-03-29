@@ -15,6 +15,7 @@ import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { readConfig, writeConfig } from "../src/fs.ts";
 import { detectIndexFreshness } from "../src/freshness.ts";
 import { parseCliArgs, runCli } from "../src/cli.ts";
+import { detectShellFlavor, getShellGuidance } from "../src/shell.ts";
 
 const tempRoots: string[] = [];
 
@@ -114,6 +115,8 @@ describe("symballist vertical slice", () => {
     expect(claudeText.match(/<!-- SYMBALLIST RETRIEVAL START -->/g)?.length ?? 0).toBe(1);
     expect(agentsText).toContain(".symballist\\tools\\symballist-tools.json");
     expect(claudeText).toContain(".symballist\\tools\\symballist-tools.json");
+    expect(agentsText).toContain("./.symballist/bin/symballist");
+    expect(claudeText).toContain("./.symballist/bin/symballist");
     expect(localAgentsSnippet).toContain("symballist_lookup");
     expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
     expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd index --root ${root}`);
@@ -174,6 +177,29 @@ describe("symballist vertical slice", () => {
     expect(await Bun.file(join(toolRoot, ".symballist", "tools", "symballist-tools.json")).exists()).toBeTrue();
     expect(toolAgents).toContain(".symballist\\tools\\symballist-tools.json");
     expect(toolManifest).toContain("\"name\": \"symballist_status\"");
+  });
+
+  test("shell guidance detects bash-like and Windows shells and returns matching entrypoints", () => {
+    expect(detectShellFlavor({ SHELL: "/bin/bash" }, "win32")).toBe("posix");
+    expect(detectShellFlavor({ PSModulePath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules" }, "win32")).toBe("powershell");
+    expect(detectShellFlavor({ ComSpec: "C:\\Windows\\System32\\cmd.exe" }, "win32")).toBe("cmd");
+
+    const posixGuidance = getShellGuidance("D:/Projects/co-ma", {
+      env: { SHELL: "/bin/bash" },
+      platform: "win32",
+      cwd: "D:/Projects/co-ma"
+    });
+    expect(posixGuidance.detectedShell).toBe("posix");
+    expect(posixGuidance.recommendedEntrypoint).toBe("./.symballist/bin/symballist");
+    expect(posixGuidance.recommendedCommands.status).toContain("./.symballist/bin/symballist status --root D:/Projects/co-ma");
+
+    const cmdGuidance = getShellGuidance("D:/Projects/co-ma", {
+      env: { ComSpec: "C:\\Windows\\System32\\cmd.exe" },
+      platform: "win32",
+      cwd: "D:/Projects/co-ma"
+    });
+    expect(cmdGuidance.detectedShell).toBe("cmd");
+    expect(cmdGuidance.recommendedEntrypoint).toBe(".\\.symballist\\bin\\symballist.cmd");
   });
 
   test("init creates or appends .symballist ignore rules without duplicating them", async () => {
@@ -291,6 +317,7 @@ describe("symballist vertical slice", () => {
     });
     const status = JSON.parse(output) as {
       initialized: boolean;
+      setupType: string | null;
       dbExists: boolean;
       supportedLanguages: string[];
       indexedFiles: number;
@@ -324,9 +351,24 @@ describe("symballist vertical slice", () => {
           truncated: boolean;
         };
       };
+      shellGuidance: {
+        detectedShell: string;
+        recommendedEntrypoint: string;
+        alternativeEntrypoints: {
+          cmd: string;
+          powershell: string;
+          posix: string;
+        };
+        recommendedCommands: {
+          status: string;
+          watchOnce: string;
+          lookup: string;
+        };
+      };
     };
 
     expect(status.initialized).toBeTrue();
+    expect(status.setupType).toBe("hybrid");
     expect(status.dbExists).toBeTrue();
     expect(status.supportedLanguages).toEqual(["html", "markdown", "python"]);
     expect(status.indexedFiles).toBe(7);
@@ -337,6 +379,8 @@ describe("symballist vertical slice", () => {
     expect(status.changeAwareness.sinceIndex.changedFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.newFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.deletedFiles).toBe(0);
+    expect(status.shellGuidance.recommendedEntrypoint.length).toBeGreaterThan(0);
+    expect(status.shellGuidance.recommendedCommands.status).toContain("status --root");
   });
 
   test("show resolves a queried symbol id into full stored context", async () => {

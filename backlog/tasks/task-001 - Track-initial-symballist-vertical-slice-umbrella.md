@@ -35,12 +35,12 @@ references:
   - TASK-025
   - TASK-026
   - TASK-035
+  - TASK-036
   - DRAFT-008
   - DRAFT-009
   - DRAFT-010
   - DRAFT-011
   - DRAFT-012
-  - DRAFT-013
   - DRAFT-014
   - DRAFT-015
   - DRAFT-016
@@ -76,7 +76,7 @@ Current v1 shape:
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
 2. Treat completed slice work as closed subtasks: TASK-002 through TASK-026.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term roadmap after the vertical slice: DRAFT-013, then DRAFT-014, then DRAFT-015, then DRAFT-016.
+4. Near-term roadmap after the vertical slice: DRAFT-014, then DRAFT-015, then DRAFT-016.
 5. Longer-term roadmap after that: DRAFT-010, then DRAFT-011, then DRAFT-012.
 6. Exploratory follow-up beyond that: DRAFT-008 and DRAFT-009.
 <!-- SECTION:PLAN:END -->
@@ -120,6 +120,7 @@ Adoption and workflow
 - Done: downstream adoption workflow docs and reusable snippets.
 - Done: init bootstraps local .symballist/instructions assets, wrapper commands, and managed AGENTS.md / CLAUDE.md symballist retrieval blocks.
 - Done: init now supports `cli`, `tool`, and `hybrid` setup modes, persisting the chosen mode in config and generating repo-local tool-definition assets for tool-capable setups.
+- Done: shell-aware onboarding now recommends the right local wrapper for PowerShell/cmd versus bash-like shells and surfaces that guidance in both docs and status output.
 - Done: init now ensures `.gitignore` contains `.symballist/` and prints a manual cleanup hint if that directory already appears to be Git-tracked.
 - Done: real dogfooding in co-ma confirms the tool is now genuinely useful for day-to-day discovery, especially for implementation-oriented queries.
 - Open polish area: fresh-session onboarding still has avoidable shell and wrapper friction, especially for agents starting in bash-like shells on Windows.
@@ -139,7 +140,6 @@ Priority order from latest live feedback
 - Done: TASK-024 preferred canonical docs and demoted duplicate operational docs in docs-only retrieval.
 - Done: TASK-025 added lightweight file-level change awareness since index and git HEAD.
 - Done: TASK-026 added a CLI-first agent-facing lookup helper on top of query/show.
-- New feedback follow-up: DRAFT-013 shell-aware onboarding and first-run invocation guidance.
 - New feedback follow-up: DRAFT-014 compact output mode for agent-facing symballist responses.
 - New feedback follow-up: DRAFT-015 explicit result quality and no-strong-match signaling.
 - New feedback follow-up: DRAFT-016 stronger conceptual retention and implementation preference for fuzzy queries.
@@ -175,6 +175,7 @@ Completed subtasks
 - TASK-025 lightweight file-level change awareness since index and git HEAD.
 - TASK-026 agent-facing `lookup` helper for the common query/show flow.
 - TASK-035 init setup modes for CLI-only, tool-first, and hybrid downstream integration.
+- TASK-036 shell-aware onboarding and first-run invocation guidance.
 
 2026-03-29: Completed TASK-027. symballist watch now provides low-overhead repo-local automatic refresh via polling, with --once for a safe one-shot sweep and --interval-ms for foreground watch mode. This closes the first roadmap step and leaves optional local embeddings + hybrid retrieval as the next major slice.
 
@@ -196,5 +197,7 @@ Completed subtasks
 
 2026-03-29: Completed TASK-035. `symballist init` now supports explicit `--setup-type cli|tool|hybrid`, persists the selected integration mode in repo-local config, renders mode-specific managed guidance, and generates repo-local tool-definition assets under `.symballist/tools/` for tool-capable setups while keeping the CLI wrappers as the universal fallback.
 
-2026-03-29 feedback intake: created DRAFT-013 for shell-aware onboarding and first-run invocation guidance, DRAFT-014 for compact output mode, DRAFT-015 for explicit result quality / no-strong-match signaling, and DRAFT-016 for stronger conceptual retention and implementation preference on fuzzy queries. The strongest near-term order from this feedback is onboarding first, then compactness, then weak-result signaling, then deeper conceptual tuning.
+2026-03-29 feedback intake: created DRAFT-013 for shell-aware onboarding and first-run invocation guidance, DRAFT-014 for compact output mode, DRAFT-015 for explicit result quality / no-strong-match signaling, and DRAFT-016 for stronger conceptual retention and implementation preference on fuzzy queries. The strongest near-term order from this feedback was onboarding first, then compactness, then weak-result signaling, then deeper conceptual tuning.
+
+2026-03-29: Completed TASK-036. Added shell-aware onboarding guidance for fresh sessions, including shell-specific local wrapper recommendations in generated docs/snippets, a machine-readable `shellGuidance` block in status output, and clearer init-time quick-start logging.
 <!-- SECTION:NOTES:END -->

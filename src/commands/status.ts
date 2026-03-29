@@ -3,6 +3,7 @@ import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getStatusSummary, openDatabase
 import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig } from "../fs.ts";
+import { getShellGuidance } from "../shell.ts";
 
 function defaultLanguages(): string[] {
   return [...new Set(SUPPORTED_EXTENSIONS.values())].sort();
@@ -13,6 +14,7 @@ export async function runStatus(root: string): Promise<void> {
   const dbPath = appPath(root, DB_FILE);
   const config = await readConfig(root);
   const dbExists = await exists(dbPath);
+  const shellGuidance = getShellGuidance(root);
 
   let indexedFileCount = 0;
   let indexedSymbols = 0;
@@ -99,6 +101,8 @@ export async function runStatus(root: string): Promise<void> {
     indexedFiles: indexedFileCount,
     indexedSymbols,
     fallbackSymbols,
+    setupType: config?.setupType ?? null,
+    shellGuidance,
     embeddings,
     indexFreshness: freshness,
     changeAwareness
