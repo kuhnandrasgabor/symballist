@@ -17,6 +17,7 @@ V1 is intentionally narrow:
 - rich query results with symbol spans and snippets
 - stale-index detection in status and retrieval commands
 - lightweight import and containment relations in show output
+- relation-aware symbol expansion in show output for fast local follow-up context
 
 ## Query Pipeline
 
