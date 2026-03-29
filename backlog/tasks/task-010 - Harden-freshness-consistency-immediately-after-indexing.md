@@ -1,11 +1,13 @@
 ---
-id: DRAFT-005
+id: TASK-010
 title: Harden freshness consistency immediately after indexing
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-28 16:46'
+updated_date: '2026-03-28 17:06'
 labels: []
 dependencies: []
+priority: high
 ---
 
 ## Description
@@ -24,3 +26,24 @@ Observed motivation:
 - one agent saw stale on the first query after indexing, then healthy freshness immediately afterward
 - both agents specifically praised freshness checks, so this is worth hardening
 <!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [x] #1 Freshness checks do not report stale solely because of tiny file mtime jitter immediately after indexing.
+- [x] #2 Real source changes still produce stale freshness results.
+- [x] #3 Regression coverage exists for the immediate post-index jitter case.
+<!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented a small mtime comparison tolerance in detectIndexFreshness so status/query/show no longer require exact floating-point mtime equality after indexing.
+
+Added regression coverage that simulates tiny post-index mtime drift and confirms freshness stays healthy, while the existing stale-after-change test continues to pass.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Hardened the first freshness consistency edge case by ignoring tiny mtime jitter immediately after indexing. Verified with bun test: 12 tests passing, including the new freshness jitter regression.
+<!-- SECTION:FINAL_SUMMARY:END -->

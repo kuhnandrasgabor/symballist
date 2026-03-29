@@ -8,6 +8,8 @@ import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { fileMetadata, listSourceFiles } from "../src/fs.ts";
+import { detectIndexFreshness } from "../src/freshness.ts";
 import { parseCliArgs } from "../src/cli.ts";
 
 const tempRoots: string[] = [];
@@ -328,6 +330,27 @@ describe("symballist vertical slice", () => {
     expect(status.indexFreshness.deletedFiles).toBe(0);
     expect(queryPayload.indexFreshness.stale).toBeTrue();
     expect(queryPayload.indexFreshness.changedFiles).toBe(1);
+  });
+
+  test("freshness ignores tiny mtime jitter immediately after indexing", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const currentFiles = await listSourceFiles(root);
+    const indexedFiles = await Promise.all(currentFiles.map(async (file) => {
+      const metadata = await fileMetadata(file.absolutePath);
+      return {
+        path: file.relativePath,
+        language: file.language,
+        size: metadata.size,
+        mtimeMs: metadata.mtimeMs + 5
+      };
+    }));
+
+    const freshness = await detectIndexFreshness(root, indexedFiles);
+    expect(freshness.stale).toBeFalse();
+    expect(freshness.changedFiles).toBe(0);
   });
 
   test("oversized python files recover top-level symbols instead of a single file fallback", async () => {
