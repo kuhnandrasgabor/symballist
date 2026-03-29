@@ -2,7 +2,18 @@ import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
-import type { QueryResult, RelatedSymbol, RelationDetails, SymbolDetails, SymbolLookupOptions, SymbolRecord } from "./types.ts";
+import type {
+  ExtractionKind,
+  MatchReason,
+  QueryResult,
+  RelatedSymbol,
+  RelationDetails,
+  ResultConfidence,
+  SymbolDetails,
+  SymbolLookupOptions,
+  SymbolRecord,
+  TrustLevel
+} from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 5;
 
@@ -21,7 +32,22 @@ export type StatusSummary = {
   schemaVersion: number;
 };
 
-type SearchRow = Omit<QueryResult, "snippet" | "fallback"> & { body: string; fallback: number };
+type SearchRow = {
+  id: number;
+  path: string;
+  language: SymbolRecord["language"];
+  kind: string;
+  name: string;
+  signature: string | null;
+  doc: string | null;
+  body: string;
+  fallback: number;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+  rawScore: number;
+};
 type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
 type RelationRow = {
   kind: RelationDetails["kind"];
@@ -31,6 +57,15 @@ type RelationRow = {
 type SearchOptions = {
   kinds?: string[];
   rawQuery?: string;
+};
+type ExtractionDetails = {
+  extraction: ExtractionKind;
+  trustLevel: TrustLevel;
+};
+type MatchAnalysis = {
+  adjustment: number;
+  reason: MatchReason;
+  confidence: ResultConfidence;
 };
 
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
@@ -194,6 +229,27 @@ function normalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function getExtractionDetails(row: { fallback: number | boolean; doc: string | null }): ExtractionDetails {
+  if (Boolean(row.fallback)) {
+    return {
+      extraction: "fallback",
+      trustLevel: "low"
+    };
+  }
+
+  if ((row.doc ?? "").startsWith("Recovered from oversized Python file")) {
+    return {
+      extraction: "recovered",
+      trustLevel: "medium"
+    };
+  }
+
+  return {
+    extraction: "parsed",
+    trustLevel: "high"
+  };
+}
+
 function isSymbolShapedQuery(rawQuery: string): boolean {
   const trimmed = rawQuery.trim();
   if (!trimmed || /\s/.test(trimmed)) {
@@ -230,10 +286,14 @@ export function buildFtsQuery(rawQuery: string): string {
   return clauses.size > 1 ? [...clauses].join(" OR ") : [...clauses][0] ?? rawQuery.trim();
 }
 
-function computeDirectMatchAdjustment(row: SearchRow, rawQuery: string): number {
+function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
   const trimmedQuery = rawQuery.trim();
   if (!trimmedQuery) {
-    return 0;
+    return {
+      adjustment: 0,
+      reason: row.fallback ? "fallback_file" : "body_text",
+      confidence: row.fallback ? "fallback" : "related"
+    };
   }
 
   const isSymbolQuery = isSymbolShapedQuery(trimmedQuery);
@@ -242,37 +302,85 @@ function computeDirectMatchAdjustment(row: SearchRow, rawQuery: string): number 
   const exactCaseInsensitiveName = row.name.trim().toLowerCase() === trimmedQuery.toLowerCase();
   const normalizedQuery = normalizeLookupValue(rawQuery);
   if (!normalizedQuery) {
-    return 0;
+    return {
+      adjustment: 0,
+      reason: row.fallback ? "fallback_file" : "body_text",
+      confidence: row.fallback ? "fallback" : "related"
+    };
   }
 
   const normalizedName = normalizeLookupValue(row.name);
   if (exactCaseSensitiveName) {
-    return -6.0 + definitionBias;
+    return {
+      adjustment: -6.0 + definitionBias,
+      reason: "exact_symbol_name",
+      confidence: "exact"
+    };
   }
   if (exactCaseInsensitiveName) {
-    return -5.0 + definitionBias;
+    return {
+      adjustment: -5.0 + definitionBias,
+      reason: "exact_symbol_name",
+      confidence: "exact"
+    };
   }
   if (normalizedName === normalizedQuery) {
-    return (isSymbolQuery ? -3.25 : -4.5) + definitionBias;
+    return {
+      adjustment: (isSymbolQuery ? -3.25 : -4.5) + definitionBias,
+      reason: "normalized_symbol_name",
+      confidence: isSymbolQuery ? "strong" : "exact"
+    };
   }
   if (normalizedName.startsWith(normalizedQuery)) {
-    return (isSymbolQuery ? -1.75 : -2.5) + definitionBias;
+    return {
+      adjustment: (isSymbolQuery ? -1.75 : -2.5) + definitionBias,
+      reason: "normalized_symbol_name",
+      confidence: "strong"
+    };
   }
   if (normalizedName.includes(normalizedQuery)) {
-    return (isSymbolQuery ? -0.85 : -1.5) + definitionBias;
+    return {
+      adjustment: (isSymbolQuery ? -0.85 : -1.5) + definitionBias,
+      reason: "normalized_symbol_name",
+      confidence: "strong"
+    };
   }
 
   const queryLower = trimmedQuery.toLowerCase();
   const signatureLower = (row.signature ?? "").toLowerCase();
+  const docLower = (row.doc ?? "").toLowerCase();
   const bodyLower = row.body.toLowerCase();
+  if (docLower.includes(queryLower)) {
+    return {
+      adjustment: -0.35,
+      reason: "doc_text",
+      confidence: "strong"
+    };
+  }
   if (signatureLower.includes(queryLower)) {
-    return isSymbolQuery ? -0.05 : -0.4;
+    return {
+      adjustment: isSymbolQuery ? -0.05 : -0.4,
+      reason: row.kind === "import" ? "import_reference" : "signature_text",
+      confidence: isSymbolQuery ? "related" : "strong"
+    };
   }
   if (bodyLower.includes(queryLower)) {
-    return isSymbolQuery ? 0 : -0.2;
+    return {
+      adjustment: isSymbolQuery ? 0 : -0.2,
+      reason: row.kind === "import"
+        ? "import_reference"
+        : row.kind === "heading"
+          ? "heading_text"
+          : "body_text",
+      confidence: row.fallback ? "fallback" : "related"
+    };
   }
 
-  return 0;
+  return {
+    adjustment: 0,
+    reason: row.fallback ? "fallback_file" : "body_text",
+    confidence: row.fallback ? "fallback" : "related"
+  };
 }
 
 function isDocOrientedQuery(rawQuery: string): boolean {
@@ -327,23 +435,46 @@ function computePathAdjustment(row: SearchRow, rawQuery: string): number {
 
 function rerankResults(rows: SearchRow[], limit: number, rawQuery: string): QueryResult[] {
   return rows
-    .map(({ body, ...row }) => ({
-      ...row,
-      fallback: Boolean(row.fallback),
-      snippet: makeSnippet(body),
-      adjustedScore: row.score
+    .map((row) => {
+      const match = computeMatchAnalysis(row, rawQuery);
+      const extraction = getExtractionDetails(row);
+      const adjustedScore = row.rawScore
         + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
-        + computePathAdjustment({ body, ...row }, rawQuery)
-        + computeDirectMatchAdjustment({ body, ...row }, rawQuery)
-    }))
+        + computePathAdjustment(row, rawQuery)
+        + match.adjustment;
+      return {
+        id: row.id,
+        path: row.path,
+        language: row.language,
+        kind: row.kind,
+        name: row.name,
+        signature: row.signature,
+        doc: row.doc,
+        fallback: Boolean(row.fallback),
+        startLine: row.startLine,
+        startColumn: row.startColumn,
+        endLine: row.endLine,
+        endColumn: row.endColumn,
+        snippet: makeSnippet(row.body),
+        confidence: match.confidence,
+        matchReason: match.reason,
+        extraction: extraction.extraction,
+        trustLevel: extraction.trustLevel,
+        rawScore: row.rawScore,
+        adjustedScore
+      };
+    })
     .sort((left, right) => {
       if (left.adjustedScore !== right.adjustedScore) {
         return left.adjustedScore - right.adjustedScore;
       }
-      return left.score - right.score;
+      return left.rawScore - right.rawScore;
     })
     .slice(0, limit)
-    .map(({ adjustedScore: _adjustedScore, ...result }) => result);
+    .map(({ adjustedScore, rawScore: _rawScore, ...result }) => ({
+      ...result,
+      distance: adjustedScore
+    }));
 }
 
 export function replaceFileIndex(
@@ -508,8 +639,11 @@ export function getSymbolById(db: Database, id: number): SymbolDetails | null {
   }
 
   const details = row as SymbolDetailsRow;
+  const extraction = getExtractionDetails(details);
   return {
     ...details,
+    extraction: extraction.extraction,
+    trustLevel: extraction.trustLevel,
     fallback: Boolean(details.fallback)
   };
 }
@@ -540,7 +674,7 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
       start_column AS startColumn,
       end_line AS endLine,
       end_column AS endColumn,
-      0.0 AS score
+      0.0 AS rawScore
     FROM symbols
     WHERE lower(name) = lower(?)
     ${whereKindClause}
@@ -623,12 +757,12 @@ export function searchSymbols(db: Database, query: string, limit: number, option
       symbols.start_column AS startColumn,
       symbols.end_line AS endLine,
       symbols.end_column AS endColumn,
-      bm25(symbols_fts) AS score
+      bm25(symbols_fts) AS rawScore
     FROM symbols_fts
     JOIN symbols ON symbols.id = symbols_fts.symbol_id
     WHERE symbols_fts MATCH ?
     ${whereKindClause}
-    ORDER BY score
+    ORDER BY rawScore
     LIMIT ?
   `);
 
