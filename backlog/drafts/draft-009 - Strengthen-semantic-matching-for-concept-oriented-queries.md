@@ -25,4 +25,6 @@ Observed motivation:
 - the project vision already mentions optional embeddings and hybrid retrieval, so this is aligned with the longer-term architecture
 - updated feedback reinforced that concept queries such as `distiller` still feel less dependable than direct symbol-name queries like `DistillationEngine`
 - the current state is now "genuinely useful" for day-to-day discovery, which makes the remaining concept-query gap more visible and worth isolating as its own follow-up
+- another downstream pass sharpened the need further: `memory store` and `distiller` still tend to surface wiring, tests, or adjacent usage before the canonical implementation symbol the user most likely wants
+- the core opportunity now is not "make concept queries return something" but "make concept queries land on the main implementation object first often enough to feel intentional"
 <!-- SECTION:DESCRIPTION:END -->

@@ -28,6 +28,8 @@ references:
   - DRAFT-008
   - DRAFT-009
   - DRAFT-010
+  - DRAFT-011
+  - DRAFT-012
 priority: high
 ---
 
@@ -58,10 +60,10 @@ Current v1 shape:
 
 <!-- SECTION:PLAN:BEGIN -->
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
-2. Treat completed slice work as closed subtasks: TASK-002 through TASK-012.
+2. Treat completed slice work as closed subtasks: TASK-002 through TASK-016.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term priority order from latest feedback: DRAFT-003.
-5. Medium-term follow-ups: DRAFT-009, DRAFT-010, DRAFT-008, then broader helper-integration questions in DRAFT-001.
+4. Near-term priority order from latest feedback: DRAFT-003, DRAFT-009, DRAFT-011, DRAFT-012.
+5. Medium-term follow-ups: DRAFT-010, DRAFT-008, then broader helper-integration questions in DRAFT-001.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -102,7 +104,9 @@ Priority order from latest live feedback
 - Done: TASK-015 improved query/show ergonomics with tighter default result counts and `show --name`.
 - Done: TASK-016 clarified retrieval confidence, score semantics, and trust signaling in query/show output.
 - Now: DRAFT-003 add query intent filters for implementation, docs, and tests.
-- Later: DRAFT-009 strengthen semantic matching for concept-oriented queries.
+- Next: DRAFT-009 strengthen semantic matching for concept-oriented queries.
+- Next: DRAFT-011 calibrate confidence and match-reason heuristics so trust signals stay meaningful.
+- Next: DRAFT-012 add summary mode or truncation defaults for large show results.
 - Later: DRAFT-010 ensure init adds .symballist to .gitignore by default.
 - Later: DRAFT-008 explore diff-aware and session-aware change tracking.
 - Later: DRAFT-001 decide when and how to add an agent-facing symballist query helper.
