@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
 import type { QueryResult, SymbolDetails, SymbolRecord } from "./types.ts";
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export type IndexedFileRow = {
   path: string;
