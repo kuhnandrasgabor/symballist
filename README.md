@@ -86,7 +86,7 @@ Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:
 `status` also includes an `embeddings` block so you can tell whether hybrid retrieval is configured, available for the active model, and backed by indexed vectors.
 `watch` is the low-overhead automatic refresh loop for repo-local indexing. Start with `watch --once` for an explicit freshness sweep, then use a polling interval if you want foreground auto-refresh while you work.
 `lookup` is the convenience helper for the common `query -> best hit -> show` workflow, returning the selected result, its full context, and a short alternative list in one payload.
-When embeddings are enabled and indexed, `query` and `lookup` now report `retrieval.mode = "hybrid"` and blend lexical plus semantic candidates automatically.
+When embeddings are enabled and indexed, `query` and `lookup` now report `retrieval.mode = "hybrid"` and blend lexical plus semantic candidates automatically. They also expose a `retrieval.hybrid` block so you can see how many semantic candidates were retrieved, how many survived into the final result set, and whether the top result carried a semantic signal. Individual results now include `retrievalChannels` and `hybridContribution` so semantic assistance is visible even when lexical matching still dominates the final explanation.
 
 ## Optional Embeddings
 

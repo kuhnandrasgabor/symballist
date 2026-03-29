@@ -1,9 +1,10 @@
 ---
-id: DRAFT-014
+id: TASK-030
 title: Expose hybrid retrieval contribution and semantic signals in result output
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-29 15:42'
+updated_date: '2026-03-29 16:09'
 labels:
   - idea
   - spike
@@ -30,3 +31,9 @@ Suggested direction
 Expected outcome
 - Agents can tell when embeddings actually influenced ranking, and future tuning can be based on visible evidence rather than guesswork.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Exposed hybrid retrieval diagnostics in query and lookup output. Added retrieval.hybrid candidate counts plus per-result retrievalChannels and hybridContribution so semantic participation is visible even when lexical matching still dominates. Updated docs/init templates and added regression coverage for semantic diagnostics.
+<!-- SECTION:FINAL_SUMMARY:END -->

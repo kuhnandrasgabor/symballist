@@ -11,6 +11,7 @@ Use `symballist` as a CLI-first read-only retrieval helper for this repo.
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing, run `.symballist\bin\symballist.cmd watch --once --root <PROJECT_ROOT>`.
 - Use `.symballist\bin\symballist.cmd lookup "<text>" --root <PROJECT_ROOT>` for the common `query -> top hit -> show` flow.
 - If embeddings are enabled, inspect the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
+- Use `retrieval.hybrid`, `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` when you need to tell whether semantic retrieval actually contributed to a result or stayed in the background.
 - Use `query` to discover relevant code or docs.
 - Add `--code-only --exclude-tests` for implementation-heavy results.
 - Add `--prefer-implementation` when broad code queries still lean toward wiring or references.
