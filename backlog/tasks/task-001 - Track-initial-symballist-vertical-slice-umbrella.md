@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 17:01'
+updated_date: '2026-03-28 17:40'
 labels: []
 dependencies: []
 references:
@@ -17,10 +17,17 @@ references:
   - TASK-007
   - TASK-008
   - TASK-009
-  - DRAFT-002
-  - DRAFT-005
+  - TASK-010
+  - TASK-011
+  - TASK-012
+  - TASK-013
+  - TASK-014
+  - DRAFT-003
+  - DRAFT-004
   - DRAFT-006
-  - DRAFT-007
+  - DRAFT-008
+  - DRAFT-009
+  - DRAFT-010
 priority: high
 ---
 
@@ -51,9 +58,10 @@ Current v1 shape:
 
 <!-- SECTION:PLAN:BEGIN -->
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
-2. Treat completed slice work as closed subtasks: TASK-002 through TASK-009.
-3. Use new tasks for concrete implementation work and drafts for follow-up ideas/polish discovered during dogfooding.
-4. Near-term likely follow-ups from live use: freshness consistency, implementation-first ranking, invocation polish, and query/show ergonomics.
+2. Treat completed slice work as closed subtasks: TASK-002 through TASK-012.
+3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
+4. Near-term priority order from latest feedback: DRAFT-006, DRAFT-004, DRAFT-003.
+5. Medium-term follow-ups: DRAFT-009, DRAFT-010, DRAFT-008, then broader helper-integration questions in DRAFT-001.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -64,6 +72,7 @@ Vertical slice status by area
 Foundation
 - Done: init, index, status, query, and show commands form a full CLI-first loop.
 - Done: explicit --root targeting supports cross-repo use.
+- Done: a real symballist command and local wrappers reduce downstream Windows friction.
 
 Indexing and storage
 - Done: SQLite + FTS local index.
@@ -74,21 +83,27 @@ Indexing and storage
 
 Retrieval quality and context
 - Done: rich query results include spans and snippets.
-- Done: kind-aware and direct-match reranking.
+- Done: kind-aware, direct-match, and implementation-first reranking.
 - Done: stale-index detection surfaces freshness in status/query/show.
+- Done: freshness checks now ignore tiny mtime jitter immediately after indexing.
+- Done: symbol-shaped queries now prefer exact owning definitions over normalized references.
 - Done: show returns full symbol bodies plus lightweight relations and related symbols.
 
 Adoption and workflow
 - Done: downstream adoption workflow docs and reusable snippets.
-- Done: init bootstraps local .symballist/instructions assets and managed AGENTS.md / CLAUDE.md symballist retrieval blocks.
-- Done: real dogfooding in co-ma confirms the tool is already useful for discovery and orientation.
+- Done: init bootstraps local .symballist/instructions assets, wrapper commands, and managed AGENTS.md / CLAUDE.md symballist retrieval blocks.
+- Done: real dogfooding in co-ma confirms the tool is now genuinely useful for day-to-day discovery, especially for implementation-oriented queries.
 
-Known polish areas from live feedback
-- Draft: DRAFT-005 freshness consistency immediately after indexing.
-- Draft: DRAFT-002 implementation-first ranking for conceptual queries.
-- Draft: DRAFT-007 Windows invocation UX and a real symballist command.
-- Draft: DRAFT-006 query/show ergonomics for daily use.
-- Later drafts: DRAFT-003, DRAFT-004, DRAFT-008, DRAFT-009.
+Priority order from latest live feedback
+- Done: TASK-013 fixed query CLI flag parsing and help handling, including query subcommand help and `--top` alias support.
+- Done: TASK-014 improved exact-definition ranking for symbol-shaped queries such as `DistillationEngine`.
+- Now: DRAFT-006 improve query/show ergonomics for daily use.
+- Next: DRAFT-004 clarify retrieval confidence, score semantics, and trust signals.
+- Next: DRAFT-003 add query intent filters for implementation, docs, and tests.
+- Later: DRAFT-009 strengthen semantic matching for concept-oriented queries.
+- Later: DRAFT-010 ensure init adds .symballist to .gitignore by default.
+- Later: DRAFT-008 explore diff-aware and session-aware change tracking.
+- Later: DRAFT-001 decide when and how to add an agent-facing symballist query helper.
 
 Completed subtasks
 - TASK-002 large-file Python symbol recovery.
@@ -99,4 +114,9 @@ Completed subtasks
 - TASK-007 agent adoption workflow docs.
 - TASK-008 downstream instruction snippets.
 - TASK-009 init-time downstream instruction bootstrap.
+- TASK-010 freshness consistency immediately after indexing.
+- TASK-011 implementation-first ranking for conceptual queries.
+- TASK-012 Windows invocation UX and a real symballist command.
+- TASK-013 query CLI flag parsing and help handling.
+- TASK-014 exact-symbol definition-first ranking.
 <!-- SECTION:NOTES:END -->

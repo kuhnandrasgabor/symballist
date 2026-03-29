@@ -10,7 +10,7 @@ import { runStatus } from "../src/commands/status.ts";
 import { buildFtsQuery, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { detectIndexFreshness } from "../src/freshness.ts";
-import { parseCliArgs } from "../src/cli.ts";
+import { parseCliArgs, runCli } from "../src/cli.ts";
 
 const tempRoots: string[] = [];
 
@@ -298,6 +298,39 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
   });
 
+  test("symbol-shaped queries prefer exact owning definitions over normalized references", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(
+      join(root, "src", "distiller.py"),
+      'class DistillationEngine:\n    pass\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "helpers.py"),
+      'from src.distiller import DistillationEngine\n\n\ndef distillation_engine() -> DistillationEngine:\n    return DistillationEngine()\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "tests", "test_distiller.py"),
+      'def test_distillation_engine_behavior():\n    assert "DistillationEngine"\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, buildFtsQuery("DistillationEngine"), 5, { rawQuery: "DistillationEngine" });
+    db.close();
+
+    expect(results[0]?.kind).toBe("class");
+    expect(results[0]?.name).toBe("DistillationEngine");
+    expect(results[0]?.path).toBe("src\\distiller.py");
+    expect(results.some((result) => result.name === "distillation_engine")).toBeTrue();
+  });
+
   test("conceptual code queries prefer src implementations over tests while doc queries still favor docs", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });
@@ -441,6 +474,29 @@ describe("symballist vertical slice", () => {
     expect(parsed.root).toBe("D:/Projects/co-ma");
     expect(parsed.limit).toBe(3);
     expect(parsed.kinds).toEqual(["class", "function"]);
-    expect(parsed.positionals).toEqual(["query", "greet"]);
+    expect(parsed.positionals).toEqual(["greet"]);
+    expect(parsed.helpRequested).toBeFalse();
+    expect(parsed.error).toBeNull();
+  });
+
+  test("query help is handled as CLI help instead of query text", async () => {
+    const parsed = parseCliArgs(["query", "--help"]);
+    expect(parsed.command).toBe("query");
+    expect(parsed.helpRequested).toBeTrue();
+    expect(parsed.positionals).toEqual([]);
+    expect(parsed.error).toBeNull();
+
+    const output = await captureConsoleLog(async () => {
+      await runCli(["query", "--help"]);
+    });
+    expect(output).toContain('symballist query "<text>"');
+  });
+
+  test("query accepts --top as a limit alias without reaching FTS with raw flag text", async () => {
+    const parsed = parseCliArgs(["query", "--top", "5", "greet"]);
+    expect(parsed.command).toBe("query");
+    expect(parsed.limit).toBe(5);
+    expect(parsed.positionals).toEqual(["greet"]);
+    expect(parsed.error).toBeNull();
   });
 });

@@ -194,6 +194,20 @@ function normalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function isSymbolShapedQuery(rawQuery: string): boolean {
+  const trimmed = rawQuery.trim();
+  if (!trimmed || /\s/.test(trimmed)) {
+    return false;
+  }
+
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)
+    && (/[A-Z]/.test(trimmed) || trimmed.includes("_"));
+}
+
+function isDefinitionLikeKind(kind: string): boolean {
+  return kind === "class" || kind === "function" || kind === "title" || kind === "element" || kind === "heading";
+}
+
 export function buildFtsQuery(rawQuery: string): string {
   const terms = rawQuery
     .trim()
@@ -217,34 +231,45 @@ export function buildFtsQuery(rawQuery: string): string {
 }
 
 function computeDirectMatchAdjustment(row: SearchRow, rawQuery: string): number {
+  const trimmedQuery = rawQuery.trim();
+  if (!trimmedQuery) {
+    return 0;
+  }
+
+  const isSymbolQuery = isSymbolShapedQuery(trimmedQuery);
+  const definitionBias = isDefinitionLikeKind(row.kind) ? -1.2 : 0;
+  const exactCaseSensitiveName = row.name.trim() === trimmedQuery;
+  const exactCaseInsensitiveName = row.name.trim().toLowerCase() === trimmedQuery.toLowerCase();
   const normalizedQuery = normalizeLookupValue(rawQuery);
   if (!normalizedQuery) {
     return 0;
   }
 
   const normalizedName = normalizeLookupValue(row.name);
+  if (exactCaseSensitiveName) {
+    return -6.0 + definitionBias;
+  }
+  if (exactCaseInsensitiveName) {
+    return -5.0 + definitionBias;
+  }
   if (normalizedName === normalizedQuery) {
-    return -4.5;
+    return (isSymbolQuery ? -3.25 : -4.5) + definitionBias;
   }
   if (normalizedName.startsWith(normalizedQuery)) {
-    return -2.5;
+    return (isSymbolQuery ? -1.75 : -2.5) + definitionBias;
   }
   if (normalizedName.includes(normalizedQuery)) {
-    return -1.5;
+    return (isSymbolQuery ? -0.85 : -1.5) + definitionBias;
   }
 
-  const queryLower = rawQuery.trim().toLowerCase();
-  if (!queryLower) {
-    return 0;
-  }
-
+  const queryLower = trimmedQuery.toLowerCase();
   const signatureLower = (row.signature ?? "").toLowerCase();
   const bodyLower = row.body.toLowerCase();
   if (signatureLower.includes(queryLower)) {
-    return -0.4;
+    return isSymbolQuery ? -0.05 : -0.4;
   }
   if (bodyLower.includes(queryLower)) {
-    return -0.2;
+    return isSymbolQuery ? 0 : -0.2;
   }
 
   return 0;
