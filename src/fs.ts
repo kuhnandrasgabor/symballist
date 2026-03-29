@@ -297,8 +297,9 @@ function renderCliAgentsSnippet(): string {
 
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
-- Preferred local entrypoint:
-  - \`.symballist\\bin\\symballist.cmd\`
+- Preferred local entrypoints:
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
+  - bash / zsh / sh: \`./.symballist/bin/symballist\`
 - If \`symballist\` is installed globally or linked, that command name is also acceptable.
 - Check freshness first:
   - \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\`
@@ -331,7 +332,9 @@ function renderCliClaudeSnippet(): string {
 
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
-- Preferred local entrypoint: \`.symballist\\bin\\symballist.cmd\`
+- Preferred local entrypoints:
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
+  - bash / zsh / sh: \`./.symballist/bin/symballist\`
 - If \`symballist\` is installed globally or linked, that command name is also acceptable.
 - Run \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\` before trusting older results.
 - If \`indexFreshness.stale\` is true, run \`.symballist\\bin\\symballist.cmd index --root <PROJECT_ROOT>\`.
@@ -366,6 +369,9 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
+- Shell-specific CLI fallbacks:
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
+  - bash / zsh / sh: \`./.symballist/bin/symballist\`
 - Use \`symballist_status\` first to inspect freshness, change awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` before relying on retrieval output.
 - Prefer \`symballist_lookup\` for the common \`query -> top hit -> show\` flow.
@@ -386,6 +392,9 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
+- Shell-specific CLI fallbacks:
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
+  - bash / zsh / sh: \`./.symballist/bin/symballist\`
 - Start with \`symballist_status\` to check freshness and embeddings state.
 - Use \`symballist_refresh\` when the repo is stale.
 - Use \`symballist_lookup\` for the common single-call discovery flow.
@@ -414,8 +423,9 @@ Use the generated repo-local \`symballist\` tool definitions when your agent run
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
-- CLI fallback entrypoint:
-  - \`.symballist\\bin\\symballist.cmd\`
+- CLI fallback entrypoints:
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
+  - bash / zsh / sh: \`./.symballist/bin/symballist\`
 - Use \`symballist_status\` first or run \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\`.
 - If the repo is stale, use \`symballist_refresh\` or run \`.symballist\\bin\\symballist.cmd watch --once --root <PROJECT_ROOT>\`.
 - Prefer \`symballist_lookup\` for the common \`query -> top hit -> show\` flow.
@@ -434,7 +444,9 @@ Use the generated repo-local \`symballist\` tool definitions when your runtime c
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
-- CLI fallback entrypoint: \`.symballist\\bin\\symballist.cmd\`
+- CLI fallback entrypoints:
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
+  - bash / zsh / sh: \`./.symballist/bin/symballist\`
 - Start with \`symballist_status\` or \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\`.
 - Refresh stale indexes with \`symballist_refresh\` or \`.symballist\\bin\\symballist.cmd watch --once --root <PROJECT_ROOT>\`.
 - Prefer \`symballist_lookup\` for the common single-call discovery flow.
@@ -552,7 +564,9 @@ Recommended use:
 
 - load the generated tool definitions into your agent runtime if it supports repo-local tools
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
-- keep \`.symballist/bin/symballist.cmd\` as the execution backend and universal fallback
+- keep shell-appropriate CLI wrappers as the execution backend and universal fallback
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
+  - bash / zsh / sh: \`./.symballist/bin/symballist\`
 
 These definitions are intentionally vendor-neutral. They are meant to be adapted to Anthropic, OpenAI, or other local tool-loading flows without removing the CLI fallback path.
 `;

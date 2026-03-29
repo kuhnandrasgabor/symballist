@@ -76,8 +76,9 @@ Use the generated repo-local `symballist` tool definitions when your agent runti
   - `symballist_lookup`
   - `symballist_query`
   - `symballist_show`
-- CLI fallback entrypoint:
-  - `.symballist\bin\symballist.cmd`
+- CLI fallback entrypoints:
+  - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
+  - bash / zsh / sh: `./.symballist/bin/symballist`
 - Use `symballist_status` first or run `.symballist\bin\symballist.cmd status --root D:\Projects\symballist`.
 - If the repo is stale, use `symballist_refresh` or run `.symballist\bin\symballist.cmd watch --once --root D:\Projects\symballist`.
 - Prefer `symballist_lookup` for the common `query -> top hit -> show` flow.
