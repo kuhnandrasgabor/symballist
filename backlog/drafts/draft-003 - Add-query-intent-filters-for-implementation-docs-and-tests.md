@@ -23,4 +23,6 @@ User value:
 Observed motivation:
 - one agent explicitly suggested prefer implementation, prefer docs, and exclude tests style controls
 - both agents described the tool as useful but still needing more control over noisy lower-ranked results
+- newer feedback sharpened this into concrete CLI shapes such as `--no-docs`, `--exclude-tests`, `--only-tests`, or a `prefer implementation` mode
+- recent live runs showed top 3 results can be strong while result slots 4-5 still pick up ROADMAP or phase-doc noise, which is a good fit for explicit intent controls instead of only more reranking
 <!-- SECTION:DESCRIPTION:END -->

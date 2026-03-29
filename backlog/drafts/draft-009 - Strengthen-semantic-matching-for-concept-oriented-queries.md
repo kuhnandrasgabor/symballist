@@ -23,4 +23,6 @@ User value:
 Observed motivation:
 - one agent explicitly asked for stronger semantic matching for concept queries, not just symbol-adjacent text
 - the project vision already mentions optional embeddings and hybrid retrieval, so this is aligned with the longer-term architecture
+- updated feedback reinforced that concept queries such as `distiller` still feel less dependable than direct symbol-name queries like `DistillationEngine`
+- the current state is now "genuinely useful" for day-to-day discovery, which makes the remaining concept-query gap more visible and worth isolating as its own follow-up
 <!-- SECTION:DESCRIPTION:END -->
