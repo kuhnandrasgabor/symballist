@@ -1,4 +1,4 @@
-import { getIndexedFiles, openDatabase, searchSymbols } from "../db.ts";
+import { buildFtsQuery, getIndexedFiles, openDatabase, searchSymbols } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 
 export async function runQuery(root: string, rawQuery: string, limit: number, kinds: string[] = []): Promise<void> {
@@ -8,11 +8,7 @@ export async function runQuery(root: string, rawQuery: string, limit: number, ki
   }
 
   const db = await openDatabase(root);
-  const terms = normalizedQuery
-    .split(" ")
-    .map((term) => term.replace(/"/g, ""))
-    .filter(Boolean);
-  const ftsQuery = terms.length > 1 ? terms.join(" OR ") : terms[0] ?? normalizedQuery;
+  const ftsQuery = buildFtsQuery(normalizedQuery);
   const results = searchSymbols(db, ftsQuery, limit, { kinds, rawQuery: normalizedQuery });
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
   db.close();

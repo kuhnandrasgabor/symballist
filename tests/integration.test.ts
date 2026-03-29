@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runIndex } from "../src/commands/index.ts";
@@ -7,7 +7,7 @@ import { runInit } from "../src/commands/init.ts";
 import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
-import { getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { buildFtsQuery, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { detectIndexFreshness } from "../src/freshness.ts";
 import { parseCliArgs } from "../src/cli.ts";
@@ -291,6 +291,46 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.indexFreshness.stale).toBeFalse();
     expect(queryPayload.results.length).toBeGreaterThan(0);
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
+  });
+
+  test("conceptual code queries prefer src implementations over tests while doc queries still favor docs", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(
+      join(root, "src", "memory.py"),
+      'class MemoryStore:\n    pass\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "tests", "test_memory.py"),
+      'def test_memory_store_flow():\n    assert "memory store"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "architecture.md"),
+      "# Architecture\n\nThe architecture document should rank ahead of incidental code mentions.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "architecture.py"),
+      'def architecture_helper() -> str:\n    return "architecture"\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const memoryResults = searchSymbols(db, buildFtsQuery("memory store"), 5, { rawQuery: "memory store" });
+    const architectureResults = searchSymbols(db, buildFtsQuery("architecture"), 5, { rawQuery: "architecture" });
+    db.close();
+
+    expect(memoryResults[0]?.path).toBe("src\\memory.py");
+    expect(memoryResults[0]?.language).toBe("python");
+    expect(memoryResults.some((result) => result.path === "tests\\test_memory.py")).toBeTrue();
+    expect(architectureResults[0]?.path).toBe("architecture.md");
+    expect(architectureResults[0]?.language).toBe("markdown");
   });
 
   test("status and query report stale indexes after source changes", async () => {
