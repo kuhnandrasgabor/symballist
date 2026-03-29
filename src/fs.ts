@@ -28,6 +28,8 @@ const LOCAL_CLAUDE_SNIPPET = "CLAUDE.symballist.md";
 const LOCAL_WINDOWS_WRAPPER = "symballist.cmd";
 const LOCAL_POWERSHELL_WRAPPER = "symballist.ps1";
 const LOCAL_POSIX_WRAPPER = "symballist";
+const GITIGNORE_FILE = ".gitignore";
+const APP_GITIGNORE_ENTRY = ".symballist/";
 const MANAGED_BLOCK_START = "<!-- SYMBALLIST RETRIEVAL START -->";
 const MANAGED_BLOCK_END = "<!-- SYMBALLIST RETRIEVAL END -->";
 const SYMBALLIST_ROOT = normalize(fileURLToPath(new URL("..", import.meta.url))).replace(/[\\\/]+$/, "");
@@ -52,6 +54,10 @@ export async function ensureInitialized(root: string): Promise<void> {
   const config = JSON.stringify(defaultConfig(root), null, 2);
   await writeFile(appPath(root, CONFIG_FILE), config, { flag: "w" });
   await bootstrapAgentInstructions(root);
+  const gitignoreUpdated = await ensureGitignoreEntry(root, APP_GITIGNORE_ENTRY);
+  if (gitignoreUpdated && await appearsGitTracked(root, APP_DIR)) {
+    console.log("Added .symballist/ to .gitignore. If .symballist is already tracked, run `git rm --cached -r .symballist` once to stop tracking it.");
+  }
 }
 
 export async function readText(path: string): Promise<string> {
@@ -152,6 +158,46 @@ async function bootstrapAgentInstructions(root: string): Promise<void> {
 
   await upsertManagedInstructionBlock(join(root, "AGENTS.md"), templates.agentsSnippet);
   await upsertManagedInstructionBlock(join(root, "CLAUDE.md"), templates.claudeSnippet);
+}
+
+async function ensureGitignoreEntry(root: string, entry: string): Promise<boolean> {
+  const path = join(root, GITIGNORE_FILE);
+  const current = await readOptionalText(path);
+  const normalizedEntry = entry.trim();
+
+  if (!current || current.trim().length === 0) {
+    await writeFile(path, `${normalizedEntry}\n`, "utf8");
+    return true;
+  }
+
+  const lines = current.split(/\r?\n/);
+  if (lines.some((line) => line.trim() === normalizedEntry)) {
+    return false;
+  }
+
+  const separator = current.endsWith("\n") ? "" : "\n";
+  await writeFile(path, `${current}${separator}${normalizedEntry}\n`, "utf8");
+  return true;
+}
+
+async function appearsGitTracked(root: string, pathSpec: string): Promise<boolean> {
+  if (!(await exists(join(root, ".git")))) {
+    return false;
+  }
+
+  try {
+    const proc = Bun.spawn({
+      cmd: ["git", "ls-files", "--", pathSpec],
+      cwd: root,
+      stdout: "pipe",
+      stderr: "ignore"
+    });
+    const output = await new Response(proc.stdout).text();
+    const exitCode = await proc.exited;
+    return exitCode === 0 && output.trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 async function loadInstructionTemplates(root: string): Promise<{

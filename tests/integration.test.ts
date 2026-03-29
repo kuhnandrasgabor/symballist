@@ -78,6 +78,7 @@ describe("symballist vertical slice", () => {
     const wrapperCmd = await readFile(join(root, ".symballist", "bin", "symballist.cmd"), "utf8");
     const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
     const localGuide = await readFile(join(root, ".symballist", "instructions", "symballist-adoption.md"), "utf8");
+    const gitignore = await readFile(join(root, ".gitignore"), "utf8");
 
     expect(agentsText).toContain("# Project Notes");
     expect(claudeText).toContain("# Claude Notes");
@@ -90,6 +91,40 @@ describe("symballist vertical slice", () => {
     expect(wrapperCmd).toContain('bun "D:\\Projects\\symballist\\src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
+    expect(gitignore).toContain(".symballist/");
+  });
+
+  test("init creates or appends .symballist ignore rules without duplicating them", async () => {
+    const root = await createFixtureRepo();
+    await writeFile(join(root, ".gitignore"), "node_modules/\n", "utf8");
+
+    await runInit(root);
+    await runInit(root);
+
+    const gitignore = await readFile(join(root, ".gitignore"), "utf8");
+    expect(gitignore).toContain("node_modules/");
+    expect(gitignore.match(/^\.symballist\/$/gm)?.length ?? 0).toBe(1);
+
+    const blankRoot = await mkdtemp(join(tmpdir(), "symballist-"));
+    tempRoots.push(blankRoot);
+    await runInit(blankRoot);
+    const createdGitignore = await readFile(join(blankRoot, ".gitignore"), "utf8");
+    expect(createdGitignore.trim()).toBe(".symballist/");
+  });
+
+  test("init warns when .symballist is already git-tracked and gitignore is newly updated", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await writeFile(join(root, ".gitignore"), "node_modules/\n", "utf8");
+
+    await Bun.$`git init`.cwd(root).quiet();
+    await Bun.$`git add .symballist`.cwd(root).quiet();
+
+    const output = await captureConsoleLog(async () => {
+      await runInit(root);
+    });
+
+    expect(output).toContain("git rm --cached -r .symballist");
   });
 
   test("indexes fixtures and returns rich lexical query results", async () => {

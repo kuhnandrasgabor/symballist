@@ -28,8 +28,8 @@ references:
   - TASK-018
   - TASK-019
   - TASK-020
+  - TASK-021
   - DRAFT-008
-  - DRAFT-010
 priority: high
 ---
 
@@ -60,10 +60,10 @@ Current v1 shape:
 
 <!-- SECTION:PLAN:BEGIN -->
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
-2. Treat completed slice work as closed subtasks: TASK-002 through TASK-020.
+2. Treat completed slice work as closed subtasks: TASK-002 through TASK-021.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term priority order from latest feedback: DRAFT-010, DRAFT-008, DRAFT-001.
-5. Medium-term follow-ups: DRAFT-010, DRAFT-008, then broader helper-integration questions in DRAFT-001.
+4. Near-term priority order from latest feedback: DRAFT-008, DRAFT-001.
+5. Medium-term follow-ups: DRAFT-008, then broader helper-integration questions in DRAFT-001.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -99,6 +99,7 @@ Retrieval quality and context
 Adoption and workflow
 - Done: downstream adoption workflow docs and reusable snippets.
 - Done: init bootstraps local .symballist/instructions assets, wrapper commands, and managed AGENTS.md / CLAUDE.md symballist retrieval blocks.
+- Done: init now ensures `.gitignore` contains `.symballist/` and prints a manual cleanup hint if that directory already appears to be Git-tracked.
 - Done: real dogfooding in co-ma confirms the tool is now genuinely useful for day-to-day discovery, especially for implementation-oriented queries.
 
 Priority order from latest live feedback
@@ -110,7 +111,7 @@ Priority order from latest live feedback
 - Done: TASK-018 strengthened semantic matching for concept-oriented queries through source-path candidate expansion and concept-aware reranking.
 - Done: TASK-019 calibrated confidence and match-reason heuristics so trust signals stay meaningful in live query output.
 - Done: TASK-020 added summary defaults and `--full` expansion for large `show` results.
-- Later: DRAFT-010 ensure init adds .symballist to .gitignore by default.
+- Done: TASK-021 ensures init adds `.symballist/` to `.gitignore` by default.
 - Later: DRAFT-008 explore diff-aware and session-aware change tracking.
 - Later: DRAFT-001 decide when and how to add an agent-facing symballist query helper.
 
@@ -134,4 +135,5 @@ Completed subtasks
 - TASK-018 semantic matching for concept-oriented queries.
 - TASK-019 trust-signal calibration for confidence, match reasons, and query-time trust.
 - TASK-020 large-show summary defaults and explicit `--full` expansion.
+- TASK-021 `.gitignore` bootstrap and tracked-state cleanup hint during init.
 <!-- SECTION:NOTES:END -->

@@ -59,6 +59,7 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 
 - `symballist init`
   - creates `.symballist/`
+  - ensures `.gitignore` contains `.symballist/`
   - copies local adoption docs/snippets into `.symballist/instructions/`
   - writes local wrapper commands into `.symballist/bin/`
   - creates or refreshes managed `AGENTS.md` and `CLAUDE.md` symballist retrieval blocks
