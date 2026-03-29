@@ -60,8 +60,8 @@ export async function readConfig(root: string): Promise<SymballistConfig | null>
   return JSON.parse(await readText(path)) as SymballistConfig;
 }
 
-export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" }>> {
-  const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "html" }> = [];
+export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" }>> {
+  const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" }> = [];
 
   async function walk(current: string): Promise<void> {
     let entries;

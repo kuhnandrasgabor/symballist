@@ -36,6 +36,7 @@ type SearchOptions = {
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
   ["class", -1.1],
   ["function", -1.0],
+  ["heading", -0.8],
   ["title", -0.75],
   ["element", -0.5],
   ["import", 0.75],
