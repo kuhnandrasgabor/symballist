@@ -58,6 +58,9 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 ## Rough CLI Surface
 
 - `symballist init`
+  - creates `.symballist/`
+  - copies local adoption docs/snippets into `.symballist/instructions/`
+  - creates or refreshes managed `AGENTS.md` and `CLAUDE.md` symballist retrieval blocks
 - `symballist index`
 - `symballist status`
 - `symballist query "<text>" --kind class,function`
@@ -74,6 +77,7 @@ Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:
 .symballist/
   config.json
   index.db
+  instructions/
   cache/
   logs/
 ```
