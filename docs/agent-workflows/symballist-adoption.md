@@ -25,13 +25,13 @@ Do not treat it as authoritative yet. Agents should use `symballist` to narrow t
 
 ## Basic Loop
 
-From the `symballist` repo root:
+From anywhere, using the `symballist` CLI entrypoint:
 
 ```powershell
-bun run src/cli.ts status --root <PROJECT_ROOT>
-bun run src/cli.ts index --root <PROJECT_ROOT>
-bun run src/cli.ts query "<text>" --root <PROJECT_ROOT>
-bun run src/cli.ts show <id> --root <PROJECT_ROOT>
+bun run <SYMBALLIST_ROOT>\src\cli.ts status --root <PROJECT_ROOT>
+bun run <SYMBALLIST_ROOT>\src\cli.ts index --root <PROJECT_ROOT>
+bun run <SYMBALLIST_ROOT>\src\cli.ts query "<text>" --root <PROJECT_ROOT>
+bun run <SYMBALLIST_ROOT>\src\cli.ts show <id> --root <PROJECT_ROOT>
 ```
 
 Typical agent flow:
@@ -66,6 +66,7 @@ Use these dedicated snippet files as the canonical copy-paste source for downstr
 - [downstream-claude-symballist.md](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md)
 
 Copy the snippet that matches the target file, then replace `<PROJECT_ROOT>` with the repo you are integrating.
+If you use `symballist init` in the target repo, these placeholders are filled automatically and the managed instruction blocks are updated for you.
 
 ## Notes
 

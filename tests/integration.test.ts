@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runIndex } from "../src/commands/index.ts";
@@ -53,6 +53,36 @@ describe("symballist vertical slice", () => {
     db.close();
     expect(await Bun.file(join(root, ".symballist", "config.json")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "index.db")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "instructions", "symballist-adoption.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "instructions", "AGENTS.symballist.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "instructions", "CLAUDE.symballist.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, "AGENTS.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, "CLAUDE.md")).exists()).toBeTrue();
+  });
+
+  test("init bootstraps managed agent instructions idempotently", async () => {
+    const root = await createFixtureRepo();
+    await writeFile(join(root, "AGENTS.md"), "# Project Notes\n", "utf8");
+    await writeFile(join(root, "CLAUDE.md"), "# Claude Notes\n", "utf8");
+
+    await runInit(root);
+    await runInit(root);
+
+    const agentsText = await readFile(join(root, "AGENTS.md"), "utf8");
+    const claudeText = await readFile(join(root, "CLAUDE.md"), "utf8");
+    const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
+    const localGuide = await readFile(join(root, ".symballist", "instructions", "symballist-adoption.md"), "utf8");
+
+    expect(agentsText).toContain("# Project Notes");
+    expect(claudeText).toContain("# Claude Notes");
+    expect(agentsText.match(/<!-- SYMBALLIST RETRIEVAL START -->/g)?.length ?? 0).toBe(1);
+    expect(claudeText.match(/<!-- SYMBALLIST RETRIEVAL START -->/g)?.length ?? 0).toBe(1);
+    expect(agentsText).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts status --root ${root}`);
+    expect(claudeText).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts status --root ${root}`);
+    expect(localAgentsSnippet).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts query "<text>" --root ${root}`);
+    expect(localGuide).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts index --root ${root}`);
+    expect(localGuide).not.toContain("<PROJECT_ROOT>");
+    expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
   });
 
   test("indexes fixtures and returns rich lexical query results", async () => {
@@ -72,8 +102,8 @@ describe("symballist vertical slice", () => {
     const fallback = fallbackResults.find((result) => result.fallback);
     const markdownHeading = markdownResults.find((result) => result.kind === "heading");
 
-    expect(stats.discoveredFiles).toBe(5);
-    expect(stats.indexedFiles).toBe(5);
+    expect(stats.discoveredFiles).toBe(7);
+    expect(stats.indexedFiles).toBe(7);
     expect(stats.skippedFiles).toBe(0);
     expect(greet).toBeDefined();
     expect(greet?.startLine).toBe(5);
@@ -97,10 +127,10 @@ describe("symballist vertical slice", () => {
     const first = await runIndex(root, { progress: false });
     const second = await runIndex(root, { progress: false });
 
-    expect(first.indexedFiles).toBe(5);
+    expect(first.indexedFiles).toBe(7);
     expect(first.skippedFiles).toBe(0);
     expect(second.indexedFiles).toBe(0);
-    expect(second.skippedFiles).toBe(5);
+    expect(second.skippedFiles).toBe(7);
     expect(second.indexedSymbols).toBe(0);
   });
 
@@ -117,7 +147,7 @@ describe("symballist vertical slice", () => {
     db.close();
 
     expect(stats.indexedFiles).toBe(1);
-    expect(stats.skippedFiles).toBe(4);
+    expect(stats.skippedFiles).toBe(6);
     expect(results.some((result) => result.name === "slugify")).toBeTrue();
   });
 
@@ -148,8 +178,8 @@ describe("symballist vertical slice", () => {
     expect(status.initialized).toBeTrue();
     expect(status.dbExists).toBeTrue();
     expect(status.supportedLanguages).toEqual(["html", "markdown", "python"]);
-    expect(status.indexedFiles).toBe(5);
-    expect(status.indexedSymbols).toBe(11);
+    expect(status.indexedFiles).toBe(7);
+    expect(status.indexedSymbols).toBe(13);
     expect(status.fallbackSymbols).toBe(1);
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
     expect(status.indexFreshness.stale).toBeFalse();

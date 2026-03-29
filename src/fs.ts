@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { extname, join, normalize, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { APP_DIR, CACHE_DIR, CONFIG_FILE, LOGS_DIR, SUPPORTED_EXTENSIONS, appPath, defaultConfig } from "./config.ts";
 import type { SymballistConfig } from "./config.ts";
 
@@ -19,6 +20,17 @@ const SKIP_DIRS = new Set([
   "backlog"
 ]);
 
+const INSTRUCTIONS_DIR = "instructions";
+const LOCAL_ADOPTION_GUIDE = "symballist-adoption.md";
+const LOCAL_AGENTS_SNIPPET = "AGENTS.symballist.md";
+const LOCAL_CLAUDE_SNIPPET = "CLAUDE.symballist.md";
+const MANAGED_BLOCK_START = "<!-- SYMBALLIST RETRIEVAL START -->";
+const MANAGED_BLOCK_END = "<!-- SYMBALLIST RETRIEVAL END -->";
+const SYMBALLIST_ROOT = normalize(fileURLToPath(new URL("..", import.meta.url))).replace(/[\\\/]+$/, "");
+const ADOPTION_GUIDE_SOURCE = fileURLToPath(new URL("../docs/agent-workflows/symballist-adoption.md", import.meta.url));
+const AGENTS_SNIPPET_SOURCE = fileURLToPath(new URL("../docs/snippets/downstream-agents-symballist.md", import.meta.url));
+const CLAUDE_SNIPPET_SOURCE = fileURLToPath(new URL("../docs/snippets/downstream-claude-symballist.md", import.meta.url));
+
 function isIgnorableFsError(error: unknown): boolean {
   if (!(error instanceof Error) || !("code" in error)) {
     return false;
@@ -30,9 +42,11 @@ export async function ensureInitialized(root: string): Promise<void> {
   await mkdir(appPath(root), { recursive: true });
   await mkdir(appPath(root, CACHE_DIR), { recursive: true });
   await mkdir(appPath(root, LOGS_DIR), { recursive: true });
+  await mkdir(appPath(root, INSTRUCTIONS_DIR), { recursive: true });
 
   const config = JSON.stringify(defaultConfig(root), null, 2);
   await writeFile(appPath(root, CONFIG_FILE), config, { flag: "w" });
+  await bootstrapAgentInstructions(root);
 }
 
 export async function readText(path: string): Promise<string> {
@@ -120,4 +134,73 @@ export async function fileMetadata(path: string): Promise<{ size: number; mtimeM
     }
     throw error;
   }
+}
+
+async function bootstrapAgentInstructions(root: string): Promise<void> {
+  const templates = await loadInstructionTemplates(root);
+  await writeFile(appPath(root, INSTRUCTIONS_DIR, LOCAL_ADOPTION_GUIDE), templates.adoptionGuide, "utf8");
+  await writeFile(appPath(root, INSTRUCTIONS_DIR, LOCAL_AGENTS_SNIPPET), templates.agentsSnippet, "utf8");
+  await writeFile(appPath(root, INSTRUCTIONS_DIR, LOCAL_CLAUDE_SNIPPET), templates.claudeSnippet, "utf8");
+
+  await upsertManagedInstructionBlock(join(root, "AGENTS.md"), templates.agentsSnippet);
+  await upsertManagedInstructionBlock(join(root, "CLAUDE.md"), templates.claudeSnippet);
+}
+
+async function loadInstructionTemplates(root: string): Promise<{
+  adoptionGuide: string;
+  agentsSnippet: string;
+  claudeSnippet: string;
+}> {
+  const [adoptionGuideSource, agentsSnippetSource, claudeSnippetSource] = await Promise.all([
+    readFile(ADOPTION_GUIDE_SOURCE, "utf8"),
+    readFile(AGENTS_SNIPPET_SOURCE, "utf8"),
+    readFile(CLAUDE_SNIPPET_SOURCE, "utf8")
+  ]);
+
+  return {
+    adoptionGuide: renderInstructionTemplate(adoptionGuideSource, root),
+    agentsSnippet: renderInstructionTemplate(agentsSnippetSource, root),
+    claudeSnippet: renderInstructionTemplate(claudeSnippetSource, root)
+  };
+}
+
+function renderInstructionTemplate(template: string, root: string): string {
+  return template
+    .replaceAll("<SYMBALLIST_ROOT>", SYMBALLIST_ROOT)
+    .replaceAll("<PROJECT_ROOT>", root);
+}
+
+async function upsertManagedInstructionBlock(path: string, content: string): Promise<void> {
+  const managedBlock = `${MANAGED_BLOCK_START}\n${content.trim()}\n${MANAGED_BLOCK_END}\n`;
+  const current = await readOptionalText(path);
+
+  if (current === null || current.trim().length === 0) {
+    await writeFile(path, managedBlock, "utf8");
+    return;
+  }
+
+  const blockPattern = new RegExp(`${escapeRegExp(MANAGED_BLOCK_START)}[\\s\\S]*?${escapeRegExp(MANAGED_BLOCK_END)}\\r?\\n?`, "m");
+  if (blockPattern.test(current)) {
+    const updated = current.replace(blockPattern, managedBlock);
+    await writeFile(path, updated, "utf8");
+    return;
+  }
+
+  const separator = current.endsWith("\n") ? "\n" : "\n\n";
+  await writeFile(path, `${current}${separator}${managedBlock}`, "utf8");
+}
+
+async function readOptionalText(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (isIgnorableFsError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
