@@ -1,6 +1,8 @@
 import { fileMetadata, listSourceFiles } from "./fs.ts";
 import type { IndexedFileRow } from "./db.ts";
 
+const MTIME_EPSILON_MS = 10;
+
 export type IndexFreshness = {
   stale: boolean;
   changedFiles: number;
@@ -24,7 +26,7 @@ export async function detectIndexFreshness(root: string, indexedFiles: IndexedFi
     }
 
     const metadata = await fileMetadata(file.absolutePath);
-    if (existing.size !== metadata.size || existing.mtimeMs !== metadata.mtimeMs) {
+    if (existing.size !== metadata.size || Math.abs(existing.mtimeMs - metadata.mtimeMs) > MTIME_EPSILON_MS) {
       changedFiles += 1;
     }
   }
