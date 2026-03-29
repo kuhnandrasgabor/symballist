@@ -25,13 +25,22 @@ Do not treat it as authoritative yet. Agents should use `symballist` to narrow t
 
 ## Basic Loop
 
-From anywhere, using the `symballist` CLI entrypoint:
+Preferred downstream entrypoint after `symballist init`:
 
 ```powershell
-bun run <SYMBALLIST_ROOT>\src\cli.ts status --root <PROJECT_ROOT>
-bun run <SYMBALLIST_ROOT>\src\cli.ts index --root <PROJECT_ROOT>
-bun run <SYMBALLIST_ROOT>\src\cli.ts query "<text>" --root <PROJECT_ROOT>
-bun run <SYMBALLIST_ROOT>\src\cli.ts show <id> --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd index --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd query "<text>" --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd show <id> --root <PROJECT_ROOT>
+```
+
+If `symballist` has been installed or linked as a real command, that command name is also fine:
+
+```powershell
+symballist status --root <PROJECT_ROOT>
+symballist index --root <PROJECT_ROOT>
+symballist query "<text>" --root <PROJECT_ROOT>
+symballist show <id> --root <PROJECT_ROOT>
 ```
 
 Typical agent flow:

@@ -19,11 +19,11 @@ function usage(): void {
   console.log(`symballist
 
 Usage:
-  bun run src/cli.ts init [--root PATH]
-  bun run src/cli.ts index [--root PATH]
-  bun run src/cli.ts status [--root PATH]
-  bun run src/cli.ts show <id> [--root PATH]
-  bun run src/cli.ts query "<text>" [--limit N] [--kind class,function] [--root PATH]
+  symballist init [--root PATH]
+  symballist index [--root PATH]
+  symballist status [--root PATH]
+  symballist show <id> [--root PATH]
+  symballist query "<text>" [--limit N] [--kind class,function] [--root PATH]
 `);
 }
 
