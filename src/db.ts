@@ -42,6 +42,20 @@ const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
   ["import", 0.75],
   ["file", 1.0]
 ]);
+const DOC_ORIENTED_QUERY_TERMS = new Set([
+  "architecture",
+  "backlog",
+  "design",
+  "decision",
+  "doc",
+  "docs",
+  "guide",
+  "notes",
+  "plan",
+  "readme",
+  "roadmap",
+  "workflow"
+]);
 
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
@@ -180,6 +194,28 @@ function normalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+export function buildFtsQuery(rawQuery: string): string {
+  const terms = rawQuery
+    .trim()
+    .split(/\s+/)
+    .map((term) => term.replace(/"/g, ""))
+    .filter(Boolean);
+
+  if (terms.length === 0) {
+    return rawQuery.trim();
+  }
+
+  const clauses = new Set(terms);
+  if (terms.length > 1) {
+    const combined = normalizeLookupValue(rawQuery);
+    if (combined) {
+      clauses.add(combined);
+    }
+  }
+
+  return clauses.size > 1 ? [...clauses].join(" OR ") : [...clauses][0] ?? rawQuery.trim();
+}
+
 function computeDirectMatchAdjustment(row: SearchRow, rawQuery: string): number {
   const normalizedQuery = normalizeLookupValue(rawQuery);
   if (!normalizedQuery) {
@@ -214,6 +250,56 @@ function computeDirectMatchAdjustment(row: SearchRow, rawQuery: string): number 
   return 0;
 }
 
+function isDocOrientedQuery(rawQuery: string): boolean {
+  const terms = rawQuery
+    .toLowerCase()
+    .split(/\s+/)
+    .map((term) => term.replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean);
+
+  return terms.some((term) => DOC_ORIENTED_QUERY_TERMS.has(term));
+}
+
+function computePathAdjustment(row: SearchRow, rawQuery: string): number {
+  const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
+
+  if (isDocOrientedQuery(rawQuery)) {
+    if (normalizedPath.startsWith("docs/")) {
+      return -0.4;
+    }
+    if (normalizedPath === "readme.md" || normalizedPath === "plan.md") {
+      return -0.35;
+    }
+    if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
+      return 0.25;
+    }
+    return 0;
+  }
+
+  if (row.language === "markdown") {
+    if (normalizedPath.startsWith("docs/")) {
+      return 0.35;
+    }
+    if (normalizedPath.startsWith(".codex/") || normalizedPath.startsWith(".claude/")) {
+      return 0.6;
+    }
+    return 0.2;
+  }
+
+  if (row.kind === "import") {
+    return normalizedPath.startsWith("src/") ? 1.4 : 1.9;
+  }
+
+  if (normalizedPath.startsWith("src/")) {
+    return -1.1;
+  }
+  if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
+    return 0.75;
+  }
+
+  return 0;
+}
+
 function rerankResults(rows: SearchRow[], limit: number, rawQuery: string): QueryResult[] {
   return rows
     .map(({ body, ...row }) => ({
@@ -222,6 +308,7 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string): Quer
       snippet: makeSnippet(body),
       adjustedScore: row.score
         + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
+        + computePathAdjustment({ body, ...row }, rawQuery)
         + computeDirectMatchAdjustment({ body, ...row }, rawQuery)
     }))
     .sort((left, right) => {
