@@ -8,6 +8,7 @@ import { runLookup } from "../src/commands/lookup.ts";
 import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
+import { runWatch } from "../src/commands/watch.ts";
 import { buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { detectIndexFreshness } from "../src/freshness.ts";
@@ -1068,6 +1069,63 @@ describe("symballist vertical slice", () => {
     expect(parsed.error).toBeNull();
   });
 
+  test("watch can perform an initial index pass and incremental refresh in one-shot mode", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+
+    const initialWatchOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runWatch(root, { once: true });
+    })) as {
+      event: string;
+      reason: string;
+      stats: {
+        indexedFiles: number;
+        skippedFiles: number;
+      } | null;
+      indexFreshnessAfter: {
+        stale: boolean;
+      };
+    };
+
+    expect(initialWatchOutput.event).toBe("indexed");
+    expect(initialWatchOutput.reason).toBe("initial_index");
+    expect(initialWatchOutput.stats?.indexedFiles).toBe(7);
+    expect(initialWatchOutput.indexFreshnessAfter.stale).toBeFalse();
+
+    await writeFile(join(root, "helpers.py"), 'def slugify(value: str) -> str:\n    return value.upper()\n', "utf8");
+
+    const refreshWatchOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runWatch(root, { once: true });
+    })) as {
+      event: string;
+      reason: string;
+      stats: {
+        indexedFiles: number;
+        skippedFiles: number;
+      } | null;
+      indexFreshnessBefore: {
+        stale: boolean;
+        changedFiles: number;
+      };
+      indexFreshnessAfter: {
+        stale: boolean;
+      };
+    };
+
+    expect(refreshWatchOutput.event).toBe("indexed");
+    expect(refreshWatchOutput.reason).toBe("stale_index");
+    expect(refreshWatchOutput.indexFreshnessBefore.stale).toBeTrue();
+    expect(refreshWatchOutput.indexFreshnessBefore.changedFiles).toBe(1);
+    expect(refreshWatchOutput.stats?.indexedFiles).toBe(1);
+    expect(refreshWatchOutput.stats?.skippedFiles).toBe(6);
+    expect(refreshWatchOutput.indexFreshnessAfter.stale).toBeFalse();
+
+    const db = await openDatabase(root);
+    const refreshed = searchSymbols(db, "slugify", 5);
+    db.close();
+    expect(refreshed.some((result) => result.name === "slugify")).toBeTrue();
+  });
+
   test("cli args support show by symbol name, query intent flags, and default to tighter query result counts", () => {
     const queryParsed = parseCliArgs(["query", "greet"]);
     expect(queryParsed.limit).toBe(5);
@@ -1094,6 +1152,12 @@ describe("symballist vertical slice", () => {
     expect(lookupParsed.limit).toBe(3);
     expect(lookupParsed.codeOnly).toBeTrue();
     expect(lookupParsed.showFull).toBeTrue();
+
+    const watchParsed = parseCliArgs(["watch", "--root", "D:/Projects/co-ma", "--interval-ms", "1500", "--once"]);
+    expect(watchParsed.command).toBe("watch");
+    expect(watchParsed.root).toBe("D:/Projects/co-ma");
+    expect(watchParsed.watchIntervalMs).toBe(1500);
+    expect(watchParsed.watchOnce).toBeTrue();
 
     const showParsed = parseCliArgs(["show", "--name", "greet", "--root", "D:/Projects/co-ma"]);
     expect(showParsed.command).toBe("show");

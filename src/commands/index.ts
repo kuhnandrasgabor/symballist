@@ -12,6 +12,7 @@ export type IndexStats = {
 
 type RunIndexOptions = {
   progress?: boolean;
+  emitStats?: boolean;
 };
 
 type ProgressState = {
@@ -66,6 +67,7 @@ function renderProgress(current: number, total: number, stats: IndexStats, curre
 
 export async function runIndex(root: string, options: RunIndexOptions = {}): Promise<IndexStats> {
   const progress = options.progress ?? true;
+  const emitStats = options.emitStats ?? true;
   const db = await openDatabase(root);
   const files = await listSourceFiles(root);
   const currentPaths = new Set(files.map((file) => file.relativePath));
@@ -129,6 +131,8 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
     process.stdout.write("\n");
   }
 
-  console.log(JSON.stringify(stats, null, 2));
+  if (emitStats) {
+    console.log(JSON.stringify(stats, null, 2));
+  }
   return stats;
 }

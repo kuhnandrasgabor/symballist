@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 17:40'
+updated_date: '2026-03-29 09:20'
 labels: []
 dependencies: []
 references:
@@ -161,4 +161,6 @@ Completed subtasks
 - TASK-024 canonical-doc preference and operational-doc suppression in docs-only retrieval.
 - TASK-025 lightweight file-level change awareness since index and git HEAD.
 - TASK-026 agent-facing `lookup` helper for the common query/show flow.
+
+2026-03-29: Completed TASK-027. symballist watch now provides low-overhead repo-local automatic refresh via polling, with --once for a safe one-shot sweep and --interval-ms for foreground watch mode. This closes the first roadmap step and leaves optional local embeddings + hybrid retrieval as the next major slice.
 <!-- SECTION:NOTES:END -->

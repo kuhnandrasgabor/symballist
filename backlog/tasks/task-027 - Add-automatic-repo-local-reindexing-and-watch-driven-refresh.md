@@ -1,9 +1,10 @@
 ---
-id: DRAFT-010
+id: TASK-027
 title: Add automatic repo-local reindexing and watch-driven refresh
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-29 09:12'
+updated_date: '2026-03-29 09:20'
 labels:
   - idea
   - spike
@@ -49,3 +50,9 @@ Why this fits next:
 - builds directly on existing incremental indexing and freshness detection
 - reduces the pressure on every agent to remember to run `index`
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented a low-overhead foreground watch mode via symballist watch with --once and --interval-ms, reusing the existing incremental indexer instead of introducing a daemon. Updated CLI parsing/help, README/adoption snippets, and init-propagated instructions so downstream repos learn the new flow automatically. Verification: un test (31 pass), un run src/cli.ts watch --help, un run src/cli.ts watch --once --root D:\Projects\symballist.
+<!-- SECTION:FINAL_SUMMARY:END -->

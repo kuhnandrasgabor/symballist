@@ -74,6 +74,8 @@ Use `symballist` as a CLI-first read-only retrieval helper for this repo.
 - Use the `changeAwareness` block from `status` when you want a cheap answer to what changed since the last index or, in git repos, since `HEAD`.
 - If the index is stale, refresh it before relying on results:
   - `.symballist\bin\symballist.cmd index --root D:\Projects\symballist`
+- If you want a one-shot freshness sweep that automatically reuses incremental indexing:
+  - `.symballist\bin\symballist.cmd watch --once --root D:\Projects\symballist`
 - Use lookup for the common `query -> top hit -> show` flow:
   - `.symballist\bin\symballist.cmd lookup "<text>" --root D:\Projects\symballist`
 - Use query for discovery:
@@ -85,6 +87,7 @@ Use `symballist` as a CLI-first read-only retrieval helper for this repo.
   - `.symballist\bin\symballist.cmd show <id> --root D:\Projects\symballist`
   - `.symballist\bin\symballist.cmd show --name <symbol> --root D:\Projects\symballist`
   - `.symballist\bin\symballist.cmd show --name <symbol> --full --root D:\Projects\symballist`
+- Only run `.symballist\bin\symballist.cmd watch --interval-ms 2000 --root D:\Projects\symballist` when you explicitly want a foreground polling loop while you work.
 - Treat `symballist` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 

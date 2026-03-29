@@ -7,11 +7,14 @@ import { runLookup } from "./commands/lookup.ts";
 import { runQuery } from "./commands/query.ts";
 import { runShow } from "./commands/show.ts";
 import { runStatus } from "./commands/status.ts";
+import { runWatch } from "./commands/watch.ts";
 
 export type CliArgs = {
   command: string | null;
   root: string;
   limit: number;
+  watchIntervalMs: number;
+  watchOnce: boolean;
   kinds: string[];
   codeOnly: boolean;
   docsOnly: boolean;
@@ -31,6 +34,7 @@ Usage:
   symballist --help
   symballist init [--root PATH]
   symballist index [--root PATH]
+  symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
   symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--root PATH]
   symballist show <id> [--full] [--root PATH]
@@ -46,6 +50,9 @@ function commandUsage(command: string): void {
       return;
     case "index":
       console.log("Usage:\n  symballist index [--root PATH]");
+      return;
+    case "watch":
+      console.log("Usage:\n  symballist watch [--root PATH] [--interval-ms N] [--once]");
       return;
     case "status":
       console.log("Usage:\n  symballist status [--root PATH]");
@@ -85,6 +92,8 @@ function buildUnknownOptionError(command: string | null, option: string): string
 export function parseCliArgs(argv: string[]): CliArgs {
   let root = cwd();
   let limit = 5;
+  let watchIntervalMs = 2000;
+  let watchOnce = false;
   const kinds: string[] = [];
   let codeOnly = false;
   let docsOnly = false;
@@ -102,6 +111,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
       command: null,
       root,
       limit,
+      watchIntervalMs,
+      watchOnce,
       kinds,
       codeOnly,
       docsOnly,
@@ -121,6 +132,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
       command: null,
       root,
       limit,
+      watchIntervalMs,
+      watchOnce,
       kinds,
       codeOnly,
       docsOnly,
@@ -150,6 +163,20 @@ export function parseCliArgs(argv: string[]): CliArgs {
       }
       root = next;
       index += 1;
+      continue;
+    }
+    if (command === "watch" && value === "--interval-ms") {
+      const parsed = parseNumberOption("--interval-ms", argv[index + 1]);
+      if (parsed === null) {
+        error = "Expected a positive number after --interval-ms.";
+        break;
+      }
+      watchIntervalMs = parsed;
+      index += 1;
+      continue;
+    }
+    if (command === "watch" && value === "--once") {
+      watchOnce = true;
       continue;
     }
     if ((command === "query" || command === "lookup") && (value === "--limit" || value === "--top")) {
@@ -225,6 +252,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
     command,
     root,
     limit,
+    watchIntervalMs,
+    watchOnce,
     kinds,
     codeOnly,
     docsOnly,
@@ -260,6 +289,12 @@ export async function runCli(argv: string[]): Promise<void> {
       return;
     case "index":
       await runIndex(parsed.root);
+      return;
+    case "watch":
+      await runWatch(parsed.root, {
+        intervalMs: parsed.watchIntervalMs,
+        once: parsed.watchOnce
+      });
       return;
     case "status":
       await runStatus(parsed.root);
