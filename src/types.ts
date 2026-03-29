@@ -1,4 +1,4 @@
-export type SupportedLanguage = "python" | "html" | "text";
+export type SupportedLanguage = "python" | "html" | "markdown" | "text";
 
 export type SymbolRecord = {
   path: string;

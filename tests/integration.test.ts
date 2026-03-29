@@ -64,14 +64,16 @@ describe("symballist vertical slice", () => {
     const greetResults = searchSymbols(db, "greet", 5);
     const htmlResults = searchSymbols(db, "search OR panel", 5);
     const fallbackResults = searchSymbols(db, "No OR ids", 5);
+    const markdownResults = searchSymbols(db, "backlog", 5);
     db.close();
 
     const greet = greetResults.find((result) => result.name === "greet");
     const searchPanel = htmlResults.find((result) => result.name === "search-panel");
     const fallback = fallbackResults.find((result) => result.fallback);
+    const markdownHeading = markdownResults.find((result) => result.kind === "heading");
 
-    expect(stats.discoveredFiles).toBe(4);
-    expect(stats.indexedFiles).toBe(4);
+    expect(stats.discoveredFiles).toBe(5);
+    expect(stats.indexedFiles).toBe(5);
     expect(stats.skippedFiles).toBe(0);
     expect(greet).toBeDefined();
     expect(greet?.startLine).toBe(5);
@@ -83,6 +85,10 @@ describe("symballist vertical slice", () => {
     expect(fallback).toBeDefined();
     expect(fallback?.startLine).toBe(1);
     expect(fallback?.snippet).toContain("No ids here");
+    expect(markdownHeading).toBeDefined();
+    expect(markdownHeading?.name).toBe("Backlog Workflow");
+    expect(markdownHeading?.path).toBe("workflow.md");
+    expect(markdownHeading?.snippet).toContain("backlog CLI");
   });
 
   test("repeated index runs skip unchanged files", async () => {
@@ -91,10 +97,10 @@ describe("symballist vertical slice", () => {
     const first = await runIndex(root, { progress: false });
     const second = await runIndex(root, { progress: false });
 
-    expect(first.indexedFiles).toBe(4);
+    expect(first.indexedFiles).toBe(5);
     expect(first.skippedFiles).toBe(0);
     expect(second.indexedFiles).toBe(0);
-    expect(second.skippedFiles).toBe(4);
+    expect(second.skippedFiles).toBe(5);
     expect(second.indexedSymbols).toBe(0);
   });
 
@@ -111,7 +117,7 @@ describe("symballist vertical slice", () => {
     db.close();
 
     expect(stats.indexedFiles).toBe(1);
-    expect(stats.skippedFiles).toBe(3);
+    expect(stats.skippedFiles).toBe(4);
     expect(results.some((result) => result.name === "slugify")).toBeTrue();
   });
 
@@ -141,9 +147,9 @@ describe("symballist vertical slice", () => {
 
     expect(status.initialized).toBeTrue();
     expect(status.dbExists).toBeTrue();
-    expect(status.supportedLanguages).toEqual(["html", "python"]);
-    expect(status.indexedFiles).toBe(4);
-    expect(status.indexedSymbols).toBe(9);
+    expect(status.supportedLanguages).toEqual(["html", "markdown", "python"]);
+    expect(status.indexedFiles).toBe(5);
+    expect(status.indexedSymbols).toBe(11);
     expect(status.fallbackSymbols).toBe(1);
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
     expect(status.indexFreshness.stale).toBeFalse();

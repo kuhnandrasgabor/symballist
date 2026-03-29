@@ -8,7 +8,7 @@ V1 is intentionally narrow:
 
 - agent-first retrieval
 - CLI-first workflow
-- Python and HTML only
+- Python, HTML, and Markdown
 - repo-local state in `.symballist/`
 - symbol-first indexing with file-level fallback
 - SQLite + FTS lexical search
@@ -18,6 +18,7 @@ V1 is intentionally narrow:
 - stale-index detection in status and retrieval commands
 - lightweight import and containment relations in show output
 - relation-aware symbol expansion in show output for fast local follow-up context
+- Markdown heading indexing with file-level fallback for docs
 
 ## Query Pipeline
 
