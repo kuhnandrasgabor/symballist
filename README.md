@@ -66,6 +66,7 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 - `symballist status`
 - `symballist query "<text>" --kind class,function`
 - `symballist show <id>`
+- `symballist show --name <symbol>`
 
 ## Agent Adoption
 

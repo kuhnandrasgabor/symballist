@@ -7,7 +7,7 @@ import { runInit } from "../src/commands/init.ts";
 import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
-import { buildFtsQuery, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { detectIndexFreshness } from "../src/freshness.ts";
 import { parseCliArgs, runCli } from "../src/cli.ts";
@@ -257,6 +257,31 @@ describe("symballist vertical slice", () => {
     expect(shown.related.some((entry) => entry.symbol.name === "slugify" && entry.relation.kind === "imports")).toBeTrue();
   });
 
+  test("show resolves exact symbol names without requiring an intermediate id", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const greet = getBestSymbolByName(db, "greet");
+    db.close();
+
+    expect(greet).toBeDefined();
+
+    const output = await captureConsoleLog(async () => {
+      await runShow(root, "", "greet");
+    });
+    const shown = JSON.parse(output) as {
+      symbol: {
+        id: number;
+        name: string;
+      };
+    };
+
+    expect(shown.symbol.id).toBe(greet?.id);
+    expect(shown.symbol.name).toBe("greet");
+  });
+
   test("query prefers declarations over imports and supports kind filters", async () => {
     const root = await createFixtureRepo();
     await writeFile(
@@ -474,9 +499,22 @@ describe("symballist vertical slice", () => {
     expect(parsed.root).toBe("D:/Projects/co-ma");
     expect(parsed.limit).toBe(3);
     expect(parsed.kinds).toEqual(["class", "function"]);
+    expect(parsed.showName).toBeNull();
     expect(parsed.positionals).toEqual(["greet"]);
     expect(parsed.helpRequested).toBeFalse();
     expect(parsed.error).toBeNull();
+  });
+
+  test("cli args support show by symbol name and default to tighter query result counts", () => {
+    const queryParsed = parseCliArgs(["query", "greet"]);
+    expect(queryParsed.limit).toBe(5);
+
+    const showParsed = parseCliArgs(["show", "--name", "greet", "--root", "D:/Projects/co-ma"]);
+    expect(showParsed.command).toBe("show");
+    expect(showParsed.showName).toBe("greet");
+    expect(showParsed.root).toBe("D:/Projects/co-ma");
+    expect(showParsed.positionals).toEqual([]);
+    expect(showParsed.error).toBeNull();
   });
 
   test("query help is handled as CLI help instead of query text", async () => {
