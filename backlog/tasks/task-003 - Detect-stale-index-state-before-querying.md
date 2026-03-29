@@ -1,5 +1,5 @@
 ---
-id: DRAFT-002
+id: TASK-003
 title: Detect stale index state before querying
 status: Draft
 assignee: []
