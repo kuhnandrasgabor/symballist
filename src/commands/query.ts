@@ -13,5 +13,15 @@ export async function runQuery(root: string, rawQuery: string, limit: number, ki
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
   db.close();
 
-  console.log(JSON.stringify({ query: rawQuery, kinds, indexFreshness, results }, null, 2));
+  console.log(JSON.stringify({
+    query: rawQuery,
+    kinds,
+    indexFreshness,
+    resultSemantics: {
+      distance: "lower is better",
+      confidenceOrder: ["exact", "strong", "related", "fallback"],
+      trustLevels: ["high", "medium", "low"]
+    },
+    results
+  }, null, 2));
 }

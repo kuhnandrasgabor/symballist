@@ -1,4 +1,16 @@
 export type SupportedLanguage = "python" | "html" | "markdown" | "text";
+export type ExtractionKind = "parsed" | "recovered" | "fallback";
+export type TrustLevel = "high" | "medium" | "low";
+export type ResultConfidence = "exact" | "strong" | "related" | "fallback";
+export type MatchReason =
+  | "exact_symbol_name"
+  | "normalized_symbol_name"
+  | "signature_text"
+  | "doc_text"
+  | "body_text"
+  | "heading_text"
+  | "import_reference"
+  | "fallback_file";
 
 export type SymbolRecord = {
   path: string;
@@ -23,7 +35,11 @@ export type QueryResult = {
   name: string;
   signature: string | null;
   doc: string | null;
-  score: number;
+  distance: number;
+  confidence: ResultConfidence;
+  matchReason: MatchReason;
+  extraction: ExtractionKind;
+  trustLevel: TrustLevel;
   fallback: boolean;
   startLine: number;
   startColumn: number;
@@ -41,6 +57,8 @@ export type SymbolDetails = {
   signature: string | null;
   body: string;
   doc: string | null;
+  extraction: ExtractionKind;
+  trustLevel: TrustLevel;
   fallback: boolean;
   startLine: number;
   startColumn: number;

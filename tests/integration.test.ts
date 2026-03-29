@@ -116,6 +116,11 @@ describe("symballist vertical slice", () => {
     expect(greet?.startLine).toBe(5);
     expect(greet?.startColumn).toBe(5);
     expect(greet?.snippet).toContain("def greet");
+    expect(greet?.distance).toBeLessThan(0);
+    expect(greet?.confidence).toBe("exact");
+    expect(greet?.matchReason).toBe("exact_symbol_name");
+    expect(greet?.extraction).toBe("parsed");
+    expect(greet?.trustLevel).toBe("high");
     expect(searchPanel).toBeDefined();
     expect(searchPanel?.startLine).toBe(8);
     expect(searchPanel?.snippet).toContain("search-panel");
@@ -209,6 +214,8 @@ describe("symballist vertical slice", () => {
     expect(fromDb?.body).toContain('return f"Hello, {name}"');
     expect(fromDb?.startLine).toBe(5);
     expect(fromDb?.endLine).toBe(6);
+    expect(fromDb?.extraction).toBe("parsed");
+    expect(fromDb?.trustLevel).toBe("high");
     expect(relationsFromDb.some((relation) => relation.kind === "contained_in" && relation.targetPath === "app.py")).toBeTrue();
     expect(relationsFromDb.some((relation) => relation.kind === "imports" && relation.targetPath === "helpers.py")).toBeTrue();
     expect(relatedFromDb.some((entry) => entry.symbol.name === "Greeter" && entry.relation.kind === "contained_in")).toBeTrue();
@@ -223,6 +230,8 @@ describe("symballist vertical slice", () => {
         id: number;
         name: string;
         body: string;
+        extraction: string;
+        trustLevel: string;
         startLine: number;
         endLine: number;
       };
@@ -249,6 +258,8 @@ describe("symballist vertical slice", () => {
     expect(shown.symbol.id).toBe(greet?.id);
     expect(shown.symbol.name).toBe("greet");
     expect(shown.symbol.body).toContain('return f"Hello, {name}"');
+    expect(shown.symbol.extraction).toBe("parsed");
+    expect(shown.symbol.trustLevel).toBe("high");
     expect(shown.symbol.startLine).toBe(5);
     expect(shown.symbol.endLine).toBe(6);
     expect(shown.relations.some((relation) => relation.kind === "contained_in" && relation.targetPath === "app.py")).toBeTrue();
@@ -314,13 +325,29 @@ describe("symballist vertical slice", () => {
     const queryPayload = JSON.parse(output) as {
       kinds: string[];
       indexFreshness: { stale: boolean };
-      results: Array<{ kind: string }>;
+      resultSemantics: {
+        distance: string;
+        confidenceOrder: string[];
+        trustLevels: string[];
+      };
+      results: Array<{
+        kind: string;
+        distance: number;
+        confidence: string;
+        matchReason: string;
+        extraction: string;
+        trustLevel: string;
+      }>;
     };
 
     expect(queryPayload.kinds).toEqual(["import"]);
     expect(queryPayload.indexFreshness.stale).toBeFalse();
+    expect(queryPayload.resultSemantics.distance).toBe("lower is better");
+    expect(queryPayload.resultSemantics.confidenceOrder).toEqual(["exact", "strong", "related", "fallback"]);
     expect(queryPayload.results.length).toBeGreaterThan(0);
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
+    expect(queryPayload.results.every((result) => typeof result.distance === "number")).toBeTrue();
+    expect(queryPayload.results.every((result) => typeof result.confidence === "string")).toBeTrue();
   });
 
   test("symbol-shaped queries prefer exact owning definitions over normalized references", async () => {
@@ -353,6 +380,8 @@ describe("symballist vertical slice", () => {
     expect(results[0]?.kind).toBe("class");
     expect(results[0]?.name).toBe("DistillationEngine");
     expect(results[0]?.path).toBe("src\\distiller.py");
+    expect(results[0]?.confidence).toBe("exact");
+    expect(results[0]?.matchReason).toBe("exact_symbol_name");
     expect(results.some((result) => result.name === "distillation_engine")).toBeTrue();
   });
 
@@ -488,6 +517,8 @@ describe("symballist vertical slice", () => {
     expect(agentConfig).toBeDefined();
     expect(agentConfig?.kind).toBe("class");
     expect(agentConfig?.startLine).toBe(3);
+    expect(agentConfig?.extraction).toBe("recovered");
+    expect(agentConfig?.trustLevel).toBe("medium");
     expect(fileFallback).toBeUndefined();
     expect(details?.body).toContain("class AgentConfig");
     expect(details?.endLine).toBeGreaterThan(agentConfig?.startLine ?? 0);
