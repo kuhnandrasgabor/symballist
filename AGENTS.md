@@ -60,3 +60,26 @@ When another local repo wants to use `symballist` as a retrieval helper, follow 
 - [docs/agent-workflows/symballist-adoption.md](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md)
 
 Keep the integration CLI-first, use `status -> index -> query -> show`, and treat `symballist` as a read-only helper rather than the sole source of truth.
+
+<!-- SYMBALLIST RETRIEVAL START -->
+## Symballist Retrieval
+
+Use `symballist` as a CLI-first read-only retrieval helper for this repo.
+
+- Preferred local entrypoint:
+  - `.symballist\bin\symballist.cmd`
+- If `symballist` is installed globally or linked, that command name is also acceptable.
+- Check freshness first:
+  - `.symballist\bin\symballist.cmd status --root D:\Projects\symballist`
+- If the index is stale, refresh it before relying on results:
+  - `.symballist\bin\symballist.cmd index --root D:\Projects\symballist`
+- Use query for discovery:
+  - `.symballist\bin\symballist.cmd query "<text>" --root D:\Projects\symballist`
+- Use show for full context and related symbols:
+  - `.symballist\bin\symballist.cmd show <id> --root D:\Projects\symballist`
+- Treat `symballist` as a helper, not the sole source of truth.
+- If results are weak or stale, fall back to normal file reads or search.
+
+Reference:
+- `.symballist\instructions\symballist-adoption.md`
+<!-- SYMBALLIST RETRIEVAL END -->

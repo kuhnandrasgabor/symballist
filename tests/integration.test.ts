@@ -55,6 +55,9 @@ describe("symballist vertical slice", () => {
     db.close();
     expect(await Bun.file(join(root, ".symballist", "config.json")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "index.db")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "bin", "symballist.cmd")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "bin", "symballist.ps1")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "bin", "symballist")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "symballist-adoption.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "AGENTS.symballist.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "CLAUDE.symballist.md")).exists()).toBeTrue();
@@ -72,6 +75,7 @@ describe("symballist vertical slice", () => {
 
     const agentsText = await readFile(join(root, "AGENTS.md"), "utf8");
     const claudeText = await readFile(join(root, "CLAUDE.md"), "utf8");
+    const wrapperCmd = await readFile(join(root, ".symballist", "bin", "symballist.cmd"), "utf8");
     const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
     const localGuide = await readFile(join(root, ".symballist", "instructions", "symballist-adoption.md"), "utf8");
 
@@ -79,10 +83,11 @@ describe("symballist vertical slice", () => {
     expect(claudeText).toContain("# Claude Notes");
     expect(agentsText.match(/<!-- SYMBALLIST RETRIEVAL START -->/g)?.length ?? 0).toBe(1);
     expect(claudeText.match(/<!-- SYMBALLIST RETRIEVAL START -->/g)?.length ?? 0).toBe(1);
-    expect(agentsText).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts status --root ${root}`);
-    expect(claudeText).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts status --root ${root}`);
-    expect(localAgentsSnippet).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts query "<text>" --root ${root}`);
-    expect(localGuide).toContain(`bun run D:\\Projects\\symballist\\src\\cli.ts index --root ${root}`);
+    expect(agentsText).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
+    expect(claudeText).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
+    expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd query "<text>" --root ${root}`);
+    expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd index --root ${root}`);
+    expect(wrapperCmd).toContain('bun "D:\\Projects\\symballist\\src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
   });

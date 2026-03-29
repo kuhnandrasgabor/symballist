@@ -60,6 +60,7 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 - `symballist init`
   - creates `.symballist/`
   - copies local adoption docs/snippets into `.symballist/instructions/`
+  - writes local wrapper commands into `.symballist/bin/`
   - creates or refreshes managed `AGENTS.md` and `CLAUDE.md` symballist retrieval blocks
 - `symballist index`
 - `symballist status`
@@ -77,6 +78,7 @@ Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:
 .symballist/
   config.json
   index.db
+  bin/
   instructions/
   cache/
   logs/

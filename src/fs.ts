@@ -21,9 +21,13 @@ const SKIP_DIRS = new Set([
 ]);
 
 const INSTRUCTIONS_DIR = "instructions";
+const BIN_DIR = "bin";
 const LOCAL_ADOPTION_GUIDE = "symballist-adoption.md";
 const LOCAL_AGENTS_SNIPPET = "AGENTS.symballist.md";
 const LOCAL_CLAUDE_SNIPPET = "CLAUDE.symballist.md";
+const LOCAL_WINDOWS_WRAPPER = "symballist.cmd";
+const LOCAL_POWERSHELL_WRAPPER = "symballist.ps1";
+const LOCAL_POSIX_WRAPPER = "symballist";
 const MANAGED_BLOCK_START = "<!-- SYMBALLIST RETRIEVAL START -->";
 const MANAGED_BLOCK_END = "<!-- SYMBALLIST RETRIEVAL END -->";
 const SYMBALLIST_ROOT = normalize(fileURLToPath(new URL("..", import.meta.url))).replace(/[\\\/]+$/, "");
@@ -40,6 +44,7 @@ function isIgnorableFsError(error: unknown): boolean {
 
 export async function ensureInitialized(root: string): Promise<void> {
   await mkdir(appPath(root), { recursive: true });
+  await mkdir(appPath(root, BIN_DIR), { recursive: true });
   await mkdir(appPath(root, CACHE_DIR), { recursive: true });
   await mkdir(appPath(root, LOGS_DIR), { recursive: true });
   await mkdir(appPath(root, INSTRUCTIONS_DIR), { recursive: true });
@@ -138,6 +143,9 @@ export async function fileMetadata(path: string): Promise<{ size: number; mtimeM
 
 async function bootstrapAgentInstructions(root: string): Promise<void> {
   const templates = await loadInstructionTemplates(root);
+  await writeFile(appPath(root, BIN_DIR, LOCAL_WINDOWS_WRAPPER), renderWindowsWrapper(), "utf8");
+  await writeFile(appPath(root, BIN_DIR, LOCAL_POWERSHELL_WRAPPER), renderPowerShellWrapper(), "utf8");
+  await writeFile(appPath(root, BIN_DIR, LOCAL_POSIX_WRAPPER), renderPosixWrapper(), "utf8");
   await writeFile(appPath(root, INSTRUCTIONS_DIR, LOCAL_ADOPTION_GUIDE), templates.adoptionGuide, "utf8");
   await writeFile(appPath(root, INSTRUCTIONS_DIR, LOCAL_AGENTS_SNIPPET), templates.agentsSnippet, "utf8");
   await writeFile(appPath(root, INSTRUCTIONS_DIR, LOCAL_CLAUDE_SNIPPET), templates.claudeSnippet, "utf8");
@@ -168,6 +176,25 @@ function renderInstructionTemplate(template: string, root: string): string {
   return template
     .replaceAll("<SYMBALLIST_ROOT>", SYMBALLIST_ROOT)
     .replaceAll("<PROJECT_ROOT>", root);
+}
+
+function renderWindowsWrapper(): string {
+  return `@echo off
+setlocal
+bun "${SYMBALLIST_ROOT}\\src\\cli.ts" %*
+`;
+}
+
+function renderPowerShellWrapper(): string {
+  return `& bun "${SYMBALLIST_ROOT}\\src\\cli.ts" @args
+`;
+}
+
+function renderPosixWrapper(): string {
+  const posixRoot = SYMBALLIST_ROOT.replace(/\\/g, "/");
+  return `#!/usr/bin/env sh
+bun "${posixRoot}/src/cli.ts" "$@"
+`;
 }
 
 async function upsertManagedInstructionBlock(path: string, content: string): Promise<void> {
