@@ -53,9 +53,9 @@ bun run src/cli.ts --help
 The simplest way to try `symballist` on another local project is:
 
 ```powershell
-symballist init --root D:\Projects\your-repo
-symballist index --root D:\Projects\your-repo
-symballist lookup "your query here" --root D:\Projects\your-repo
+symballist init --root <PROJECT_ROOT>
+symballist index --root <PROJECT_ROOT>
+symballist lookup "your query here" --root <PROJECT_ROOT>
 ```
 
 After `init`, the target repo gets:
@@ -69,7 +69,7 @@ After `init`, the target repo gets:
 If you prefer the repo-local wrapper instead of a linked global command:
 
 ```powershell
-.symballist\bin\symballist.cmd status --root D:\Projects\your-repo
+.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
 ```
 
 ## 60-Second Workflow
@@ -77,22 +77,22 @@ If you prefer the repo-local wrapper instead of a linked global command:
 Typical usage looks like this:
 
 ```powershell
-symballist status --root D:\Projects\your-repo
-symballist index --root D:\Projects\your-repo
-symballist lookup "memory store" --root D:\Projects\your-repo
-symballist show --name MemoryStore --root D:\Projects\your-repo
+symballist status --root <PROJECT_ROOT>
+symballist index --root <PROJECT_ROOT>
+symballist lookup "memory store" --root <PROJECT_ROOT>
+symballist show --name MemoryStore --root <PROJECT_ROOT>
 ```
 
 Or, if you want a foreground auto-refresh loop while you work:
 
 ```powershell
-symballist watch --interval-ms 2000 --root D:\Projects\your-repo
+symballist watch --interval-ms 2000 --root <PROJECT_ROOT>
 ```
 
 For agents, `watch --once` is usually the safer automatic-refresh step:
 
 ```powershell
-symballist watch --once --root D:\Projects\your-repo
+symballist watch --once --root <PROJECT_ROOT>
 ```
 
 ## Core Commands
@@ -123,19 +123,19 @@ symballist watch --once --root D:\Projects\your-repo
 For code-heavy retrieval:
 
 ```powershell
-symballist query "gateway config api live reload" --code-only --exclude-tests --prefer-implementation --root D:\Projects\your-repo
+symballist query "gateway config api live reload" --code-only --exclude-tests --prefer-implementation --root <PROJECT_ROOT>
 ```
 
 For doc-heavy retrieval:
 
 ```powershell
-symballist query "memory management" --docs-only --root D:\Projects\your-repo
+symballist query "memory management" --docs-only --root <PROJECT_ROOT>
 ```
 
 For tighter symbol types:
 
 ```powershell
-symballist query "AgentConfig" --kind class,function --root D:\Projects\your-repo
+symballist query "AgentConfig" --kind class,function --root <PROJECT_ROOT>
 ```
 
 ## Retrieval Model
@@ -223,8 +223,9 @@ Current behavior:
 For downstream projects that want to use `symballist` as a retrieval helper for Codex or Claude:
 
 - [Symballist Adoption Workflow](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md)
-- [Downstream AGENTS Snippet](/D:/Projects/symballist/docs/snippets/downstream-agents-symballist.md)
-- [Downstream CLAUDE Snippet](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md)
+- [Symballist Adoption Workflow](docs/agent-workflows/symballist-adoption.md)
+- [Downstream AGENTS Snippet](docs/snippets/downstream-agents-symballist.md)
+- [Downstream CLAUDE Snippet](docs/snippets/downstream-claude-symballist.md)
 
 The intended downstream posture is:
 
@@ -248,7 +249,7 @@ Still intentionally out of scope for the current generation:
 
 The next major direction is graph-aware retrieval beyond the first reranking slice. The staged roadmap lives here:
 
-- [graph-aware-retrieval-roadmap.md](/D:/Projects/symballist/docs/graph-aware-retrieval-roadmap.md)
+- [graph-aware-retrieval-roadmap.md](docs/graph-aware-retrieval-roadmap.md)
 
 The current plan is:
 
