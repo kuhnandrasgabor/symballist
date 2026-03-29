@@ -738,6 +738,72 @@ describe("symballist vertical slice", () => {
     expect(payload.results.every((result) => !result.path.endsWith(".md"))).toBeTrue();
   });
 
+  test("docs-only prefers canonical docs over duplicated operational mirrors", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "docs"), { recursive: true });
+    await mkdir(join(root, ".codex", "skills", "memory"), { recursive: true });
+    await writeFile(
+      join(root, "docs", "memory-management.md"),
+      "# Memory Management\n\nCanonical memory management architecture notes.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "README.md"),
+      "# Project\n\n## Memory Management\n\nOverview of memory management.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "AGENTS.md"),
+      "## Memory Management\n\nOperational memory management instructions for agents.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "CLAUDE.md"),
+      "## Memory Management\n\nOperational memory management instructions for Claude.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, ".codex", "skills", "memory", "SKILL.md"),
+      "## Memory Management\n\nInternal mirrored instructions.\n",
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const docsOnly = searchSymbols(db, buildFtsQuery("memory management"), 5, {
+      rawQuery: "memory management",
+      docsOnly: true
+    });
+    db.close();
+
+    expect(docsOnly.length).toBeGreaterThan(0);
+    expect(docsOnly.every((result) => result.language === "markdown")).toBeTrue();
+    expect(docsOnly[0]?.path).toBe("docs\\memory-management.md");
+    expect(docsOnly.slice(0, 2).some((result) => result.path === "README.md")).toBeTrue();
+    expect(docsOnly.slice(0, 2).every((result) => !["AGENTS.md", "CLAUDE.md"].includes(result.path))).toBeTrue();
+
+    const payload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "memory management", 5, [], {
+        docsOnly: true
+      });
+    })) as {
+      intent: {
+        docsOnly: boolean;
+      };
+      results: Array<{
+        path: string;
+        language: string;
+      }>;
+    };
+
+    expect(payload.intent.docsOnly).toBeTrue();
+    expect(payload.results[0]?.path).toBe("docs\\memory-management.md");
+    expect(payload.results.every((result) => result.language === "markdown")).toBeTrue();
+    expect(payload.results.slice(0, 2).every((result) => !["AGENTS.md", "CLAUDE.md"].includes(result.path))).toBeTrue();
+  });
+
   test("prefer-implementation alone suppresses doc noise and visibly changes default ranking", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });

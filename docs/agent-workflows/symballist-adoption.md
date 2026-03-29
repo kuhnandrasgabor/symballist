@@ -60,7 +60,7 @@ Useful query refinements:
 
 - use `--code-only --exclude-tests` when you want implementation-heavy results
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
-- use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes
+- use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
 
 ## When Agents Should Use It
 

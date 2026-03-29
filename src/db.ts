@@ -540,6 +540,21 @@ function isDocRow(row: SearchRow): boolean {
   return row.language === "markdown";
 }
 
+function isCanonicalDocPath(normalizedPath: string): boolean {
+  return normalizedPath.startsWith("docs/")
+    || normalizedPath === "readme.md"
+    || normalizedPath === "plan.md"
+    || normalizedPath === "roadmap.md";
+}
+
+function isOperationalDocPath(normalizedPath: string): boolean {
+  return normalizedPath === "agents.md"
+    || normalizedPath === "claude.md"
+    || normalizedPath.startsWith(".codex/")
+    || normalizedPath.startsWith(".claude/")
+    || normalizedPath.startsWith(".symballist/");
+}
+
 function isImplementationFocusedIntent(options: SearchOptions, rawQuery?: string): boolean {
   return options.preferImplementation === true && !options.docsOnly && !isDocOrientedQuery(rawQuery ?? options.rawQuery ?? "");
 }
@@ -563,18 +578,44 @@ function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
 function computePathAdjustment(row: SearchRow, rawQuery: string, options: SearchOptions): number {
   const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
   const preferImplementation = isImplementationFocusedIntent(options, rawQuery);
+  const docsOnly = options.docsOnly === true;
+
+  if (docsOnly) {
+    if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
+      return 0.75;
+    }
+    if (isOperationalDocPath(normalizedPath)) {
+      return 3.0;
+    }
+    if (normalizedPath.startsWith("docs/")) {
+      return -1.2;
+    }
+    if (normalizedPath === "readme.md") {
+      return -1.0;
+    }
+    if (normalizedPath === "plan.md" || normalizedPath === "roadmap.md") {
+      return -0.8;
+    }
+    return -0.2;
+  }
 
   if (isDocOrientedQuery(rawQuery)) {
+    if (isOperationalDocPath(normalizedPath)) {
+      return 1.2;
+    }
     if (normalizedPath.startsWith("docs/")) {
       return -0.4;
     }
     if (normalizedPath === "readme.md" || normalizedPath === "plan.md") {
       return -0.35;
     }
+    if (normalizedPath === "roadmap.md") {
+      return -0.25;
+    }
     if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
       return 0.25;
     }
-    return 0;
+    return isCanonicalDocPath(normalizedPath) ? -0.1 : 0;
   }
 
   if (row.language === "markdown") {
