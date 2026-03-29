@@ -1,5 +1,6 @@
-import { deleteFileIndex, getIndexedFiles, openDatabase, replaceFileIndex } from "../db.ts";
-import { fileMetadata, listSourceFiles, readText } from "../fs.ts";
+import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexedFiles, openDatabase, replaceFileIndex } from "../db.ts";
+import { getActiveEmbeddingsConfig, updateEmbeddingsForSymbols } from "../embeddings.ts";
+import { fileMetadata, listSourceFiles, readConfig, readText } from "../fs.ts";
 import { extractSymbols } from "../indexer/index.ts";
 
 export type IndexStats = {
@@ -8,6 +9,8 @@ export type IndexStats = {
   skippedFiles: number;
   removedFiles: number;
   indexedSymbols: number;
+  embeddedSymbols: number;
+  embeddingError: string | null;
 };
 
 type RunIndexOptions = {
@@ -68,6 +71,8 @@ function renderProgress(current: number, total: number, stats: IndexStats, curre
 export async function runIndex(root: string, options: RunIndexOptions = {}): Promise<IndexStats> {
   const progress = options.progress ?? true;
   const emitStats = options.emitStats ?? true;
+  const config = await readConfig(root);
+  const embeddings = getActiveEmbeddingsConfig(config);
   const db = await openDatabase(root);
   const files = await listSourceFiles(root);
   const currentPaths = new Set(files.map((file) => file.relativePath));
@@ -78,7 +83,9 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
     indexedFiles: 0,
     skippedFiles: 0,
     removedFiles: 0,
-    indexedSymbols: 0
+    indexedSymbols: 0,
+    embeddedSymbols: 0,
+    embeddingError: null
   };
   const progressState: ProgressState = {
     lastRenderedLength: 0,
@@ -89,8 +96,27 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
     const file = files[index];
     const metadata = await fileMetadata(file.absolutePath);
     const existing = existingFiles.get(file.relativePath);
+    const shouldBackfillEmbeddings = Boolean(
+      existing
+      && embeddings
+      && getEmbeddingCountForPath(db, file.relativePath, embeddings.provider, embeddings.model) === 0
+    );
 
-    if (existing && existing.size === metadata.size && existing.mtimeMs === metadata.mtimeMs) {
+    if (existing && existing.size === metadata.size && existing.mtimeMs === metadata.mtimeMs && !shouldBackfillEmbeddings) {
+      stats.skippedFiles += 1;
+      if (progress) {
+        renderProgress(index + 1, files.length, stats, file.relativePath, progressState);
+      }
+      continue;
+    }
+
+    if (shouldBackfillEmbeddings) {
+      try {
+        const embeddableSymbols = getEmbeddableSymbolsForPath(db, file.relativePath);
+        stats.embeddedSymbols += await updateEmbeddingsForSymbols(db, embeddings, embeddableSymbols);
+      } catch (error) {
+        stats.embeddingError = error instanceof Error ? error.message : String(error);
+      }
       stats.skippedFiles += 1;
       if (progress) {
         renderProgress(index + 1, files.length, stats, file.relativePath, progressState);
@@ -111,6 +137,14 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
       symbols,
       { availablePaths: currentPaths }
     );
+    if (embeddings && stats.embeddingError === null) {
+      try {
+        const embeddableSymbols = getEmbeddableSymbolsForPath(db, file.relativePath);
+        stats.embeddedSymbols += await updateEmbeddingsForSymbols(db, embeddings, embeddableSymbols);
+      } catch (error) {
+        stats.embeddingError = error instanceof Error ? error.message : String(error);
+      }
+    }
     stats.indexedFiles += 1;
 
     if (progress) {

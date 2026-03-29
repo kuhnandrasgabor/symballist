@@ -1,9 +1,10 @@
 ---
-id: DRAFT-011
+id: TASK-028
 title: Add optional local embeddings and hybrid retrieval
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-29 09:12'
+updated_date: '2026-03-29 15:19'
 labels:
   - idea
   - spike
@@ -49,3 +50,9 @@ Why this fits after automatic refresh:
 - embeddings help most when the index is already kept fresh with low friction
 - hybrid retrieval is the clearest path from “good lexical retriever” to “strong conceptual retriever”
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented optional local embeddings and hybrid retrieval with an Ollama-first adapter and repo-local config in .symballist/config.json. Index now generates symbol embeddings when enabled, query/lookup automatically blend lexical and semantic candidates when vectors are available for the active provider/model, status reports embeddings availability, and init now preserves repo-local config instead of overwriting it. Verification: bun test (33 pass), bun run src/cli.ts status --root D:\Projects\symballist, plus mocked hybrid retrieval coverage proving semantic-only matches can surface via query.
+<!-- SECTION:FINAL_SUMMARY:END -->

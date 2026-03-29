@@ -51,8 +51,8 @@ export async function ensureInitialized(root: string): Promise<void> {
   await mkdir(appPath(root, LOGS_DIR), { recursive: true });
   await mkdir(appPath(root, INSTRUCTIONS_DIR), { recursive: true });
 
-  const config = JSON.stringify(defaultConfig(root), null, 2);
-  await writeFile(appPath(root, CONFIG_FILE), config, { flag: "w" });
+  const existingConfig = await readConfig(root);
+  await writeConfig(root, mergeConfig(root, existingConfig));
   await bootstrapAgentInstructions(root);
   const gitignoreUpdated = await ensureGitignoreEntry(root, APP_GITIGNORE_ENTRY);
   if (gitignoreUpdated && await appearsGitTracked(root, APP_DIR)) {
@@ -82,7 +82,12 @@ export async function readConfig(root: string): Promise<SymballistConfig | null>
     return null;
   }
 
-  return JSON.parse(await readText(path)) as SymballistConfig;
+  const parsed = JSON.parse(await readText(path)) as Partial<SymballistConfig>;
+  return mergeConfig(root, parsed);
+}
+
+export async function writeConfig(root: string, config: SymballistConfig): Promise<void> {
+  await writeFile(appPath(root, CONFIG_FILE), JSON.stringify(config, null, 2), { flag: "w" });
 }
 
 export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" }>> {
@@ -222,6 +227,20 @@ function renderInstructionTemplate(template: string, root: string): string {
   return template
     .replaceAll("<SYMBALLIST_ROOT>", SYMBALLIST_ROOT)
     .replaceAll("<PROJECT_ROOT>", root);
+}
+
+function mergeConfig(root: string, config: Partial<SymballistConfig> | null | undefined): SymballistConfig {
+  const base = defaultConfig(root);
+  return {
+    ...base,
+    ...config,
+    root,
+    languages: config?.languages ?? base.languages,
+    embeddings: {
+      ...base.embeddings,
+      ...(config?.embeddings ?? {})
+    }
+  };
 }
 
 function renderWindowsWrapper(): string {
