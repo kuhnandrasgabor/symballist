@@ -432,6 +432,43 @@ describe("symballist vertical slice", () => {
     expect(architectureResults[0]?.language).toBe("markdown");
   });
 
+  test("concept-oriented queries can promote canonical implementation symbols from matching source paths", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(
+      join(root, "src", "distiller.py"),
+      'class DistillationEngine:\n    pass\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "gateway.py"),
+      'from src.distiller import DistillationEngine\n\n\ndef build_distiller() -> DistillationEngine:\n    return DistillationEngine()\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "tests", "test_distiller.py"),
+      'def test_distiller_pipeline():\n    assert "distiller"\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, buildFtsQuery("distiller"), 5, {
+      rawQuery: "distiller"
+    });
+    db.close();
+
+    expect(results[0]?.path).toBe("src\\distiller.py");
+    expect(results[0]?.name).toBe("DistillationEngine");
+    expect(results[0]?.kind).toBe("class");
+    expect(results[0]?.matchReason).toBe("path_concept");
+    expect(results[0]?.confidence).toBe("strong");
+    expect(results.some((result) => result.path === "tests\\test_distiller.py")).toBeTrue();
+  });
+
   test("query intent flags can filter docs, exclude tests, and prefer implementation", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });

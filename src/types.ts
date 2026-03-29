@@ -5,6 +5,7 @@ export type ResultConfidence = "exact" | "strong" | "related" | "fallback";
 export type MatchReason =
   | "exact_symbol_name"
   | "normalized_symbol_name"
+  | "path_concept"
   | "signature_text"
   | "doc_text"
   | "body_text"
