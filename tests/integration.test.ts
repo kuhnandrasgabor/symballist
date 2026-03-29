@@ -1322,6 +1322,87 @@ describe("symballist vertical slice", () => {
     });
   });
 
+  test("hybrid fusion can promote semantic implementation hits over weak lexical doc noise", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "docs"), { recursive: true });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "docs", "persistence.md"),
+      "# Persistence\n\nSQLite backed persisted memories and migration notes.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "memory_store.py"),
+      'class MemoryStore:\n    """Canonical persisted memory store implementation."""\n    pass\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    const config = await readConfig(root);
+    await writeConfig(root, {
+      ...(config!),
+      embeddings: {
+        enabled: true,
+        provider: "ollama",
+        baseUrl: "http://localhost:11434",
+        model: "all-minilm",
+        dimensions: null
+      }
+    });
+
+    const vectorFor = (text: string): number[] => {
+      const normalized = text.toLowerCase();
+      if (normalized.includes("sqlite backed persisted memories")
+        || normalized.includes("canonical persisted memory store")
+        || normalized.includes("memorystore")) {
+        return [1, 0, 0];
+      }
+      return [0, 1, 0];
+    };
+
+    await withMockFetch(async (_url, init) => {
+      const payload = JSON.parse(String(init?.body ?? "{}")) as { input?: string | string[]; model?: string };
+      const input = Array.isArray(payload.input) ? payload.input : [payload.input ?? ""];
+      return Response.json({
+        model: payload.model ?? "all-minilm",
+        embeddings: input.map((item) => vectorFor(String(item)))
+      });
+    }, async () => {
+      const stats = await runIndex(root, { progress: false });
+      expect(stats.embeddedSymbols).toBeGreaterThan(0);
+
+      const output = JSON.parse(await captureConsoleLog(async () => {
+        await runQuery(root, "sqlite backed persisted memories", 5);
+      })) as {
+        retrieval: {
+          mode: string;
+          hybrid: {
+            semanticCandidatesRetrieved: number;
+            semanticCandidatesRetained: number;
+            topResultHasSemanticSignal: boolean;
+          } | null;
+        };
+        results: Array<{
+          name: string;
+          path: string;
+          retrievalChannels: string[];
+          hybridContribution: string;
+          semanticSimilarity: number | null;
+        }>;
+      };
+
+      expect(output.retrieval.mode).toBe("hybrid");
+      expect(output.retrieval.hybrid?.semanticCandidatesRetrieved).toBeGreaterThan(0);
+      expect(output.retrieval.hybrid?.semanticCandidatesRetained).toBeGreaterThan(0);
+      expect(output.retrieval.hybrid?.topResultHasSemanticSignal).toBeTrue();
+      expect(output.results[0]?.name).toBe("MemoryStore");
+      expect(output.results[0]?.path).toBe("src\\memory_store.py");
+      expect(output.results[0]?.retrievalChannels).toContain("semantic");
+      expect(["semantic_only", "semantic_assisted"]).toContain(output.results[0]?.hybridContribution ?? "");
+      expect(output.results[0]?.semanticSimilarity).toBeGreaterThan(0.8);
+    });
+  });
+
   test("embedding payloads are truncated for very large symbol bodies", () => {
     const text = buildEmbeddingText({
       path: "src\\memory_store.py",

@@ -72,6 +72,9 @@ type SearchRow = {
   lexicalCandidate: boolean;
   conceptCandidate: boolean;
   semanticCandidate: boolean;
+  lexicalRank: number | null;
+  conceptRank: number | null;
+  semanticRank: number | null;
 };
 type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
 type RelationRow = {
@@ -523,7 +526,10 @@ function getLiteralFallbackCandidates(
     rawScore: syntheticLiteralRawScore(row, trimmedQuery, normalizedQuery),
     lexicalCandidate: true,
     conceptCandidate: false,
-    semanticCandidate: false
+    semanticCandidate: false,
+    lexicalRank: null,
+    conceptRank: null,
+    semanticRank: null
   }));
 }
 
@@ -936,7 +942,10 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
       const match = computeMatchAnalysis(row, rawQuery);
       const extraction = getExtractionDetails(row);
       const queryTrust = getQueryTrustDetails(extraction, match.confidence);
-      const adjustedScore = row.rawScore
+      const baseScore = shouldUseSemanticSearch(options)
+        ? computeHybridFusionBaseScore(row)
+        : row.rawScore;
+      const adjustedScore = baseScore
         + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
         + computePathAdjustment(row, rawQuery, options)
         + computeWeakResultAdjustment(row, rawQuery, options, match)
@@ -1270,7 +1279,18 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
     LIMIT 50
   `).all(normalizedName, ...kinds) as SearchRow[];
 
-  const [best] = rerankResults(rows, 1, normalizedName, {});
+  const rankedRows = rows.map((row, index) => ({
+    ...row,
+    semanticSimilarity: row.semanticSimilarity ?? null,
+    lexicalCandidate: true,
+    conceptCandidate: false,
+    semanticCandidate: false,
+    lexicalRank: index + 1,
+    conceptRank: null,
+    semanticRank: null
+  }));
+
+  const [best] = rerankResults(rankedRows, 1, normalizedName, {});
   if (!best) {
     return null;
   }
@@ -1369,11 +1389,14 @@ export function searchSymbolsWithDiagnostics(
   const rawQuery = options.rawQuery ?? query;
   let rows: SearchRow[];
   try {
-    rows = (statement.all(query, ...kinds, candidateLimit) as SearchRow[]).map((row) => ({
+    rows = (statement.all(query, ...kinds, candidateLimit) as SearchRow[]).map((row, index) => ({
       ...row,
       lexicalCandidate: true,
       conceptCandidate: false,
-      semanticCandidate: false
+      semanticCandidate: false,
+      lexicalRank: index + 1,
+      conceptRank: null,
+      semanticRank: null
     }));
   } catch {
     rows = getLiteralFallbackCandidates(db, rawQuery, kinds, candidateLimit);
@@ -1381,6 +1404,12 @@ export function searchSymbolsWithDiagnostics(
   if (rows.length === 0) {
     rows = getLiteralFallbackCandidates(db, rawQuery, kinds, candidateLimit);
   }
+  rows = rows.map((row, index) => ({
+    ...row,
+    lexicalRank: row.lexicalRank ?? index + 1,
+    conceptRank: row.conceptRank ?? null,
+    semanticRank: row.semanticRank ?? null
+  }));
   const supplementalRows = shouldExpandConceptCandidates(rawQuery, options)
     ? getConceptPathCandidates(db, rawQuery, kinds, candidateLimit)
     : [];
@@ -1423,7 +1452,10 @@ function mergeSearchRows(...rowSets: SearchRow[][]): SearchRow[] {
         semanticSimilarity: Math.max(existing.semanticSimilarity ?? Number.NEGATIVE_INFINITY, row.semanticSimilarity ?? Number.NEGATIVE_INFINITY),
         lexicalCandidate: existing.lexicalCandidate || row.lexicalCandidate,
         conceptCandidate: existing.conceptCandidate || row.conceptCandidate,
-        semanticCandidate: existing.semanticCandidate || row.semanticCandidate
+        semanticCandidate: existing.semanticCandidate || row.semanticCandidate,
+        lexicalRank: minRank(existing.lexicalRank, row.lexicalRank),
+        conceptRank: minRank(existing.conceptRank, row.conceptRank),
+        semanticRank: minRank(existing.semanticRank, row.semanticRank)
       });
     }
   }
@@ -1492,13 +1524,16 @@ function getConceptPathCandidates(
     limit
   ) as SearchRow[];
 
-  return rows.map((row) => ({
+  return rows.map((row, index) => ({
     ...row,
     rawScore: syntheticConceptRawScore(row, rawQuery),
     semanticSimilarity: null,
     lexicalCandidate: false,
     conceptCandidate: true,
-    semanticCandidate: false
+    semanticCandidate: false,
+    lexicalRank: null,
+    conceptRank: index + 1,
+    semanticRank: null
   }));
 }
 
@@ -1582,7 +1617,7 @@ function getSemanticCandidates(
   `).all(provider, model, ...kinds) as Array<Omit<SearchRow, "rawScore" | "semanticSimilarity"> & { embeddingJson: string }>;
 
   return rows
-    .map((row) => {
+    .map((row, index) => {
       const similarity = cosineSimilarity(queryEmbedding, parseEmbeddingJson(row.embeddingJson));
       return {
         ...row,
@@ -1590,7 +1625,10 @@ function getSemanticCandidates(
         semanticSimilarity: similarity,
         lexicalCandidate: false,
         conceptCandidate: false,
-        semanticCandidate: true
+        semanticCandidate: true,
+        lexicalRank: null,
+        conceptRank: null,
+        semanticRank: index + 1
       };
     })
     .filter((row) => row.semanticSimilarity !== null && (row.semanticSimilarity ?? 0) >= SEMANTIC_RELATED_THRESHOLD)
@@ -1607,6 +1645,32 @@ function syntheticConceptRawScore(row: SearchRow, rawQuery: string): number {
     return -7.5;
   }
   return -5.5;
+}
+
+function minRank(left: number | null, right: number | null): number | null {
+  if (left === null) {
+    return right;
+  }
+  if (right === null) {
+    return left;
+  }
+  return Math.min(left, right);
+}
+
+function computeHybridFusionBaseScore(row: SearchRow): number {
+  const lexicalContribution = row.lexicalRank === null ? 0 : (3.4 / (row.lexicalRank + 1));
+  const conceptContribution = row.conceptRank === null ? 0 : (2.8 / (row.conceptRank + 1));
+  const semanticContribution = row.semanticRank === null
+    ? 0
+    : (5.8 / (row.semanticRank + 1)) + ((row.semanticSimilarity ?? 0) * 2.1);
+
+  let score = -(lexicalContribution + conceptContribution + semanticContribution);
+
+  if (row.semanticRank !== null && row.lexicalRank === null && row.conceptRank === null) {
+    score -= 0.75;
+  }
+
+  return score;
 }
 
 function getRetrievalChannels(row: SearchRow): RetrievalChannel[] {
