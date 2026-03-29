@@ -65,6 +65,7 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
   - creates or refreshes managed `AGENTS.md` and `CLAUDE.md` symballist retrieval blocks
 - `symballist index`
 - `symballist status`
+- `symballist lookup "<text>" --code-only --exclude-tests --prefer-implementation`
 - `symballist query "<text>" --kind class,function`
 - `symballist query "<text>" --code-only --exclude-tests --prefer-implementation`
 - `symballist query "<text>" --docs-only`
@@ -80,6 +81,7 @@ Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:
 `--prefer-implementation` is intended for code-oriented queries. When used outside `--docs-only`, it now suppresses Markdown/doc noise and pushes `src/` implementations harder so the flag produces a visible ranking change.
 `--docs-only` now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors such as `AGENTS.md` and `CLAUDE.md`.
 `status` now includes a `changeAwareness` block for lightweight file-level changes since the last index and, when available, since current `git HEAD`.
+`lookup` is the convenience helper for the common `query -> best hit -> show` workflow, returning the selected result, its full context, and a short alternative list in one payload.
 
 ## Local State
 

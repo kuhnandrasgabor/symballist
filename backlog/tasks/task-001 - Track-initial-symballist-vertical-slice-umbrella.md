@@ -33,6 +33,7 @@ references:
   - TASK-023
   - TASK-024
   - TASK-025
+  - TASK-026
   - DRAFT-008
 priority: high
 ---
@@ -64,7 +65,7 @@ Current v1 shape:
 
 <!-- SECTION:PLAN:BEGIN -->
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
-2. Treat completed slice work as closed subtasks: TASK-002 through TASK-025.
+2. Treat completed slice work as closed subtasks: TASK-002 through TASK-026.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
 4. Near-term priority order from latest feedback: DRAFT-008.
 5. Medium-term follow-ups: DRAFT-008, then broader helper-integration questions in DRAFT-001.
@@ -102,6 +103,7 @@ Retrieval quality and context
 - Done: query and show now use `trustLevel` consistently for extraction trust, while query separately exposes `retrievalTrustLevel`.
 - Done: `--docs-only` now prefers canonical docs and demotes duplicated operational mirrors by default.
 - Done: `status` now reports lightweight file-level change awareness since the last index and, when available, since current git HEAD.
+- Done: `lookup` now provides an agent-facing helper for the common query -> top hit -> show flow.
 - Done: show returns symbol bodies plus lightweight relations and related symbols, summarizing very large bodies by default and supporting `--full` expansion.
 
 Adoption and workflow
@@ -124,8 +126,8 @@ Priority order from latest live feedback
 - Done: TASK-023 reconciled query/show trust semantics by splitting extraction trust from retrieval trust.
 - Done: TASK-024 preferred canonical docs and demoted duplicate operational docs in docs-only retrieval.
 - Done: TASK-025 added lightweight file-level change awareness since index and git HEAD.
+- Done: TASK-026 added a CLI-first agent-facing lookup helper on top of query/show.
 - Later: DRAFT-008 symbol-level and session-aware change tracking beyond file freshness.
-- Later: DRAFT-001 decide when and how to add an agent-facing symballist query helper.
 
 Completed subtasks
 - TASK-002 large-file Python symbol recovery.
@@ -152,4 +154,5 @@ Completed subtasks
 - TASK-023 query/show trust-semantics reconciliation.
 - TASK-024 canonical-doc preference and operational-doc suppression in docs-only retrieval.
 - TASK-025 lightweight file-level change awareness since index and git HEAD.
+- TASK-026 agent-facing `lookup` helper for the common query/show flow.
 <!-- SECTION:NOTES:END -->

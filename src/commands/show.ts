@@ -4,7 +4,7 @@ import { detectIndexFreshness } from "../freshness.ts";
 const DEFAULT_SHOW_MAX_LINES = 40;
 const DEFAULT_SHOW_MAX_CHARS = 4000;
 
-type ShowBodyPresentation = {
+export type ShowBodyPresentation = {
   mode: "full" | "summary";
   truncated: boolean;
   totalLines: number;
@@ -13,7 +13,7 @@ type ShowBodyPresentation = {
   shownChars: number;
 };
 
-function summarizeBody(body: string, full: boolean): { body: string; presentation: ShowBodyPresentation } {
+export function summarizeBody(body: string, full: boolean): { body: string; presentation: ShowBodyPresentation } {
   const lines = body.split(/\r?\n/);
   const totalLines = lines.length;
   const totalChars = body.length;

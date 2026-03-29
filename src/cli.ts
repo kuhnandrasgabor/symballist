@@ -3,6 +3,7 @@
 import { cwd } from "node:process";
 import { runIndex } from "./commands/index.ts";
 import { runInit } from "./commands/init.ts";
+import { runLookup } from "./commands/lookup.ts";
 import { runQuery } from "./commands/query.ts";
 import { runShow } from "./commands/show.ts";
 import { runStatus } from "./commands/status.ts";
@@ -31,6 +32,7 @@ Usage:
   symballist init [--root PATH]
   symballist index [--root PATH]
   symballist status [--root PATH]
+  symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--root PATH]
   symballist show <id> [--full] [--root PATH]
   symballist show --name <symbol> [--full] [--root PATH]
   symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--root PATH]
@@ -47,6 +49,9 @@ function commandUsage(command: string): void {
       return;
     case "status":
       console.log("Usage:\n  symballist status [--root PATH]");
+      return;
+    case "lookup":
+      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--root PATH]");
       return;
     case "show":
       console.log("Usage:\n  symballist show <id> [--full] [--root PATH]\n  symballist show --name <symbol> [--full] [--root PATH]");
@@ -147,7 +152,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       index += 1;
       continue;
     }
-    if (command === "query" && (value === "--limit" || value === "--top")) {
+    if ((command === "query" || command === "lookup") && (value === "--limit" || value === "--top")) {
       const parsed = parseNumberOption("--limit", argv[index + 1]);
       if (parsed === null) {
         error = `Expected a positive number after ${value}.`;
@@ -157,7 +162,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       index += 1;
       continue;
     }
-    if (command === "query" && value === "--kind") {
+    if ((command === "query" || command === "lookup") && value === "--kind") {
       const next = argv[index + 1];
       if (!next) {
         error = "Expected a comma-separated value after --kind.";
@@ -171,20 +176,24 @@ export function parseCliArgs(argv: string[]): CliArgs {
       index += 1;
       continue;
     }
-    if (command === "query" && value === "--code-only") {
+    if ((command === "query" || command === "lookup") && value === "--code-only") {
       codeOnly = true;
       continue;
     }
-    if (command === "query" && value === "--docs-only") {
+    if ((command === "query" || command === "lookup") && value === "--docs-only") {
       docsOnly = true;
       continue;
     }
-    if (command === "query" && value === "--exclude-tests") {
+    if ((command === "query" || command === "lookup") && value === "--exclude-tests") {
       excludeTests = true;
       continue;
     }
-    if (command === "query" && value === "--prefer-implementation") {
+    if ((command === "query" || command === "lookup") && value === "--prefer-implementation") {
       preferImplementation = true;
+      continue;
+    }
+    if (command === "lookup" && value === "--full") {
+      showFull = true;
       continue;
     }
     if (command === "show" && value === "--name") {
@@ -255,6 +264,18 @@ export async function runCli(argv: string[]): Promise<void> {
     case "status":
       await runStatus(parsed.root);
       return;
+    case "lookup": {
+      const query = parsed.positionals.join(" ");
+      await runLookup(parsed.root, query, parsed.limit, parsed.kinds, {
+        codeOnly: parsed.codeOnly,
+        docsOnly: parsed.docsOnly,
+        excludeTests: parsed.excludeTests,
+        preferImplementation: parsed.preferImplementation
+      }, {
+        full: parsed.showFull
+      });
+      return;
+    }
     case "show": {
       const id = parsed.positionals[0] ?? "";
       await runShow(parsed.root, id, parsed.showName ?? undefined, {
