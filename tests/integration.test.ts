@@ -215,6 +215,43 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
   });
 
+  test("oversized python files recover top-level symbols instead of a single file fallback", async () => {
+    const root = await createFixtureRepo();
+    const oversizedSource = [
+      "from helpers import slugify",
+      "",
+      "class AgentConfig:",
+      "    kind = 'agent'",
+      "",
+      "    def build(self) -> str:",
+      "        return slugify(self.kind)",
+      "",
+      "def create_agent_config() -> AgentConfig:",
+      "    return AgentConfig()",
+      "",
+      "# filler",
+      "# filler\n".repeat(5000)
+    ].join("\n");
+
+    await writeFile(join(root, "big_models.py"), oversizedSource, "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, "AgentConfig", 10);
+    const agentConfig = results.find((result) => result.name === "AgentConfig");
+    const fileFallback = results.find((result) => result.path === "big_models.py" && result.kind === "file");
+    const details = agentConfig ? getSymbolById(db, agentConfig.id) : null;
+    db.close();
+
+    expect(agentConfig).toBeDefined();
+    expect(agentConfig?.kind).toBe("class");
+    expect(agentConfig?.startLine).toBe(3);
+    expect(fileFallback).toBeUndefined();
+    expect(details?.body).toContain("class AgentConfig");
+    expect(details?.endLine).toBeGreaterThan(agentConfig?.startLine ?? 0);
+  });
+
   test("cli args accept an explicit root path", () => {
     const parsed = parseCliArgs(["query", "greet", "--root", "D:/Projects/co-ma", "--limit", "3", "--kind", "class,function"]);
     expect(parsed.command).toBe("query");
