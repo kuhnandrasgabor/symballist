@@ -922,6 +922,39 @@ describe("symballist vertical slice", () => {
     expect(payload.results.slice(0, 2).every((result) => !["AGENTS.md", "CLAUDE.md"].includes(result.path))).toBeTrue();
   });
 
+  test("weak low-signal queries suppress duplicate operational mirror docs", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(
+      join(root, "docs", "memory-management.md"),
+      "# Memory Management\n\nProject memory handling and retention notes.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "AGENTS.md"),
+      "## Memory Notes\n\nOperational mirror for memory handling guidance.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "CLAUDE.md"),
+      "## Memory Notes\n\nOperational mirror for memory handling guidance.\n",
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, buildFtsQuery("memory ghost cleanup"), 5, {
+      rawQuery: "memory ghost cleanup"
+    });
+    db.close();
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]?.path).toBe("docs\\memory-management.md");
+    expect(results.slice(0, 5).filter((result) => ["AGENTS.md", "CLAUDE.md"].includes(result.path)).length).toBeLessThanOrEqual(1);
+  });
+
   test("prefer-implementation alone suppresses doc noise and visibly changes default ranking", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });

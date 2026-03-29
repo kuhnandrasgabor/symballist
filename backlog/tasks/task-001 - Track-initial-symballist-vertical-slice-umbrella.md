@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-29 16:09'
+updated_date: '2026-03-29 16:19'
 labels: []
 dependencies: []
 references:
@@ -171,4 +171,6 @@ Completed subtasks
 2026-03-29: Completed TASK-029. Punctuation-heavy literal queries no longer break the retrieval loop; FTS query construction now tokenizes safely and search falls back to a literal scan path when necessary. Recommended next feedback-driven slice remains DRAFT-014 for hybrid retrieval transparency, followed by DRAFT-015 for weak-result operational-doc suppression.
 
 2026-03-29: Completed TASK-030. Hybrid retrieval now surfaces retrieval.hybrid diagnostics plus per-result retrievalChannels and hybridContribution so semantic participation is observable before any future fusion retuning.
+
+2026-03-29: Completed TASK-031. Weak low-signal retrieval now demotes mirrored operational markdown files and collapses duplicate operational docs before final slicing, reducing AGENTS/CLAUDE-style tail noise without disturbing docs-only behavior.
 <!-- SECTION:NOTES:END -->

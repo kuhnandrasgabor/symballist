@@ -845,8 +845,92 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   return 0;
 }
 
+function shouldSuppressWeakOperationalDocNoise(rawQuery: string, options: SearchOptions): boolean {
+  return !options.docsOnly
+    && !options.codeOnly
+    && !isImplementationFocusedIntent(options, rawQuery)
+    && !isDocOrientedQuery(rawQuery);
+}
+
+function computeWeakResultAdjustment(
+  row: SearchRow,
+  rawQuery: string,
+  options: SearchOptions,
+  match: MatchAnalysis
+): number {
+  if (!shouldSuppressWeakOperationalDocNoise(rawQuery, options)) {
+    return 0;
+  }
+
+  if (match.confidence !== "related" && match.confidence !== "fallback") {
+    return 0;
+  }
+
+  if (row.language !== "markdown") {
+    return 0;
+  }
+
+  const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
+  if (!isOperationalDocPath(normalizedPath)) {
+    return 0;
+  }
+
+  if (normalizedPath === "agents.md" || normalizedPath === "claude.md") {
+    return 3.5;
+  }
+
+  return 2.25;
+}
+
+function getOperationalDocDuplicateKey(result: RankedQueryResult): string | null {
+  const normalizedPath = result.path.toLowerCase().replace(/\\/g, "/");
+  if (!isOperationalDocPath(normalizedPath)) {
+    return null;
+  }
+
+  const normalizedSnippet = normalizeLookupValue(result.snippet).slice(0, 120);
+  const normalizedName = normalizeLookupValue(result.name);
+  return `${normalizedName}|${normalizedSnippet}`;
+}
+
+function collapseWeakOperationalDocDuplicates(
+  results: RankedQueryResult[],
+  rawQuery: string,
+  options: SearchOptions,
+  limit: number
+): RankedQueryResult[] {
+  if (!shouldSuppressWeakOperationalDocNoise(rawQuery, options)) {
+    return results.slice(0, limit);
+  }
+
+  const topConfidence = results[0]?.confidence ?? null;
+  if (topConfidence !== "related" && topConfidence !== "fallback") {
+    return results.slice(0, limit);
+  }
+
+  const seenOperationalKeys = new Set<string>();
+  const filtered: RankedQueryResult[] = [];
+
+  for (const result of results) {
+    const duplicateKey = getOperationalDocDuplicateKey(result);
+    if (duplicateKey) {
+      if (seenOperationalKeys.has(duplicateKey)) {
+        continue;
+      }
+      seenOperationalKeys.add(duplicateKey);
+    }
+
+    filtered.push(result);
+    if (filtered.length >= limit) {
+      break;
+    }
+  }
+
+  return filtered;
+}
+
 function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, options: SearchOptions): RankedQueryResult[] {
-  return rows
+  const ranked = rows
     .filter((row) => rowMatchesIntent(row, options))
     .map((row) => {
       const match = computeMatchAnalysis(row, rawQuery);
@@ -855,6 +939,7 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
       const adjustedScore = row.rawScore
         + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
         + computePathAdjustment(row, rawQuery, options)
+        + computeWeakResultAdjustment(row, rawQuery, options, match)
         + match.adjustment;
       return {
         id: row.id,
@@ -887,8 +972,9 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
         return left.adjustedScore - right.adjustedScore;
       }
       return left.rawScore - right.rawScore;
-    })
-    .slice(0, limit)
+    });
+
+  return collapseWeakOperationalDocDuplicates(ranked, rawQuery, options, limit)
     .map((result) => ({
       ...result,
       distance: result.adjustedScore
