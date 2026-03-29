@@ -63,6 +63,11 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 - `symballist query "<text>" --kind class,function`
 - `symballist show <id>`
 
+## Agent Adoption
+
+For downstream projects that want to use `symballist` as a CLI-first retrieval helper for Codex or Claude, see [Symballist Adoption Workflow](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md).
+Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:/Projects/symballist/docs/snippets/downstream-agents-symballist.md) and [downstream CLAUDE snippet](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md).
+
 ## Local State
 
 ```text
