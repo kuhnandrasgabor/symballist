@@ -1,97 +1,189 @@
 # symballist
 
-symballist is a local-first code retrieval tool for AI agents. It indexes a repository into symbols, search metadata, and lightweight relationships so agents can search codebases faster and with more structure than plain text search alone.
+`symballist` is a local-first retrieval tool for AI agents. It indexes a repository into symbols, docs, search metadata, and lightweight relations so agents can find useful code and project context faster than plain text search alone.
 
-## V1
-
-V1 is intentionally narrow:
-
-- agent-first retrieval
-- CLI-first workflow
-- Python, HTML, and Markdown
-- repo-local state in `.symballist/`
-- symbol-first indexing with file-level fallback
-- SQLite + FTS lexical search
-- optional Ollama embeddings for hybrid retrieval
-- incremental reindexing for changed files
-- rich query results with symbol spans and snippets
-- stale-index detection in status and retrieval commands
-- lightweight import and containment relations in show output
-- relation-aware symbol expansion in show output for fast local follow-up context
-- Markdown heading indexing with file-level fallback for docs
-
-## Query Pipeline
-
-The retrieval flow is:
-
-1. lexical search
-2. embedding similarity, if embeddings are available in a later slice
-3. rank fusion
-4. lightweight graph expansion
-
-The graph layer should stay simple in v1:
-
-- file containment
-- imports
-- cheap references where available
-
-symballist should never fail closed. If parsing fails, fall back to file-level units. If embeddings are missing or stale, fall back to lexical plus structure. If graph links are sparse, still return ranked symbols.
-
-## Principles
+It is designed to stay:
 
 - local-first
-- agent-first
 - CLI-first
-- symbol-aware
-- explicit fallbacks
-- narrow, working first slice
+- agent-friendly
+- explicit about freshness and fallbacks
 
-## Out Of Scope For V1
+## What It Can Do Today
 
-- MCP integration
-- cloud dependencies
-- broad language support
-- heavy UI
-- deep call graph analysis
-- always-on indexing daemon
+`symballist` currently supports:
 
-## Rough CLI Surface
+- Python, HTML, and Markdown indexing
+- symbol-first retrieval with file-level fallbacks
+- spans, snippets, and full-symbol lookup
+- stale-index detection and lightweight change awareness
+- automatic foreground watch-based refresh
+- optional Ollama embeddings with hybrid lexical + semantic retrieval
+- one-hop graph-aware reranking using containment/import neighborhoods
+- lightweight follow-up context through relations and related symbols
+- repo-local downstream agent bootstrap during `init`
+
+## Quick Install
+
+### Prerequisites
+
+- [Bun](https://bun.sh/)
+- optionally [Ollama](https://ollama.com/) if you want embeddings
+
+From the repo root:
+
+```powershell
+bun install
+```
+
+If you want a globally callable command while developing locally:
+
+```powershell
+bun link
+```
+
+That exposes `symballist` from this checkout. If you do not want a global link, you can still run it with:
+
+```powershell
+bun run src/cli.ts --help
+```
+
+## Fastest Setup In A Target Repo
+
+The simplest way to try `symballist` on another local project is:
+
+```powershell
+symballist init --root D:\Projects\your-repo
+symballist index --root D:\Projects\your-repo
+symballist lookup "your query here" --root D:\Projects\your-repo
+```
+
+After `init`, the target repo gets:
+
+- `.symballist/` repo-local state
+- local wrapper commands in `.symballist/bin/`
+- adoption docs in `.symballist/instructions/`
+- managed `AGENTS.md` / `CLAUDE.md` retrieval blocks
+- a `.gitignore` entry for `.symballist/`
+
+If you prefer the repo-local wrapper instead of a linked global command:
+
+```powershell
+.symballist\bin\symballist.cmd status --root D:\Projects\your-repo
+```
+
+## 60-Second Workflow
+
+Typical usage looks like this:
+
+```powershell
+symballist status --root D:\Projects\your-repo
+symballist index --root D:\Projects\your-repo
+symballist lookup "memory store" --root D:\Projects\your-repo
+symballist show --name MemoryStore --root D:\Projects\your-repo
+```
+
+Or, if you want a foreground auto-refresh loop while you work:
+
+```powershell
+symballist watch --interval-ms 2000 --root D:\Projects\your-repo
+```
+
+For agents, `watch --once` is usually the safer automatic-refresh step:
+
+```powershell
+symballist watch --once --root D:\Projects\your-repo
+```
+
+## Core Commands
 
 - `symballist init`
-  - creates `.symballist/`
-  - ensures `.gitignore` contains `.symballist/`
-  - copies local adoption docs/snippets into `.symballist/instructions/`
-  - writes local wrapper commands into `.symballist/bin/`
-  - creates or refreshes managed `AGENTS.md` and `CLAUDE.md` symballist retrieval blocks
+  - bootstraps repo-local state and downstream agent instructions
 - `symballist index`
+  - performs a full incremental-aware index pass
 - `symballist watch --once`
+  - does a one-shot freshness sweep and reindex if needed
 - `symballist watch --interval-ms 2000`
+  - keeps a foreground polling loop alive
 - `symballist status`
-- `symballist lookup "<text>" --code-only --exclude-tests --prefer-implementation`
-- `symballist query "<text>" --kind class,function`
-- `symballist query "<text>" --code-only --exclude-tests --prefer-implementation`
-- `symballist query "<text>" --docs-only`
+  - shows index health, freshness, change awareness, and embeddings state
+- `symballist query "<text>"`
+  - returns ranked candidates
+- `symballist lookup "<text>"`
+  - returns the top hit plus resolved symbol context and alternatives
 - `symballist show <id>`
+  - resolves a result id into full stored context
 - `symballist show --name <symbol>`
+  - resolves an exact symbol name without needing an intermediate id
 - `symballist show --name <symbol> --full`
+  - expands large bodies instead of returning the summarized default
 
-## Agent Adoption
+## Useful Query Controls
 
-For downstream projects that want to use `symballist` as a CLI-first retrieval helper for Codex or Claude, see [Symballist Adoption Workflow](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md).
-Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:/Projects/symballist/docs/snippets/downstream-agents-symballist.md) and [downstream CLAUDE snippet](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md).
+For code-heavy retrieval:
 
-`--prefer-implementation` is intended for code-oriented queries. When used outside `--docs-only`, it now suppresses Markdown/doc noise and pushes `src/` implementations harder so the flag produces a visible ranking change.
-`--docs-only` now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors such as `AGENTS.md` and `CLAUDE.md`.
-`status` now includes a `changeAwareness` block for lightweight file-level changes since the last index and, when available, since current `git HEAD`.
-`status` also includes an `embeddings` block so you can tell whether hybrid retrieval is configured, available for the active model, and backed by indexed vectors.
-`watch` is the low-overhead automatic refresh loop for repo-local indexing. Start with `watch --once` for an explicit freshness sweep, then use a polling interval if you want foreground auto-refresh while you work.
-`lookup` is the convenience helper for the common `query -> best hit -> show` workflow, returning the selected result, its full context, and a short alternative list in one payload.
-When embeddings are enabled and indexed, `query` and `lookup` now report `retrieval.mode = "hybrid"` and blend lexical plus semantic candidates automatically. Hybrid mode is now strong enough to visibly influence weak conceptual queries instead of staying purely diagnostic. The output also exposes a `retrieval.hybrid` block so you can see how many semantic candidates were retrieved, how many survived into the final result set, and whether the top result carried a semantic signal. Individual results include `retrievalChannels` and `hybridContribution` so semantic assistance is visible even when lexical matching still dominates the final explanation.
-The first graph-aware slice is also in now: result rows can expose `graphSignals` such as `same_file_cluster`, `imports_candidate`, and `imported_by_candidate` when one-hop local structure helped rerank the candidate neighborhood.
+```powershell
+symballist query "gateway config api live reload" --code-only --exclude-tests --prefer-implementation --root D:\Projects\your-repo
+```
+
+For doc-heavy retrieval:
+
+```powershell
+symballist query "memory management" --docs-only --root D:\Projects\your-repo
+```
+
+For tighter symbol types:
+
+```powershell
+symballist query "AgentConfig" --kind class,function --root D:\Projects\your-repo
+```
+
+## Retrieval Model
+
+The current retrieval stack is:
+
+1. lexical search
+2. optional semantic retrieval through local embeddings
+3. hybrid fusion
+4. one-hop graph-aware reranking
+5. bounded follow-up context through relations and related symbols
+
+Important behavior:
+
+- exact lexical hits still win when they should
+- weak conceptual queries can now be lifted by semantic retrieval
+- ambiguous nearby code results can be nudged by one-hop graph signals
+- if embeddings are unavailable, the system falls back cleanly to lexical retrieval
+- if parsing fails, the system falls back to file-level units instead of failing closed
+
+## Output Semantics
+
+`query` and `lookup` expose several fields that are useful for debugging or agent behavior:
+
+- `indexFreshness`
+  - whether the indexed repo is stale relative to the filesystem
+- `changeAwareness`
+  - file-level change summaries since index and, when available, since `git HEAD`
+- `retrieval.mode`
+  - `lexical` or `hybrid`
+- `retrieval.hybrid`
+  - semantic candidate counts and top semantic-candidate diagnostics
+- `confidence`
+  - `exact`, `strong`, `related`, or `fallback`
+- `trustLevel`
+  - extraction trust
+- `retrievalTrustLevel`
+  - retrieval-match trust
+- `retrievalChannels`
+  - whether a result came from lexical, concept-path, semantic, or a combination
+- `hybridContribution`
+  - whether semantic retrieval actually contributed
+- `graphSignals`
+  - one-hop graph-aware reranking hints such as `same_file_cluster`, `imports_candidate`, and `imported_by_candidate`
 
 ## Optional Embeddings
 
-Embeddings are opt-in and local-first. If they are disabled, missing, or stale for the active model, symballist stays on the lexical path.
+Embeddings are opt-in and local-first. Current provider support starts with Ollama.
 
 Enable them in `.symballist/config.json`:
 
@@ -107,13 +199,12 @@ Enable them in `.symballist/config.json`:
 }
 ```
 
-Current first-slice behavior:
+Current behavior:
 
-- provider support starts with Ollama
 - embeddings are generated during `index`
-- changed files naturally refresh their vectors on reindex
-- `query` and `lookup` use hybrid retrieval automatically when vectors are available for the active provider/model
-- if Ollama is unavailable or the configured model has not been indexed yet, results fall back to lexical retrieval without failing closed
+- changed files naturally refresh vectors on reindex
+- `query` and `lookup` automatically use hybrid retrieval when vectors are available for the active provider/model
+- if Ollama is unavailable or the configured model has not been indexed yet, retrieval falls back to lexical mode
 
 ## Local State
 
@@ -127,6 +218,41 @@ Current first-slice behavior:
   logs/
 ```
 
-## Near-Term Direction
+## Agent Adoption
 
-The long-term direction is graph-aware retrieval for agents, with hybrid lexical and semantic ranking as the default path when available. V1 keeps that architecture in view, but ships the smallest useful vertical slice first. The staged plan for that evolution lives in [graph-aware-retrieval-roadmap.md](/D:/Projects/symballist/docs/graph-aware-retrieval-roadmap.md).
+For downstream projects that want to use `symballist` as a retrieval helper for Codex or Claude:
+
+- [Symballist Adoption Workflow](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md)
+- [Downstream AGENTS Snippet](/D:/Projects/symballist/docs/snippets/downstream-agents-symballist.md)
+- [Downstream CLAUDE Snippet](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md)
+
+The intended downstream posture is:
+
+- CLI-first
+- read-only helper
+- verify freshness before trusting results
+- fall back to normal file reads/search when needed
+
+## Scope
+
+Still intentionally out of scope for the current generation:
+
+- MCP-first integration
+- cloud dependencies
+- broad language support
+- heavy UI
+- deep call graph analysis
+- always-on background daemon
+
+## Roadmap
+
+The next major direction is graph-aware retrieval beyond the first reranking slice. The staged roadmap lives here:
+
+- [graph-aware-retrieval-roadmap.md](/D:/Projects/symballist/docs/graph-aware-retrieval-roadmap.md)
+
+The current plan is:
+
+1. graph-aware reranking
+2. bounded one-hop expansion
+3. graph-backed context assembly
+4. only later, deeper graph-RAG exploration
