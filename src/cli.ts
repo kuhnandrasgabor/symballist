@@ -11,6 +11,7 @@ export type CliArgs = {
   command: string | null;
   root: string;
   limit: number;
+  kinds: string[];
   positionals: string[];
 };
 
@@ -22,7 +23,7 @@ Usage:
   bun run src/cli.ts index [--root PATH]
   bun run src/cli.ts status [--root PATH]
   bun run src/cli.ts show <id> [--root PATH]
-  bun run src/cli.ts query "<text>" [--limit N] [--root PATH]
+  bun run src/cli.ts query "<text>" [--limit N] [--kind class,function] [--root PATH]
 `);
 }
 
@@ -30,6 +31,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
   const positionals: string[] = [];
   let root = cwd();
   let limit = 10;
+  const kinds: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -43,6 +45,15 @@ export function parseCliArgs(argv: string[]): CliArgs {
       index += 1;
       continue;
     }
+    if (value === "--kind") {
+      const parsedKinds = (argv[index + 1] ?? "")
+        .split(",")
+        .map((kind) => kind.trim())
+        .filter(Boolean);
+      kinds.push(...parsedKinds);
+      index += 1;
+      continue;
+    }
     positionals.push(value);
   }
 
@@ -50,6 +61,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     command: positionals[0] ?? null,
     root,
     limit,
+    kinds,
     positionals
   };
 }
@@ -74,7 +86,7 @@ async function main(): Promise<void> {
     }
     case "query": {
       const query = parsed.positionals.slice(1).join(" ");
-      await runQuery(parsed.root, query, parsed.limit);
+      await runQuery(parsed.root, query, parsed.limit, parsed.kinds);
       return;
     }
     default:

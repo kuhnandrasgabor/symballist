@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 14:03'
+updated_date: '2026-03-28 14:08'
 labels: []
 dependencies: []
 priority: high
@@ -28,10 +28,10 @@ Build the first useful end-to-end slice for symballist as an agent-first code re
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Add a show command that loads a single indexed symbol by id and returns its full stored context, span metadata, and file path.
-2. Extend the SQLite access layer with a symbol-by-id lookup that reuses the existing retrieval schema without disturbing query ranking.
-3. Update the CLI surface and README so the core agent loop is query -> show in addition to init/index/status.
-4. Expand integration coverage to verify a queried symbol id can be resolved into a full record with stable metadata.
+1. Improve query relevance with kind-aware ranking so declaration-like results are preferred over lower-signal matches such as imports when scores are otherwise similar.
+2. Add a simple --kind filter to the query command so agents can restrict results to selected symbol kinds without adding a new command surface.
+3. Extend the SQLite search path and CLI argument parsing to support the richer query options while keeping the existing JSON output stable.
+4. Expand integration coverage to verify ranking/filter behavior against the fixture repo and preserve the existing query -> show flow.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -78,4 +78,10 @@ Added a show command that resolves a symbol id into the full stored record, incl
 Verified the agent loop against the fixture repo: query returns ranked ids, and show returns the full symbol body for the selected id.
 
 Normalized fallback fields in query/show output to real booleans instead of SQLite 0/1 values.
+
+Added kind-aware query reranking so declaration-like results get a small boost over imports and file fallbacks when lexical scores are otherwise close.
+
+Added a --kind filter to the query command and CLI parser so agents can restrict results to selected symbol kinds such as class,function.
+
+Verified the live co-ma AgentConfig case: imports no longer dominate the default results, and --kind class,function removes import rows entirely while preserving ranked declaration/context hits.
 <!-- SECTION:NOTES:END -->
