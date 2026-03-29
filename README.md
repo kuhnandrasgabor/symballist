@@ -7,20 +7,21 @@ symballist is a local-first code retrieval tool for AI agents. It indexes a repo
 V1 is intentionally narrow:
 
 - agent-first retrieval
+- CLI-first workflow
 - Python and HTML only
 - repo-local state in `.symballist/`
 - symbol-first indexing with file-level fallback
 - SQLite + FTS lexical search
-- optional Ollama embeddings for hybrid retrieval
-- CLI and MCP access
+- optional Ollama embeddings for hybrid retrieval later
 - incremental reindexing for changed files
+- rich query results with symbol spans and snippets
 
 ## Query Pipeline
 
 The retrieval flow is:
 
 1. lexical search
-2. embedding similarity, if embeddings are available
+2. embedding similarity, if embeddings are available in a later slice
 3. rank fusion
 4. lightweight graph expansion
 
@@ -36,12 +37,14 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 
 - local-first
 - agent-first
+- CLI-first
 - symbol-aware
 - explicit fallbacks
 - narrow, working first slice
 
 ## Out Of Scope For V1
 
+- MCP integration
 - cloud dependencies
 - broad language support
 - heavy UI
@@ -53,7 +56,6 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 - `symballist init`
 - `symballist index`
 - `symballist query "<text>"`
-- `symballist mcp`
 
 ## Local State
 

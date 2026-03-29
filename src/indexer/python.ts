@@ -7,8 +7,8 @@ const parser = new Parser();
 parser.setLanguage(Python);
 const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 
-function sliceBody(source: string, start: number): string {
-  const preview = source.slice(start, start + 320).trim();
+function sliceBody(source: string, start: number, end: number): string {
+  const preview = source.slice(start, Math.min(end, start + 320)).trim();
   return preview.length > 0 ? preview : source.slice(0, 320).trim();
 }
 
@@ -26,6 +26,27 @@ function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
   }
 }
 
+function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
+  const lines = source.split(/\r?\n/);
+  const endLine = Math.max(lines.length, 1);
+  const endColumn = (lines.at(-1)?.length ?? 0) + 1;
+  return {
+    startLine: 1,
+    startColumn: 1,
+    endLine,
+    endColumn
+  };
+}
+
+function nodeSpan(node: SyntaxNode): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
+  return {
+    startLine: node.startPosition.row + 1,
+    startColumn: node.startPosition.column + 1,
+    endLine: node.endPosition.row + 1,
+    endColumn: node.endPosition.column + 1
+  };
+}
+
 function fallbackRecord(path: string, source: string, reason: string): SymbolRecord[] {
   return [
     {
@@ -36,7 +57,8 @@ function fallbackRecord(path: string, source: string, reason: string): SymbolRec
       signature: null,
       body: source.slice(0, 500).trim(),
       doc: reason,
-      fallback: true
+      fallback: true,
+      ...fullFileSpan(source)
     }
   ];
 }
@@ -69,7 +91,8 @@ export function extractPythonSymbols(path: string, source: string): SymbolRecord
         signature: statement,
         body: statement,
         doc: null,
-        fallback: false
+        fallback: false,
+        ...nodeSpan(node)
       });
       return;
     }
@@ -88,9 +111,10 @@ export function extractPythonSymbols(path: string, source: string): SymbolRecord
         kind: "class",
         name,
         signature,
-        body: sliceBody(source, node.startIndex),
+        body: sliceBody(source, node.startIndex, node.endIndex),
         doc: null,
-        fallback: false
+        fallback: false,
+        ...nodeSpan(node)
       });
       return;
     }
@@ -109,9 +133,10 @@ export function extractPythonSymbols(path: string, source: string): SymbolRecord
         kind: "function",
         name,
         signature,
-        body: sliceBody(source, node.startIndex),
+        body: sliceBody(source, node.startIndex, node.endIndex),
         doc: null,
-        fallback: false
+        fallback: false,
+        ...nodeSpan(node)
       });
     }
   });
