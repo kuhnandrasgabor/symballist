@@ -355,6 +355,7 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
     expect(queryPayload.results.every((result) => typeof result.distance === "number")).toBeTrue();
     expect(queryPayload.results.every((result) => typeof result.confidence === "string")).toBeTrue();
+    expect(queryPayload.results.every((result) => ["import_reference", "normalized_symbol_name"].includes(result.matchReason))).toBeTrue();
   });
 
   test("symbol-shaped queries prefer exact owning definitions over normalized references", async () => {
@@ -467,6 +468,47 @@ describe("symballist vertical slice", () => {
     expect(results[0]?.matchReason).toBe("path_concept");
     expect(results[0]?.confidence).toBe("strong");
     expect(results.some((result) => result.path === "tests\\test_distiller.py")).toBeTrue();
+  });
+
+  test("query-time trust and match reasons stay meaningful for recovered exact hits and loose token matches", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+
+    const oversizedStore = [
+      "class MemoryStore:",
+      "    pass",
+      "",
+      "# filler",
+      "# filler\n".repeat(5000)
+    ].join("\n");
+
+    await writeFile(join(root, "src", "memory_store.py"), oversizedStore, "utf8");
+    await writeFile(
+      join(root, "tests", "test_memory.py"),
+      'def test_memory_store_flow():\n    assert "memory store"\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const exactRecovered = searchSymbols(db, buildFtsQuery("memory store"), 5, {
+      rawQuery: "memory store"
+    });
+    const looseToken = searchSymbols(db, buildFtsQuery("store flow"), 5, {
+      rawQuery: "store flow"
+    });
+    db.close();
+
+    const recoveredMemoryStore = exactRecovered.find((result) => result.name === "MemoryStore");
+    expect(recoveredMemoryStore).toBeDefined();
+    expect(recoveredMemoryStore?.confidence).toBe("exact");
+    expect(recoveredMemoryStore?.matchReason).toBe("normalized_symbol_name");
+    expect(recoveredMemoryStore?.extraction).toBe("recovered");
+    expect(recoveredMemoryStore?.trustLevel).toBe("high");
+    expect(looseToken.some((result) => result.matchReason === "token_overlap")).toBeTrue();
   });
 
   test("query intent flags can filter docs, exclude tests, and prefer implementation", async () => {
@@ -642,7 +684,7 @@ describe("symballist vertical slice", () => {
     expect(agentConfig?.kind).toBe("class");
     expect(agentConfig?.startLine).toBe(3);
     expect(agentConfig?.extraction).toBe("recovered");
-    expect(agentConfig?.trustLevel).toBe("medium");
+    expect(agentConfig?.trustLevel).toBe("high");
     expect(fileFallback).toBeUndefined();
     expect(details?.body).toContain("class AgentConfig");
     expect(details?.endLine).toBeGreaterThan(agentConfig?.startLine ?? 0);

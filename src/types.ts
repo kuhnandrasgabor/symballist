@@ -9,6 +9,7 @@ export type MatchReason =
   | "signature_text"
   | "doc_text"
   | "body_text"
+  | "token_overlap"
   | "heading_text"
   | "import_reference"
   | "fallback_file";

@@ -69,6 +69,11 @@ type MatchAnalysis = {
   confidence: ResultConfidence;
 };
 
+type QueryTrustDetails = {
+  extraction: ExtractionKind;
+  trustLevel: TrustLevel;
+};
+
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
   ["class", -1.1],
   ["function", -1.0],
@@ -267,6 +272,34 @@ function getExtractionDetails(row: { fallback: number | boolean; doc: string | n
   };
 }
 
+function getQueryTrustDetails(extraction: ExtractionDetails, confidence: ResultConfidence): QueryTrustDetails {
+  if (extraction.extraction === "fallback" || confidence === "fallback") {
+    return {
+      extraction: extraction.extraction,
+      trustLevel: "low"
+    };
+  }
+
+  if (confidence === "exact") {
+    return {
+      extraction: extraction.extraction,
+      trustLevel: "high"
+    };
+  }
+
+  if (confidence === "strong") {
+    return {
+      extraction: extraction.extraction,
+      trustLevel: extraction.extraction === "parsed" ? "high" : "medium"
+    };
+  }
+
+  return {
+    extraction: extraction.extraction,
+    trustLevel: extraction.extraction === "parsed" ? "medium" : "low"
+  };
+}
+
 function isSymbolShapedQuery(rawQuery: string): boolean {
   const trimmed = rawQuery.trim();
   if (!trimmed || /\s/.test(trimmed)) {
@@ -424,26 +457,59 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
   }
 
   const queryLower = trimmedQuery.toLowerCase();
+  const queryTerms = tokenizeLookupTerms(trimmedQuery);
   const signatureLower = (row.signature ?? "").toLowerCase();
   const docLower = (row.doc ?? "").toLowerCase();
   const bodyLower = row.body.toLowerCase();
-  if (docLower.includes(queryLower)) {
+  const normalizedSignature = normalizeLookupValue(row.signature ?? "");
+  const normalizedDoc = normalizeLookupValue(row.doc ?? "");
+  const normalizedBody = normalizeLookupValue(row.body);
+  const queryTermsPresentInBody = queryTerms.length > 0 && queryTerms.every((term) => bodyLower.includes(term));
+  const queryTermsPresentInSignature = queryTerms.length > 0 && queryTerms.every((term) => signatureLower.includes(term));
+  const queryTermsPresentInDoc = queryTerms.length > 0 && queryTerms.every((term) => docLower.includes(term));
+
+  if (normalizedDoc.includes(normalizedQuery) || docLower.includes(queryLower)) {
     return {
-      adjustment: -0.35,
+      adjustment: -0.55,
       reason: "doc_text",
       confidence: "strong"
     };
   }
-  if (signatureLower.includes(queryLower)) {
+  if (normalizedSignature.includes(normalizedQuery) || signatureLower.includes(queryLower)) {
     return {
-      adjustment: isSymbolQuery ? -0.05 : -0.4,
+      adjustment: isSymbolQuery ? -0.2 : -0.55,
       reason: row.kind === "import" ? "import_reference" : "signature_text",
-      confidence: isSymbolQuery ? "related" : "strong"
+      confidence: "strong"
     };
   }
-  if (bodyLower.includes(queryLower)) {
+  if (normalizedBody.includes(normalizedQuery) || bodyLower.includes(queryLower)) {
     return {
-      adjustment: isSymbolQuery ? 0 : -0.2,
+      adjustment: isSymbolQuery ? -0.05 : -0.45,
+      reason: row.kind === "import"
+        ? "import_reference"
+        : row.kind === "heading"
+          ? "heading_text"
+          : "body_text",
+      confidence: "strong"
+    };
+  }
+  if (queryTermsPresentInDoc) {
+    return {
+      adjustment: -0.3,
+      reason: "doc_text",
+      confidence: "related"
+    };
+  }
+  if (queryTermsPresentInSignature) {
+    return {
+      adjustment: isSymbolQuery ? -0.05 : -0.3,
+      reason: row.kind === "import" ? "import_reference" : "signature_text",
+      confidence: "related"
+    };
+  }
+  if (queryTermsPresentInBody) {
+    return {
+      adjustment: isSymbolQuery ? 0 : -0.15,
       reason: row.kind === "import"
         ? "import_reference"
         : row.kind === "heading"
@@ -455,7 +521,7 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
 
   return {
     adjustment: 0,
-    reason: row.fallback ? "fallback_file" : "body_text",
+    reason: row.fallback ? "fallback_file" : "token_overlap",
     confidence: row.fallback ? "fallback" : "related"
   };
 }
@@ -542,6 +608,7 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
     .map((row) => {
       const match = computeMatchAnalysis(row, rawQuery);
       const extraction = getExtractionDetails(row);
+      const queryTrust = getQueryTrustDetails(extraction, match.confidence);
       const adjustedScore = row.rawScore
         + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
         + computePathAdjustment(row, rawQuery, options)
@@ -562,8 +629,8 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
         snippet: makeSnippet(row.body),
         confidence: match.confidence,
         matchReason: match.reason,
-        extraction: extraction.extraction,
-        trustLevel: extraction.trustLevel,
+        extraction: queryTrust.extraction,
+        trustLevel: queryTrust.trustLevel,
         rawScore: row.rawScore,
         adjustedScore
       };
