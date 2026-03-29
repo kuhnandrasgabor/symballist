@@ -1,233 +1,70 @@
-# symballist — Project Brief
+# symballist
 
-## Goal
+symballist is a local-first code retrieval tool for AI agents. It indexes a repository into symbols, search metadata, and lightweight relationships so agents can search codebases faster and with more structure than plain text search alone.
 
-Build a **local-first, agent-agnostic code intelligence tool** that indexes a codebase and enables **semantic + structural search** for AI agents (Claude, Codex, etc.) and CLI users.
+## V1
 
-This tool is designed to:
+V1 is intentionally narrow:
 
-* Work fully **offline** using local models (via Ollama)
-* Be **installable globally** (CLI tool)
-* Store all state **locally inside each repo**
-* Expose functionality via **MCP (Model Context Protocol)** for agent integration
-* Provide better-than-grep search via **symbol-aware indexing + embeddings**
+- agent-first retrieval
+- Python and HTML only
+- repo-local state in `.symballist/`
+- symbol-first indexing with file-level fallback
+- SQLite + FTS lexical search
+- optional Ollama embeddings for hybrid retrieval
+- CLI and MCP access
+- incremental reindexing for changed files
 
----
+## Query Pipeline
 
-## Name
+The retrieval flow is:
 
-**symballist**
+1. lexical search
+2. embedding similarity, if embeddings are available
+3. rank fusion
+4. lightweight graph expansion
 
-Rationale:
+The graph layer should stay simple in v1:
 
-* Derived from “symbolist” → focused on code symbols
-* Unique, low collision
-* CLI-friendly
+- file containment
+- imports
+- cheap references where available
 
----
+symballist should never fail closed. If parsing fails, fall back to file-level units. If embeddings are missing or stale, fall back to lexical plus structure. If graph links are sparse, still return ranked symbols.
 
-## High-Level Architecture
+## Principles
 
-```text
-global CLI (symballist)
-    ↓
-runs inside any repo
-    ↓
-creates .symballist/ (local state)
-    ↓
-indexes code → symbols + embeddings + graph
-    ↓
-serves:
-  - CLI queries
-  - MCP server (for agents)
-  - optional local dashboard
-```
+- local-first
+- agent-first
+- symbol-aware
+- explicit fallbacks
+- narrow, working first slice
 
----
+## Out Of Scope For V1
 
-## Core Features (v1 scope)
+- cloud dependencies
+- broad language support
+- heavy UI
+- deep call graph analysis
+- always-on indexing daemon
 
-### 1. CLI
+## Rough CLI Surface
 
-Commands:
+- `symballist init`
+- `symballist index`
+- `symballist query "<text>"`
+- `symballist mcp`
 
-* `symballist init`
-* `symballist index`
-* `symballist query "<text>"`
-* `symballist mcp`
-* `symballist status` (optional)
-
----
-
-### 2. Repo-local storage
-
-Each indexed repo contains:
+## Local State
 
 ```text
 .symballist/
   config.json
-  index.db        (SQLite)
+  index.db
   cache/
   logs/
 ```
 
----
+## Near-Term Direction
 
-### 3. Parsing (code-aware)
-
-Use **tree-sitter** for parsing.
-
-Extract:
-
-* functions / methods
-* classes / structs
-* imports / exports
-* docstrings / comments
-
-Each symbol becomes a record:
-
-```json
-{
-  "path": "...",
-  "name": "...",
-  "kind": "...",
-  "signature": "...",
-  "body": "...",
-  "doc": "...",
-  "language": "...",
-  "relations": [...]
-}
-```
-
----
-
-### 4. Embeddings (local)
-
-Use:
-
-* Ollama
-* model: nomic-embed-text
-
-Requirements:
-
-* batch requests
-* enforce max input size (avoid overflow errors)
-* do NOT rely on backend truncation
-
----
-
-### 5. Storage
-
-Use **SQLite**:
-
-* metadata tables (files, symbols, edges)
-* embeddings (stored as blobs or vectors)
-* FTS5 for lexical search
-
----
-
-### 6. Retrieval (hybrid)
-
-Query pipeline:
-
-1. lexical search (FTS)
-2. embedding similarity
-3. merge rankings
-4. expand via graph (imports/calls)
-
-Return:
-
-* relevant symbols
-* surrounding context
-* related symbols
-
----
-
-### 7. Graph layer (lightweight)
-
-Store relationships:
-
-* imports
-* file containment
-* basic call references (if easy)
-
-Use this for:
-
-* expanding search results
-* improving agent context
-
----
-
-### 8. MCP server (agent interface)
-
-Expose tools:
-
-* `semantic_search(query, limit)`
-* `get_symbol(id or path)`
-* `find_related(symbol_id)`
-
-Server runs via:
-
-```bash
-symballist mcp
-```
-
-Agents connect via standard MCP config.
-
----
-
-## Design Principles
-
-* **Local-first** (no cloud dependencies)
-* **Provider-agnostic** (works with any LLM via MCP)
-* **Repo-scoped state**
-* **Symbol-aware (not naive chunking)**
-* **Hybrid search (not vector-only)**
-* **Simple CLI UX (like backlog.md)**
-
----
-
-## Development Setup
-
-This project is a **standalone repo**, used alongside CoMa:
-
-```text
-workspace/
-  co-ma/
-  symballist/
-```
-
-During development:
-
-* run symballist against `../co-ma`
-* use local linking (npm link / pip -e)
-
----
-
-## Non-Goals (v1)
-
-* No cloud APIs
-* No multi-user support
-* No heavy UI (optional lightweight dashboard later)
-* No complex agent logic inside the tool
-
----
-
-## Summary
-
-symballist is:
-
-> a lightweight, local code intelligence service that enables agents to understand and search codebases using symbols, embeddings, and structure — exposed via CLI and MCP.
-
----
-
-Start with:
-
-1. CLI skeleton
-2. repo init + config
-3. file walker + parser
-4. SQLite schema
-5. embedding integration
-6. basic query pipeline
-
-Keep it minimal and working before expanding.
+The long-term direction is graph-aware retrieval for agents, with hybrid lexical and semantic ranking as the default path when available. V1 keeps that architecture in view, but ships the smallest useful vertical slice first.
