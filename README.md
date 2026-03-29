@@ -65,6 +65,8 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 - `symballist index`
 - `symballist status`
 - `symballist query "<text>" --kind class,function`
+- `symballist query "<text>" --code-only --exclude-tests --prefer-implementation`
+- `symballist query "<text>" --docs-only`
 - `symballist show <id>`
 - `symballist show --name <symbol>`
 

@@ -324,6 +324,12 @@ describe("symballist vertical slice", () => {
     });
     const queryPayload = JSON.parse(output) as {
       kinds: string[];
+      intent: {
+        codeOnly?: boolean;
+        docsOnly?: boolean;
+        excludeTests?: boolean;
+        preferImplementation?: boolean;
+      };
       indexFreshness: { stale: boolean };
       resultSemantics: {
         distance: string;
@@ -341,6 +347,7 @@ describe("symballist vertical slice", () => {
     };
 
     expect(queryPayload.kinds).toEqual(["import"]);
+    expect(queryPayload.intent).toEqual({});
     expect(queryPayload.indexFreshness.stale).toBeFalse();
     expect(queryPayload.resultSemantics.distance).toBe("lower is better");
     expect(queryPayload.resultSemantics.confidenceOrder).toEqual(["exact", "strong", "related", "fallback"]);
@@ -423,6 +430,86 @@ describe("symballist vertical slice", () => {
     expect(memoryResults.some((result) => result.path === "tests\\test_memory.py")).toBeTrue();
     expect(architectureResults[0]?.path).toBe("architecture.md");
     expect(architectureResults[0]?.language).toBe("markdown");
+  });
+
+  test("query intent flags can filter docs, exclude tests, and prefer implementation", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(
+      join(root, "src", "memory_store.py"),
+      'class MemoryStore:\n    """Core memory store implementation."""\n    pass\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "gateway.py"),
+      'def build_memory_store() -> "MemoryStore":\n    return MemoryStore()\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "tests", "test_memory.py"),
+      'def test_memory_store_flow():\n    assert "memory store"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "docs", "memory.md"),
+      '# Memory Store\n\nArchitecture notes for the memory store.\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const codeOnly = searchSymbols(db, buildFtsQuery("memory store"), 5, {
+      rawQuery: "memory store",
+      codeOnly: true
+    });
+    const docsOnly = searchSymbols(db, buildFtsQuery("memory store"), 5, {
+      rawQuery: "memory store",
+      docsOnly: true
+    });
+    const excludeTests = searchSymbols(db, buildFtsQuery("memory store"), 5, {
+      rawQuery: "memory store",
+      codeOnly: true,
+      excludeTests: true
+    });
+    const preferImplementation = searchSymbols(db, buildFtsQuery("memory store"), 5, {
+      rawQuery: "memory store",
+      codeOnly: true,
+      excludeTests: true,
+      preferImplementation: true
+    });
+    db.close();
+
+    expect(codeOnly.length).toBeGreaterThan(0);
+    expect(codeOnly.every((result) => result.language !== "markdown")).toBeTrue();
+    expect(docsOnly.length).toBeGreaterThan(0);
+    expect(docsOnly.every((result) => result.language === "markdown")).toBeTrue();
+    expect(excludeTests.every((result) => !result.path.startsWith("tests\\"))).toBeTrue();
+    expect(preferImplementation[0]?.path).toBe("src\\memory_store.py");
+
+    const payload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "memory store", 5, [], {
+        codeOnly: true,
+        excludeTests: true,
+        preferImplementation: true
+      });
+    })) as {
+      intent: {
+        codeOnly: boolean;
+        docsOnly?: boolean;
+        excludeTests: boolean;
+        preferImplementation: boolean;
+      };
+      results: Array<{ path: string }>;
+    };
+
+    expect(payload.intent.codeOnly).toBeTrue();
+    expect(payload.intent.excludeTests).toBeTrue();
+    expect(payload.intent.preferImplementation).toBeTrue();
+    expect(payload.results[0]?.path).toBe("src\\memory_store.py");
   });
 
   test("status and query report stale indexes after source changes", async () => {
@@ -536,9 +623,26 @@ describe("symballist vertical slice", () => {
     expect(parsed.error).toBeNull();
   });
 
-  test("cli args support show by symbol name and default to tighter query result counts", () => {
+  test("cli args support show by symbol name, query intent flags, and default to tighter query result counts", () => {
     const queryParsed = parseCliArgs(["query", "greet"]);
     expect(queryParsed.limit).toBe(5);
+    expect(queryParsed.codeOnly).toBeFalse();
+    expect(queryParsed.docsOnly).toBeFalse();
+
+    const filteredQueryParsed = parseCliArgs([
+      "query",
+      "greet",
+      "--code-only",
+      "--exclude-tests",
+      "--prefer-implementation"
+    ]);
+    expect(filteredQueryParsed.codeOnly).toBeTrue();
+    expect(filteredQueryParsed.excludeTests).toBeTrue();
+    expect(filteredQueryParsed.preferImplementation).toBeTrue();
+    expect(filteredQueryParsed.docsOnly).toBeFalse();
+
+    const conflictingQueryParsed = parseCliArgs(["query", "greet", "--code-only", "--docs-only"]);
+    expect(conflictingQueryParsed.error).toContain("--code-only or --docs-only");
 
     const showParsed = parseCliArgs(["show", "--name", "greet", "--root", "D:/Projects/co-ma"]);
     expect(showParsed.command).toBe("show");
