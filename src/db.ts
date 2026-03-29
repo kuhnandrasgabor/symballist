@@ -230,6 +230,22 @@ function normalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function tokenizeLookupTerms(value: string): string[] {
+  return value
+    .split(/[^A-Za-z0-9]+/)
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function splitCamelCase(value: string): string[] {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function getExtractionDetails(row: { fallback: number | boolean; doc: string | null }): ExtractionDetails {
   if (Boolean(row.fallback)) {
     return {
@@ -263,6 +279,61 @@ function isSymbolShapedQuery(rawQuery: string): boolean {
 
 function isDefinitionLikeKind(kind: string): boolean {
   return kind === "class" || kind === "function" || kind === "title" || kind === "element" || kind === "heading";
+}
+
+function analyzeConceptPathMatch(row: SearchRow, rawQuery: string): MatchAnalysis | null {
+  if (row.language === "markdown" || row.kind === "import" || row.kind === "file" || isTestPath(row.path)) {
+    return null;
+  }
+
+  const queryTerms = tokenizeLookupTerms(rawQuery);
+  if (queryTerms.length === 0 || isDocOrientedQuery(rawQuery)) {
+    return null;
+  }
+
+  const normalizedQuery = normalizeLookupValue(rawQuery);
+  if (!normalizedQuery) {
+    return null;
+  }
+
+  const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
+  const fileName = normalizedPath.split("/").at(-1) ?? normalizedPath;
+  const stem = fileName.replace(/\.[^.]+$/, "");
+  const stemNormalized = normalizeLookupValue(stem);
+  const stemTerms = splitCamelCase(stem);
+  const pathTerms = splitCamelCase(normalizedPath);
+  const matchesAllTerms = queryTerms.every((term) => pathTerms.includes(term));
+  const definitionBias = isDefinitionLikeKind(row.kind) ? -1.2 : 0;
+  const topLevelBias = row.startLine <= 120 ? -0.4 : 0;
+
+  if (stemNormalized === normalizedQuery) {
+    return {
+      adjustment: -3.25 + definitionBias + topLevelBias,
+      reason: "path_concept",
+      confidence: "strong"
+    };
+  }
+
+  const sameTermSet = queryTerms.length > 1
+    && queryTerms.length === stemTerms.length
+    && queryTerms.every((term) => stemTerms.includes(term));
+  if (sameTermSet) {
+    return {
+      adjustment: -2.75 + definitionBias + topLevelBias,
+      reason: "path_concept",
+      confidence: "strong"
+    };
+  }
+
+  if (queryTerms.length > 1 && matchesAllTerms && isDefinitionLikeKind(row.kind)) {
+    return {
+      adjustment: -1.15 + topLevelBias,
+      reason: "path_concept",
+      confidence: "related"
+    };
+  }
+
+  return null;
 }
 
 export function buildFtsQuery(rawQuery: string): string {
@@ -341,10 +412,15 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
   }
   if (normalizedName.includes(normalizedQuery)) {
     return {
-      adjustment: (isSymbolQuery ? -0.85 : -1.5) + definitionBias,
+      adjustment: (isSymbolQuery ? -0.85 : -0.6) + definitionBias,
       reason: "normalized_symbol_name",
-      confidence: "strong"
+      confidence: isSymbolQuery ? "strong" : "related"
     };
+  }
+
+  const conceptPathMatch = isSymbolQuery ? null : analyzeConceptPathMatch(row, rawQuery);
+  if (conceptPathMatch) {
+    return conceptPathMatch;
   }
 
   const queryLower = trimmedQuery.toLowerCase();
@@ -795,8 +871,110 @@ export function searchSymbols(db: Database, query: string, limit: number, option
   `);
 
   const candidateLimit = Math.max(limit * 10, 100);
+  const rawQuery = options.rawQuery ?? query;
   const rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
-  return rerankResults(rows, limit, options.rawQuery ?? query, options);
+  const supplementalRows = shouldExpandConceptCandidates(rawQuery, options)
+    ? getConceptPathCandidates(db, rawQuery, kinds, candidateLimit)
+    : [];
+
+  return rerankResults(mergeSearchRows(rows, supplementalRows), limit, rawQuery, options);
+}
+
+function shouldExpandConceptCandidates(rawQuery: string, options: SearchOptions): boolean {
+  return !options.docsOnly
+    && !isDocOrientedQuery(rawQuery)
+    && !isSymbolShapedQuery(rawQuery)
+    && tokenizeLookupTerms(rawQuery).length > 0;
+}
+
+function mergeSearchRows(primaryRows: SearchRow[], supplementalRows: SearchRow[]): SearchRow[] {
+  const merged = new Map<number, SearchRow>();
+
+  for (const row of primaryRows) {
+    merged.set(row.id, row);
+  }
+
+  for (const row of supplementalRows) {
+    if (!merged.has(row.id)) {
+      merged.set(row.id, row);
+    }
+  }
+
+  return [...merged.values()];
+}
+
+function getConceptPathCandidates(
+  db: Database,
+  rawQuery: string,
+  kinds: string[],
+  limit: number
+): SearchRow[] {
+  const queryTerms = tokenizeLookupTerms(rawQuery);
+  if (queryTerms.length === 0) {
+    return [];
+  }
+
+  const likeClauses = queryTerms.map(() => "lower(symbols.path) LIKE ?");
+  const kindClause = kinds.length > 0
+    ? ` AND symbols.kind IN (${kinds.map(() => "?").join(", ")})`
+    : "";
+
+  const rows = db.query(`
+    SELECT
+      symbols.id,
+      symbols.path,
+      symbols.language,
+      symbols.kind,
+      symbols.name,
+      symbols.signature,
+      symbols.doc,
+      symbols.body,
+      symbols.fallback,
+      symbols.start_line AS startLine,
+      symbols.start_column AS startColumn,
+      symbols.end_line AS endLine,
+      symbols.end_column AS endColumn,
+      0.0 AS rawScore
+    FROM symbols
+    WHERE symbols.kind NOT IN ('import', 'file')
+      AND (${likeClauses.join(" AND ")})
+      ${kindClause}
+    ORDER BY
+      CASE
+        WHEN lower(symbols.path) LIKE ? THEN 0
+        ELSE 1
+      END,
+      CASE symbols.kind
+        WHEN 'class' THEN 0
+        WHEN 'function' THEN 1
+        WHEN 'heading' THEN 2
+        ELSE 3
+      END,
+      symbols.start_line ASC,
+      symbols.id ASC
+    LIMIT ?
+  `).all(
+    ...queryTerms.map((term) => `%${term}%`),
+    ...kinds,
+    `%${normalizeLookupValue(rawQuery)}%`,
+    limit
+  ) as SearchRow[];
+
+  return rows.map((row) => ({
+    ...row,
+    rawScore: syntheticConceptRawScore(row, rawQuery)
+  }));
+}
+
+function syntheticConceptRawScore(row: SearchRow, rawQuery: string): number {
+  const conceptMatch = analyzeConceptPathMatch(row, rawQuery);
+  if (!conceptMatch) {
+    return -2.5;
+  }
+  if (conceptMatch.confidence === "strong") {
+    return -7.5;
+  }
+  return -5.5;
 }
 
 function extractImportRelations(statement: string, sourcePath: string, availablePaths: Set<string>): RelationDetails[] {
