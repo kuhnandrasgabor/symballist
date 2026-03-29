@@ -1,6 +1,6 @@
 import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "../config.ts";
 import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getStatusSummary, openDatabase } from "../db.ts";
-import { detectIndexFreshness } from "../freshness.ts";
+import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig } from "../fs.ts";
 
 function defaultLanguages(): string[] {
@@ -24,6 +24,27 @@ export async function runStatus(root: string): Promise<void> {
     newFiles: 0,
     deletedFiles: 0
   };
+  let changeAwareness = {
+    sinceIndex: {
+      changedFiles: 0,
+      newFiles: 0,
+      deletedFiles: 0,
+      changedPaths: [] as string[],
+      newPaths: [] as string[],
+      deletedPaths: [] as string[],
+      truncated: false
+    },
+    sinceGitHead: {
+      available: false,
+      changedFiles: 0,
+      newFiles: 0,
+      deletedFiles: 0,
+      changedPaths: [] as string[],
+      newPaths: [] as string[],
+      deletedPaths: [] as string[],
+      truncated: false
+    }
+  };
 
   if (dbExists) {
     const db = await openDatabase(root);
@@ -38,6 +59,16 @@ export async function runStatus(root: string): Promise<void> {
       languages = summary.languages;
     }
     freshness = await detectIndexFreshness(root, indexedRows);
+    const indexChanges = await detectIndexFileChanges(root, indexedRows);
+    changeAwareness = {
+      sinceIndex: summarizeFileChanges(indexChanges),
+      sinceGitHead: await detectGitHeadFileChanges(root, new Set([
+        ...indexedRows.map((row) => row.path),
+        ...indexChanges.changedPaths,
+        ...indexChanges.newPaths,
+        ...indexChanges.deletedPaths
+      ]))
+    };
   }
 
   console.log(JSON.stringify({
@@ -55,6 +86,7 @@ export async function runStatus(root: string): Promise<void> {
     indexedFiles: indexedFileCount,
     indexedSymbols,
     fallbackSymbols,
-    indexFreshness: freshness
+    indexFreshness: freshness,
+    changeAwareness
   }, null, 2));
 }

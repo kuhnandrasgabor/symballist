@@ -221,6 +221,27 @@ describe("symballist vertical slice", () => {
         newFiles: number;
         deletedFiles: number;
       };
+      changeAwareness: {
+        sinceIndex: {
+          changedFiles: number;
+          newFiles: number;
+          deletedFiles: number;
+          changedPaths: string[];
+          newPaths: string[];
+          deletedPaths: string[];
+          truncated: boolean;
+        };
+        sinceGitHead: {
+          available: boolean;
+          changedFiles: number;
+          newFiles: number;
+          deletedFiles: number;
+          changedPaths: string[];
+          newPaths: string[];
+          deletedPaths: string[];
+          truncated: boolean;
+        };
+      };
     };
 
     expect(status.initialized).toBeTrue();
@@ -231,6 +252,9 @@ describe("symballist vertical slice", () => {
     expect(status.fallbackSymbols).toBe(1);
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
     expect(status.indexFreshness.stale).toBeFalse();
+    expect(status.changeAwareness.sinceIndex.changedFiles).toBe(0);
+    expect(status.changeAwareness.sinceIndex.newFiles).toBe(0);
+    expect(status.changeAwareness.sinceIndex.deletedFiles).toBe(0);
   });
 
   test("show resolves a queried symbol id into full stored context", async () => {
@@ -858,6 +882,16 @@ describe("symballist vertical slice", () => {
         newFiles: number;
         deletedFiles: number;
       };
+      changeAwareness: {
+        sinceIndex: {
+          changedFiles: number;
+          newFiles: number;
+          deletedFiles: number;
+          changedPaths: string[];
+          newPaths: string[];
+          deletedPaths: string[];
+        };
+      };
     };
 
     const queryOutput = await captureConsoleLog(async () => {
@@ -876,8 +910,46 @@ describe("symballist vertical slice", () => {
     expect(status.indexFreshness.changedFiles).toBe(1);
     expect(status.indexFreshness.newFiles).toBe(0);
     expect(status.indexFreshness.deletedFiles).toBe(0);
+    expect(status.changeAwareness.sinceIndex.changedFiles).toBe(1);
+    expect(status.changeAwareness.sinceIndex.changedPaths).toContain("helpers.py");
     expect(queryPayload.indexFreshness.stale).toBeTrue();
     expect(queryPayload.indexFreshness.changedFiles).toBe(1);
+  });
+
+  test("status reports lightweight file-level changes since git HEAD for indexed source files", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await Bun.$`git init`.cwd(root).quiet();
+    await Bun.$`git add .`.cwd(root).quiet();
+    await Bun.$`git -c user.name=Symballist -c user.email=symballist@example.com commit -m "initial snapshot"`.cwd(root).quiet();
+    await runIndex(root, { progress: false });
+
+    await writeFile(join(root, "helpers.py"), 'def slugify(value: str) -> str:\n    return value.lower()\n', "utf8");
+    await writeFile(join(root, "new_notes.md"), "# Notes\n\nFresh markdown notes.\n", "utf8");
+
+    const output = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(output) as {
+      changeAwareness: {
+        sinceGitHead: {
+          available: boolean;
+          changedFiles: number;
+          newFiles: number;
+          deletedFiles: number;
+          changedPaths: string[];
+          newPaths: string[];
+          deletedPaths: string[];
+        };
+      };
+    };
+
+    expect(status.changeAwareness.sinceGitHead.available).toBeTrue();
+    expect(status.changeAwareness.sinceGitHead.changedFiles).toBe(1);
+    expect(status.changeAwareness.sinceGitHead.changedPaths).toContain("helpers.py");
+    expect(status.changeAwareness.sinceGitHead.newFiles).toBe(1);
+    expect(status.changeAwareness.sinceGitHead.newPaths).toContain("new_notes.md");
+    expect(status.changeAwareness.sinceGitHead.deletedFiles).toBe(0);
   });
 
   test("freshness ignores tiny mtime jitter immediately after indexing", async () => {
