@@ -1,5 +1,6 @@
 import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "../config.ts";
 import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getStatusSummary, openDatabase } from "../db.ts";
+import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig } from "../fs.ts";
 
@@ -45,11 +46,23 @@ export async function runStatus(root: string): Promise<void> {
       truncated: false
     }
   };
+  let embeddings = {
+    enabled: Boolean(config?.embeddings?.enabled),
+    configured: Boolean(config?.embeddings?.enabled),
+    available: false,
+    provider: config?.embeddings?.provider ?? null,
+    model: config?.embeddings?.model ?? null,
+    baseUrl: config?.embeddings?.baseUrl ?? null,
+    indexedEmbeddings: 0,
+    matchedEmbeddings: 0,
+    reason: config?.embeddings?.enabled ? "no_indexed_embeddings_for_active_model" : "disabled"
+  };
 
   if (dbExists) {
     const db = await openDatabase(root);
     const summary = getStatusSummary(db);
     const indexedRows = getIndexedFiles(db);
+    embeddings = summarizeEmbeddingSupport(db, config);
     db.close();
     indexedFileCount = summary.indexedFiles;
     indexedSymbols = summary.indexedSymbols;
@@ -86,6 +99,7 @@ export async function runStatus(root: string): Promise<void> {
     indexedFiles: indexedFileCount,
     indexedSymbols,
     fallbackSymbols,
+    embeddings,
     indexFreshness: freshness,
     changeAwareness
   }, null, 2));

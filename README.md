@@ -12,7 +12,7 @@ V1 is intentionally narrow:
 - repo-local state in `.symballist/`
 - symbol-first indexing with file-level fallback
 - SQLite + FTS lexical search
-- optional Ollama embeddings for hybrid retrieval later
+- optional Ollama embeddings for hybrid retrieval
 - incremental reindexing for changed files
 - rich query results with symbol spans and snippets
 - stale-index detection in status and retrieval commands
@@ -83,8 +83,36 @@ Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:
 `--prefer-implementation` is intended for code-oriented queries. When used outside `--docs-only`, it now suppresses Markdown/doc noise and pushes `src/` implementations harder so the flag produces a visible ranking change.
 `--docs-only` now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors such as `AGENTS.md` and `CLAUDE.md`.
 `status` now includes a `changeAwareness` block for lightweight file-level changes since the last index and, when available, since current `git HEAD`.
+`status` also includes an `embeddings` block so you can tell whether hybrid retrieval is configured, available for the active model, and backed by indexed vectors.
 `watch` is the low-overhead automatic refresh loop for repo-local indexing. Start with `watch --once` for an explicit freshness sweep, then use a polling interval if you want foreground auto-refresh while you work.
 `lookup` is the convenience helper for the common `query -> best hit -> show` workflow, returning the selected result, its full context, and a short alternative list in one payload.
+When embeddings are enabled and indexed, `query` and `lookup` now report `retrieval.mode = "hybrid"` and blend lexical plus semantic candidates automatically.
+
+## Optional Embeddings
+
+Embeddings are opt-in and local-first. If they are disabled, missing, or stale for the active model, symballist stays on the lexical path.
+
+Enable them in `.symballist/config.json`:
+
+```json
+{
+  "embeddings": {
+    "enabled": true,
+    "provider": "ollama",
+    "baseUrl": "http://localhost:11434",
+    "model": "all-minilm",
+    "dimensions": null
+  }
+}
+```
+
+Current first-slice behavior:
+
+- provider support starts with Ollama
+- embeddings are generated during `index`
+- changed files naturally refresh their vectors on reindex
+- `query` and `lookup` use hybrid retrieval automatically when vectors are available for the active provider/model
+- if Ollama is unavailable or the configured model has not been indexed yet, results fall back to lexical retrieval without failing closed
 
 ## Local State
 

@@ -12,6 +12,7 @@ Use it for:
 - finding Markdown docs, plans, workflows, and architecture notes
 - resolving a search hit into full context with `show`
 - checking whether the local index is fresh before trusting results
+- optionally improving fuzzy or concept-heavy retrieval with local embeddings
 
 Do not treat it as authoritative yet. Agents should use `symballist` to narrow the search space, then verify important details in the source files.
 
@@ -21,6 +22,7 @@ Do not treat it as authoritative yet. Agents should use `symballist` to narrow t
 - use it as a read-only helper
 - prefer explicit `--root <project-root>` targeting
 - rerun `index` when the target repo is stale
+- optionally enable local Ollama embeddings in `.symballist/config.json` when concept queries need more help
 - fall back to normal file reads or search when results are weak or missing
 
 ## Basic Loop
@@ -60,6 +62,7 @@ Typical agent flow:
 5. Use `query` and `show` separately when you want to inspect multiple candidates more manually.
 6. If the symbol body is large, rerun `show` with `--full` to expand it.
 7. Verify important conclusions in the underlying file.
+8. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
 
 Useful query refinements:
 
@@ -69,6 +72,7 @@ Useful query refinements:
 - use the `changeAwareness` block from `status` when you want a cheap answer to "what changed since the last index?" or, in git repos, "what changed since HEAD?"
 - use `watch --once` when you want a safe repo-local auto-refresh sweep without leaving a long-running process behind
 - use `watch --interval-ms 2000` or similar only when you explicitly want a foreground polling loop while you work
+- enable embeddings only if you already have a local Ollama endpoint and want better concept/fuzzy retrieval; lexical retrieval remains the default safety net
 
 ## When Agents Should Use It
 
@@ -99,5 +103,6 @@ If you use `symballist init` in the target repo, these placeholders are filled a
 ## Notes
 
 - `symballist` currently works best as a helper for Python, HTML, and Markdown.
+- optional embeddings currently start with Ollama via `.symballist/config.json`.
 - For fast-moving repos, freshness matters as much as ranking quality.
 - Start with CLI-only adoption. Defer MCP or deeper tool integration until the workflow is stable.

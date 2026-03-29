@@ -6,6 +6,7 @@ export type MatchReason =
   | "exact_symbol_name"
   | "normalized_symbol_name"
   | "path_concept"
+  | "semantic_similarity"
   | "signature_text"
   | "doc_text"
   | "body_text"
@@ -43,6 +44,7 @@ export type QueryResult = {
   extraction: ExtractionKind;
   trustLevel: TrustLevel;
   retrievalTrustLevel: TrustLevel;
+  semanticSimilarity: number | null;
   fallback: boolean;
   startLine: number;
   startColumn: number;

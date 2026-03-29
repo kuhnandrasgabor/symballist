@@ -16,7 +16,8 @@ import type {
   TrustLevel
 } from "./types.ts";
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_EMBEDDING_PROVIDER = "ollama";
 
 export type IndexedFileRow = {
   path: string;
@@ -31,6 +32,22 @@ export type StatusSummary = {
   fallbackSymbols: number;
   languages: string[];
   schemaVersion: number;
+};
+
+export type EmbeddingSummary = {
+  totalEmbeddings: number;
+  matchingEmbeddings: number;
+};
+
+export type EmbeddableSymbolRow = {
+  id: number;
+  path: string;
+  language: SymbolRecord["language"];
+  kind: string;
+  name: string;
+  signature: string | null;
+  doc: string | null;
+  body: string;
 };
 
 type SearchRow = {
@@ -48,6 +65,7 @@ type SearchRow = {
   endLine: number;
   endColumn: number;
   rawScore: number;
+  semanticSimilarity: number | null;
 };
 type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
 type RelationRow = {
@@ -58,6 +76,9 @@ type RelationRow = {
 type SearchOptions = {
   kinds?: string[];
   rawQuery?: string;
+  embeddingProvider?: "ollama" | null;
+  embeddingModel?: string | null;
+  queryEmbedding?: number[] | null;
 } & QueryIntentOptions;
 type ExtractionDetails = {
   extraction: ExtractionKind;
@@ -96,6 +117,10 @@ const DOC_ORIENTED_QUERY_TERMS = new Set([
   "roadmap",
   "workflow"
 ]);
+
+const SEMANTIC_EXACT_THRESHOLD = 0.92;
+const SEMANTIC_STRONG_THRESHOLD = 0.82;
+const SEMANTIC_RELATED_THRESHOLD = 0.68;
 
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
@@ -166,6 +191,14 @@ function migrate(db: Database): void {
       target_label TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS symbol_embeddings (
+      symbol_id INTEGER PRIMARY KEY,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      dimensions INTEGER NOT NULL,
+      embedding_json TEXT NOT NULL
+    );
+
     CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
       symbol_id UNINDEXED,
       path,
@@ -216,6 +249,7 @@ function setSchemaVersion(db: Database, version: number): void {
 function clearIndexData(db: Database): void {
   db.exec(`
     DELETE FROM symbols_fts;
+    DELETE FROM symbol_embeddings;
     DELETE FROM relations;
     DELETE FROM symbols;
     DELETE FROM files;
@@ -451,6 +485,11 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
     return conceptPathMatch;
   }
 
+  const semanticMatch = analyzeSemanticSimilarity(row);
+  if (semanticMatch) {
+    return semanticMatch;
+  }
+
   const queryLower = trimmedQuery.toLowerCase();
   const queryTerms = tokenizeLookupTerms(trimmedQuery);
   const signatureLower = (row.signature ?? "").toLowerCase();
@@ -519,6 +558,37 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
     reason: row.fallback ? "fallback_file" : "token_overlap",
     confidence: row.fallback ? "fallback" : "related"
   };
+}
+
+function analyzeSemanticSimilarity(row: SearchRow): MatchAnalysis | null {
+  const similarity = row.semanticSimilarity ?? null;
+  if (similarity === null) {
+    return null;
+  }
+
+  const definitionBias = isDefinitionLikeKind(row.kind) ? -0.7 : 0;
+  if (similarity >= SEMANTIC_EXACT_THRESHOLD) {
+    return {
+      adjustment: -2.2 + definitionBias,
+      reason: "semantic_similarity",
+      confidence: "exact"
+    };
+  }
+  if (similarity >= SEMANTIC_STRONG_THRESHOLD) {
+    return {
+      adjustment: -1.35 + definitionBias,
+      reason: "semantic_similarity",
+      confidence: "strong"
+    };
+  }
+  if (similarity >= SEMANTIC_RELATED_THRESHOLD) {
+    return {
+      adjustment: -0.45 + definitionBias,
+      reason: "semantic_similarity",
+      confidence: "related"
+    };
+  }
+  return null;
 }
 
 function isDocOrientedQuery(rawQuery: string): boolean {
@@ -678,6 +748,7 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
         extraction: extraction.extraction,
         trustLevel: extraction.trustLevel,
         retrievalTrustLevel: queryTrust.retrievalTrustLevel,
+        semanticSimilarity: row.semanticSimilarity,
         rawScore: row.rawScore,
         adjustedScore
       };
@@ -795,9 +866,11 @@ export function deleteFileIndex(db: Database, path: string): void {
   const clearSymbols = db.query("SELECT id FROM symbols WHERE path = ?").all(path) as Array<{ id: number }>;
   const deleteFts = db.query("DELETE FROM symbols_fts WHERE symbol_id = ?");
   const deleteRelationsBySymbol = db.query("DELETE FROM relations WHERE source_symbol_id = ?");
+  const deleteEmbeddings = db.query("DELETE FROM symbol_embeddings WHERE symbol_id = ?");
   for (const row of clearSymbols) {
     deleteFts.run(row.id);
     deleteRelationsBySymbol.run(row.id);
+    deleteEmbeddings.run(row.id);
   }
 
   db.query("DELETE FROM relations WHERE source_path = ?").run(path);
@@ -830,6 +903,89 @@ export function getStatusSummary(db: Database): StatusSummary {
     languages: languageRows.map((row) => row.language),
     schemaVersion: getSchemaVersion(db)
   };
+}
+
+export function getEmbeddingSummary(
+  db: Database,
+  provider: "ollama" | null,
+  model: string | null
+): EmbeddingSummary {
+  const totals = db.query(`
+    SELECT
+      (SELECT COUNT(*) FROM symbol_embeddings) AS totalEmbeddings,
+      (SELECT COUNT(*) FROM symbol_embeddings WHERE provider = ? AND model = ?) AS matchingEmbeddings
+  `).get(provider ?? "", model ?? "") as {
+    totalEmbeddings: number;
+    matchingEmbeddings: number;
+  };
+
+  return totals;
+}
+
+export function getEmbeddableSymbolsForPath(db: Database, path: string): EmbeddableSymbolRow[] {
+  return db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      doc,
+      body
+    FROM symbols
+    WHERE path = ?
+    ORDER BY id
+  `).all(path) as EmbeddableSymbolRow[];
+}
+
+export function getEmbeddingCountForPath(
+  db: Database,
+  path: string,
+  provider: "ollama",
+  model: string
+): number {
+  const row = db.query(`
+    SELECT COUNT(*) AS count
+    FROM symbol_embeddings
+    JOIN symbols ON symbols.id = symbol_embeddings.symbol_id
+    WHERE symbols.path = ?
+      AND symbol_embeddings.provider = ?
+      AND symbol_embeddings.model = ?
+  `).get(path, provider, model) as { count: number } | null;
+
+  return row?.count ?? 0;
+}
+
+export function replaceSymbolEmbeddings(
+  db: Database,
+  embeddings: Array<{
+    symbolId: number;
+    provider: "ollama";
+    model: string;
+    dimensions: number;
+    embedding: number[];
+  }>
+): void {
+  const deleteEmbedding = db.query("DELETE FROM symbol_embeddings WHERE symbol_id = ?");
+  const insertEmbedding = db.query(`
+    INSERT INTO symbol_embeddings (symbol_id, provider, model, dimensions, embedding_json)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  for (const entry of embeddings) {
+    deleteEmbedding.run(entry.symbolId);
+    if (entry.embedding.length === 0) {
+      continue;
+    }
+    insertEmbedding.run(
+      entry.symbolId,
+      entry.provider,
+      entry.model,
+      entry.dimensions,
+      JSON.stringify(entry.embedding)
+    );
+  }
 }
 
 export function getSymbolById(db: Database, id: number): SymbolDetails | null {
@@ -975,7 +1131,8 @@ export function searchSymbols(db: Database, query: string, limit: number, option
       symbols.start_column AS startColumn,
       symbols.end_line AS endLine,
       symbols.end_column AS endColumn,
-      bm25(symbols_fts) AS rawScore
+      bm25(symbols_fts) AS rawScore,
+      NULL AS semanticSimilarity
     FROM symbols_fts
     JOIN symbols ON symbols.id = symbols_fts.symbol_id
     WHERE symbols_fts MATCH ?
@@ -990,8 +1147,11 @@ export function searchSymbols(db: Database, query: string, limit: number, option
   const supplementalRows = shouldExpandConceptCandidates(rawQuery, options)
     ? getConceptPathCandidates(db, rawQuery, kinds, candidateLimit)
     : [];
+  const semanticRows = shouldUseSemanticSearch(options)
+    ? getSemanticCandidates(db, options.queryEmbedding ?? [], options.embeddingProvider ?? null, options.embeddingModel ?? null, kinds, candidateLimit)
+    : [];
 
-  return rerankResults(mergeSearchRows(rows, supplementalRows), limit, rawQuery, options);
+  return rerankResults(mergeSearchRows(rows, supplementalRows, semanticRows), limit, rawQuery, options);
 }
 
 function shouldExpandConceptCandidates(rawQuery: string, options: SearchOptions): boolean {
@@ -1001,20 +1161,29 @@ function shouldExpandConceptCandidates(rawQuery: string, options: SearchOptions)
     && tokenizeLookupTerms(rawQuery).length > 0;
 }
 
-function mergeSearchRows(primaryRows: SearchRow[], supplementalRows: SearchRow[]): SearchRow[] {
+function mergeSearchRows(...rowSets: SearchRow[][]): SearchRow[] {
   const merged = new Map<number, SearchRow>();
 
-  for (const row of primaryRows) {
-    merged.set(row.id, row);
-  }
+  for (const rows of rowSets) {
+    for (const row of rows) {
+      const existing = merged.get(row.id);
+      if (!existing) {
+        merged.set(row.id, row);
+        continue;
+      }
 
-  for (const row of supplementalRows) {
-    if (!merged.has(row.id)) {
-      merged.set(row.id, row);
+      merged.set(row.id, {
+        ...existing,
+        rawScore: Math.min(existing.rawScore, row.rawScore),
+        semanticSimilarity: Math.max(existing.semanticSimilarity ?? Number.NEGATIVE_INFINITY, row.semanticSimilarity ?? Number.NEGATIVE_INFINITY)
+      });
     }
   }
 
-  return [...merged.values()];
+  return [...merged.values()].map((row) => ({
+    ...row,
+    semanticSimilarity: row.semanticSimilarity === Number.NEGATIVE_INFINITY ? null : row.semanticSimilarity
+  }));
 }
 
 function getConceptPathCandidates(
@@ -1048,7 +1217,8 @@ function getConceptPathCandidates(
       symbols.start_column AS startColumn,
       symbols.end_line AS endLine,
       symbols.end_column AS endColumn,
-      0.0 AS rawScore
+      0.0 AS rawScore,
+      NULL AS semanticSimilarity
     FROM symbols
     WHERE symbols.kind NOT IN ('import', 'file')
       AND (${likeClauses.join(" AND ")})
@@ -1076,8 +1246,102 @@ function getConceptPathCandidates(
 
   return rows.map((row) => ({
     ...row,
-    rawScore: syntheticConceptRawScore(row, rawQuery)
+    rawScore: syntheticConceptRawScore(row, rawQuery),
+    semanticSimilarity: null
   }));
+}
+
+function shouldUseSemanticSearch(options: SearchOptions): boolean {
+  return Boolean(options.queryEmbedding && options.queryEmbedding.length > 0 && options.embeddingProvider && options.embeddingModel);
+}
+
+function parseEmbeddingJson(value: string): number[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.map((item) => Number(item)).filter((item) => Number.isFinite(item));
+  } catch {
+    return [];
+  }
+}
+
+function cosineSimilarity(left: number[], right: number[]): number {
+  const size = Math.min(left.length, right.length);
+  if (size === 0) {
+    return 0;
+  }
+
+  let dot = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+  for (let index = 0; index < size; index += 1) {
+    const leftValue = left[index] ?? 0;
+    const rightValue = right[index] ?? 0;
+    dot += leftValue * rightValue;
+    leftMagnitude += leftValue * leftValue;
+    rightMagnitude += rightValue * rightValue;
+  }
+
+  if (leftMagnitude === 0 || rightMagnitude === 0) {
+    return 0;
+  }
+
+  return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
+}
+
+function getSemanticCandidates(
+  db: Database,
+  queryEmbedding: number[],
+  provider: "ollama" | null,
+  model: string | null,
+  kinds: string[],
+  limit: number
+): SearchRow[] {
+  if (!provider || !model || queryEmbedding.length === 0) {
+    return [];
+  }
+
+  const kindClause = kinds.length > 0
+    ? ` AND symbols.kind IN (${kinds.map(() => "?").join(", ")})`
+    : "";
+
+  const rows = db.query(`
+    SELECT
+      symbols.id,
+      symbols.path,
+      symbols.language,
+      symbols.kind,
+      symbols.name,
+      symbols.signature,
+      symbols.doc,
+      symbols.body,
+      symbols.fallback,
+      symbols.start_line AS startLine,
+      symbols.start_column AS startColumn,
+      symbols.end_line AS endLine,
+      symbols.end_column AS endColumn,
+      symbol_embeddings.embedding_json AS embeddingJson
+    FROM symbol_embeddings
+    JOIN symbols ON symbols.id = symbol_embeddings.symbol_id
+    WHERE symbol_embeddings.provider = ?
+      AND symbol_embeddings.model = ?
+      ${kindClause}
+  `).all(provider, model, ...kinds) as Array<Omit<SearchRow, "rawScore" | "semanticSimilarity"> & { embeddingJson: string }>;
+
+  return rows
+    .map((row) => {
+      const similarity = cosineSimilarity(queryEmbedding, parseEmbeddingJson(row.embeddingJson));
+      return {
+        ...row,
+        rawScore: -similarity,
+        semanticSimilarity: similarity
+      };
+    })
+    .filter((row) => row.semanticSimilarity !== null && (row.semanticSimilarity ?? 0) >= SEMANTIC_RELATED_THRESHOLD)
+    .sort((left, right) => (right.semanticSimilarity ?? 0) - (left.semanticSimilarity ?? 0))
+    .slice(0, limit);
 }
 
 function syntheticConceptRawScore(row: SearchRow, rawQuery: string): number {

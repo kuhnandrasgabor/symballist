@@ -10,7 +10,9 @@ import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runWatch } from "../src/commands/watch.ts";
 import { buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { buildEmbeddingText } from "../src/embeddings.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
+import { readConfig, writeConfig } from "../src/fs.ts";
 import { detectIndexFreshness } from "../src/freshness.ts";
 import { parseCliArgs, runCli } from "../src/cli.ts";
 
@@ -47,6 +49,27 @@ async function captureConsoleLog(run: () => Promise<void>): Promise<string> {
   }
 
   return lines.join("\n");
+}
+
+async function withMockFetch<T>(
+  handler: (url: string, init?: RequestInit) => Promise<Response>,
+  run: () => Promise<T>
+): Promise<T> {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+    return handler(url, init);
+  }) as typeof fetch;
+
+  try {
+    return await run();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 }
 
 describe("symballist vertical slice", () => {
@@ -98,6 +121,32 @@ describe("symballist vertical slice", () => {
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
     expect(gitignore).toContain(".symballist/");
+  });
+
+  test("init preserves repo-local embeddings config instead of overwriting it", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+
+    const config = await readConfig(root);
+    expect(config).not.toBeNull();
+    await writeConfig(root, {
+      ...(config!),
+      embeddings: {
+        enabled: true,
+        provider: "ollama",
+        baseUrl: "http://127.0.0.1:11434",
+        model: "nomic-embed-text",
+        dimensions: 384
+      }
+    });
+
+    await runInit(root);
+
+    const preserved = await readConfig(root);
+    expect(preserved?.embeddings.enabled).toBeTrue();
+    expect(preserved?.embeddings.baseUrl).toBe("http://127.0.0.1:11434");
+    expect(preserved?.embeddings.model).toBe("nomic-embed-text");
+    expect(preserved?.embeddings.dimensions).toBe(384);
   });
 
   test("init creates or appends .symballist ignore rules without duplicating them", async () => {
@@ -1124,6 +1173,139 @@ describe("symballist vertical slice", () => {
     const refreshed = searchSymbols(db, "slugify", 5);
     db.close();
     expect(refreshed.some((result) => result.name === "slugify")).toBeTrue();
+  });
+
+  test("hybrid retrieval can supplement lexical search with optional Ollama embeddings", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "meaning_store.py"),
+      'class MeaningStore:\n    """Canonical semantic store implementation."""\n    pass\n',
+      "utf8"
+    );
+    await runInit(root);
+
+    const config = await readConfig(root);
+    await writeConfig(root, {
+      ...(config!),
+      embeddings: {
+        enabled: true,
+        provider: "ollama",
+        baseUrl: "http://localhost:11434",
+        model: "all-minilm",
+        dimensions: null
+      }
+    });
+
+    const vectorFor = (text: string): number[] => {
+      const normalized = text.toLowerCase();
+      if (normalized.includes("semantic memory") || normalized.includes("meaningstore") || normalized.includes("meaning_store.py")) {
+        return [1, 0, 0];
+      }
+      return [0, 1, 0];
+    };
+
+    await withMockFetch(async (_url, init) => {
+      const payload = JSON.parse(String(init?.body ?? "{}")) as { input?: string | string[]; model?: string };
+      const input = Array.isArray(payload.input) ? payload.input : [payload.input ?? ""];
+      return Response.json({
+        model: payload.model ?? "all-minilm",
+        embeddings: input.map((item) => vectorFor(String(item)))
+      });
+    }, async () => {
+      const stats = await runIndex(root, { progress: false });
+      expect(stats.embeddedSymbols).toBeGreaterThan(0);
+
+      const output = JSON.parse(await captureConsoleLog(async () => {
+        await runQuery(root, "semantic memory", 5);
+      })) as {
+        retrieval: {
+          mode: string;
+          embeddings: {
+            available: boolean;
+            matchedEmbeddings: number;
+            queryEmbedded: boolean;
+            queryError: string | null;
+          };
+        };
+        results: Array<{
+          name: string;
+          matchReason: string;
+          semanticSimilarity: number | null;
+        }>;
+      };
+
+      expect(output.retrieval.mode).toBe("hybrid");
+      expect(output.retrieval.embeddings.available).toBeTrue();
+      expect(output.retrieval.embeddings.matchedEmbeddings).toBeGreaterThan(0);
+      expect(output.retrieval.embeddings.queryEmbedded).toBeTrue();
+      expect(output.retrieval.embeddings.queryError).toBeNull();
+      expect(output.results[0]?.name).toBe("MeaningStore");
+      expect(output.results[0]?.matchReason).toBe("semantic_similarity");
+      expect(output.results[0]?.semanticSimilarity).toBeGreaterThan(0.8);
+    });
+  });
+
+  test("embedding payloads are truncated for very large symbol bodies", () => {
+    const text = buildEmbeddingText({
+      path: "src\\memory_store.py",
+      language: "python",
+      kind: "class",
+      name: "MemoryStore",
+      signature: "class MemoryStore",
+      doc: "Large store",
+      body: Array.from({ length: 5000 }, (_, index) => `line ${index} ${"x".repeat(40)}`).join("\n")
+    });
+
+    expect(text.length).toBeLessThanOrEqual(6000);
+    expect(text.split(/\r?\n/).length).toBeLessThanOrEqual(120);
+    expect(text).toContain("MemoryStore");
+  });
+
+  test("index backfills embeddings for unchanged files after embeddings are enabled", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const config = await readConfig(root);
+    await writeConfig(root, {
+      ...(config!),
+      embeddings: {
+        enabled: true,
+        provider: "ollama",
+        baseUrl: "http://localhost:11434",
+        model: "nomic-embed-text:latest",
+        dimensions: null
+      }
+    });
+
+    await withMockFetch(async (_url, init) => {
+      const payload = JSON.parse(String(init?.body ?? "{}")) as { input?: string | string[]; model?: string };
+      const input = Array.isArray(payload.input) ? payload.input : [payload.input ?? ""];
+      return Response.json({
+        model: payload.model ?? "nomic-embed-text:latest",
+        embeddings: input.map(() => [1, 0, 0])
+      });
+    }, async () => {
+      const stats = await runIndex(root, { progress: false });
+      expect(stats.indexedFiles).toBe(0);
+      expect(stats.skippedFiles).toBe(7);
+      expect(stats.embeddedSymbols).toBeGreaterThan(0);
+
+      const status = JSON.parse(await captureConsoleLog(async () => {
+        await runStatus(root);
+      })) as {
+        embeddings: {
+          enabled: boolean;
+          available: boolean;
+          matchedEmbeddings: number;
+        };
+      };
+
+      expect(status.embeddings.enabled).toBeTrue();
+      expect(status.embeddings.available).toBeTrue();
+      expect(status.embeddings.matchedEmbeddings).toBeGreaterThan(0);
+    });
   });
 
   test("cli args support show by symbol name, query intent flags, and default to tighter query result counts", () => {

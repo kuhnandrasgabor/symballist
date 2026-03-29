@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-29 09:20'
+updated_date: '2026-03-29 15:19'
 labels: []
 dependencies: []
 references:
@@ -163,4 +163,6 @@ Completed subtasks
 - TASK-026 agent-facing `lookup` helper for the common query/show flow.
 
 2026-03-29: Completed TASK-027. symballist watch now provides low-overhead repo-local automatic refresh via polling, with --once for a safe one-shot sweep and --interval-ms for foreground watch mode. This closes the first roadmap step and leaves optional local embeddings + hybrid retrieval as the next major slice.
+
+2026-03-29: Completed TASK-028. Symballist now supports optional local embeddings and hybrid retrieval with an Ollama-first adapter, repo-local config, indexed symbol vectors, and explicit lexical fallback when embeddings are disabled or unavailable. This closes the second roadmap step and leaves graph-aware retrieval / staged graph-RAG as the next major slice.
 <!-- SECTION:NOTES:END -->
