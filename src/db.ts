@@ -1,10 +1,10 @@
 import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join, normalize } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
-import type { QueryResult, SymbolDetails, SymbolRecord } from "./types.ts";
+import type { QueryResult, RelationDetails, SymbolDetails, SymbolRecord } from "./types.ts";
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export type IndexedFileRow = {
   path: string;
@@ -23,6 +23,11 @@ export type StatusSummary = {
 
 type SearchRow = Omit<QueryResult, "snippet" | "fallback"> & { body: string; fallback: number };
 type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
+type RelationRow = {
+  kind: RelationDetails["kind"];
+  targetPath: string | null;
+  targetLabel: string;
+};
 type SearchOptions = {
   kinds?: string[];
   rawQuery?: string;
@@ -97,6 +102,15 @@ function migrate(db: Database): void {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS relations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_symbol_id INTEGER,
+      source_path TEXT NOT NULL,
+      relation_kind TEXT NOT NULL,
+      target_path TEXT,
+      target_label TEXT NOT NULL
+    );
+
     CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
       symbol_id UNINDEXED,
       path,
@@ -147,6 +161,7 @@ function setSchemaVersion(db: Database, version: number): void {
 function clearIndexData(db: Database): void {
   db.exec(`
     DELETE FROM symbols_fts;
+    DELETE FROM relations;
     DELETE FROM symbols;
     DELETE FROM files;
   `);
@@ -221,7 +236,8 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string): Quer
 export function replaceFileIndex(
   db: Database,
   file: { path: string; language: string; size: number; mtimeMs: number },
-  symbols: SymbolRecord[]
+  symbols: SymbolRecord[],
+  options: { availablePaths?: Set<string> } = {}
 ): number {
   deleteFileIndex(db, file.path);
   db.query("INSERT INTO files (path, language, size, mtime_ms) VALUES (?, ?, ?, ?)").run(
@@ -252,6 +268,10 @@ export function replaceFileIndex(
     INSERT INTO symbols_fts (symbol_id, path, name, kind, signature, body, doc, language, content)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertRelation = db.query(`
+    INSERT INTO relations (source_symbol_id, source_path, relation_kind, target_path, target_label)
+    VALUES (?, ?, ?, ?, ?)
+  `);
 
   let count = 0;
   for (const symbol of symbols) {
@@ -281,6 +301,16 @@ export function replaceFileIndex(
       symbol.language,
       [symbol.name, symbol.signature ?? "", symbol.doc ?? "", symbol.body].join("\n")
     );
+
+    if (symbol.kind !== "file") {
+      insertRelation.run(symbolId, symbol.path, "contained_in", symbol.path, symbol.path);
+    }
+
+    if (symbol.language === "python" && symbol.kind === "import") {
+      for (const relation of extractImportRelations(symbol.name, symbol.path, options.availablePaths ?? new Set())) {
+        insertRelation.run(symbolId, symbol.path, relation.kind, relation.targetPath, relation.targetLabel);
+      }
+    }
     count += 1;
   }
 
@@ -302,10 +332,13 @@ export function getIndexedFiles(db: Database): IndexedFileRow[] {
 export function deleteFileIndex(db: Database, path: string): void {
   const clearSymbols = db.query("SELECT id FROM symbols WHERE path = ?").all(path) as Array<{ id: number }>;
   const deleteFts = db.query("DELETE FROM symbols_fts WHERE symbol_id = ?");
+  const deleteRelationsBySymbol = db.query("DELETE FROM relations WHERE source_symbol_id = ?");
   for (const row of clearSymbols) {
     deleteFts.run(row.id);
+    deleteRelationsBySymbol.run(row.id);
   }
 
+  db.query("DELETE FROM relations WHERE source_path = ?").run(path);
   db.query("DELETE FROM symbols WHERE path = ?").run(path);
   db.query("DELETE FROM files WHERE path = ?").run(path);
 }
@@ -368,6 +401,25 @@ export function getSymbolById(db: Database, id: number): SymbolDetails | null {
   };
 }
 
+export function getRelationsForSymbol(db: Database, symbol: SymbolDetails): RelationDetails[] {
+  const rows = db.query(`
+    SELECT DISTINCT
+      relation_kind AS kind,
+      target_path AS targetPath,
+      target_label AS targetLabel
+    FROM relations
+    WHERE source_symbol_id = ?
+      OR (source_path = ? AND relation_kind = 'imports')
+    ORDER BY relation_kind, target_label
+  `).all(symbol.id, symbol.path) as RelationRow[];
+
+  return rows.map((row) => ({
+    kind: row.kind,
+    targetPath: row.targetPath,
+    targetLabel: row.targetLabel
+  }));
+}
+
 export function searchSymbols(db: Database, query: string, limit: number, options: SearchOptions = {}): QueryResult[] {
   const kinds = [...new Set((options.kinds ?? []).map((kind) => kind.trim()).filter(Boolean))];
   const whereKindClause = kinds.length > 0
@@ -401,4 +453,88 @@ export function searchSymbols(db: Database, query: string, limit: number, option
   const candidateLimit = Math.max(limit * 10, 100);
   const rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
   return rerankResults(rows, limit, options.rawQuery ?? query);
+}
+
+function extractImportRelations(statement: string, sourcePath: string, availablePaths: Set<string>): RelationDetails[] {
+  const normalized = statement.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return [];
+  }
+
+  if (normalized.startsWith("import ")) {
+    return normalized
+      .slice("import ".length)
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => part.split(/\s+as\s+/i)[0]?.trim() ?? "")
+      .filter(Boolean)
+      .map((moduleName) => ({
+        kind: "imports" as const,
+        targetPath: resolvePythonModulePath(moduleName, sourcePath, availablePaths),
+        targetLabel: moduleName
+      }));
+  }
+
+  const match = normalized.match(/^from\s+([.\w]+)\s+import\s+(.+)$/i);
+  if (!match) {
+    return [];
+  }
+
+  const [, moduleName, importedSection] = match;
+  const targetPath = resolvePythonModulePath(moduleName, sourcePath, availablePaths);
+  const importedNames = importedSection
+    .replace(/^\(/, "")
+    .replace(/\)$/, "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.split(/\s+as\s+/i)[0]?.trim() ?? "")
+    .filter(Boolean);
+
+  if (importedNames.length === 0) {
+    return [{
+      kind: "imports",
+      targetPath,
+      targetLabel: moduleName
+    }];
+  }
+
+  return importedNames.map((importedName) => ({
+    kind: "imports" as const,
+    targetPath,
+    targetLabel: `${moduleName}.${importedName}`
+  }));
+}
+
+function resolvePythonModulePath(moduleName: string, sourcePath: string, availablePaths: Set<string>): string | null {
+  const trimmed = moduleName.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const relativeDots = trimmed.match(/^\.+/)?.[0].length ?? 0;
+  const bareModule = trimmed.slice(relativeDots);
+  const sourceDir = dirname(sourcePath);
+  let baseDir = relativeDots > 0 ? sourceDir : "";
+
+  for (let index = 1; index < relativeDots; index += 1) {
+    baseDir = dirname(baseDir);
+  }
+
+  const moduleSegments = bareModule ? bareModule.split(".").filter(Boolean) : [];
+  const baseCandidate = normalize(join(baseDir, ...moduleSegments));
+  const candidates = [
+    `${baseCandidate}.py`,
+    join(baseCandidate, "__init__.py")
+  ];
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalize(candidate);
+    if (availablePaths.has(normalizedCandidate)) {
+      return normalizedCandidate;
+    }
+  }
+
+  return null;
 }

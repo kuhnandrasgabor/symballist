@@ -47,3 +47,9 @@ export type SymbolDetails = {
   endLine: number;
   endColumn: number;
 };
+
+export type RelationDetails = {
+  kind: "imports" | "contained_in";
+  targetPath: string | null;
+  targetLabel: string;
+};

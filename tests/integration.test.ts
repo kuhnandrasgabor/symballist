@@ -7,7 +7,7 @@ import { runInit } from "../src/commands/init.ts";
 import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
-import { getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { parseCliArgs } from "../src/cli.ts";
 
 const tempRoots: string[] = [];
@@ -157,6 +157,7 @@ describe("symballist vertical slice", () => {
     const db = await openDatabase(root);
     const greet = searchSymbols(db, "greet", 5).find((result) => result.name === "greet");
     const fromDb = greet ? getSymbolById(db, greet.id) : null;
+    const relationsFromDb = fromDb ? getRelationsForSymbol(db, fromDb) : [];
     db.close();
 
     expect(greet).toBeDefined();
@@ -164,6 +165,8 @@ describe("symballist vertical slice", () => {
     expect(fromDb?.body).toContain('return f"Hello, {name}"');
     expect(fromDb?.startLine).toBe(5);
     expect(fromDb?.endLine).toBe(6);
+    expect(relationsFromDb.some((relation) => relation.kind === "contained_in" && relation.targetPath === "app.py")).toBeTrue();
+    expect(relationsFromDb.some((relation) => relation.kind === "imports" && relation.targetPath === "helpers.py")).toBeTrue();
 
     const output = await captureConsoleLog(async () => {
       await runShow(root, String(greet?.id));
@@ -177,6 +180,11 @@ describe("symballist vertical slice", () => {
         startLine: number;
         endLine: number;
       };
+      relations: Array<{
+        kind: string;
+        targetPath: string | null;
+        targetLabel: string;
+      }>;
     };
 
     expect(shown.indexFreshness.stale).toBeFalse();
@@ -185,6 +193,8 @@ describe("symballist vertical slice", () => {
     expect(shown.symbol.body).toContain('return f"Hello, {name}"');
     expect(shown.symbol.startLine).toBe(5);
     expect(shown.symbol.endLine).toBe(6);
+    expect(shown.relations.some((relation) => relation.kind === "contained_in" && relation.targetPath === "app.py")).toBeTrue();
+    expect(shown.relations.some((relation) => relation.kind === "imports" && relation.targetPath === "helpers.py")).toBeTrue();
   });
 
   test("query prefers declarations over imports and supports kind filters", async () => {

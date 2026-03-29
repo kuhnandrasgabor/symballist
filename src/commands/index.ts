@@ -106,7 +106,8 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
         size: metadata.size,
         mtimeMs: metadata.mtimeMs
       },
-      symbols
+      symbols,
+      { availablePaths: currentPaths }
     );
     stats.indexedFiles += 1;
 
