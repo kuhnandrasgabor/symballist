@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-29 16:25'
+updated_date: '2026-03-29 16:38'
 labels: []
 dependencies: []
 references:
@@ -175,4 +175,6 @@ Completed subtasks
 2026-03-29: Completed TASK-031. Weak low-signal retrieval now demotes mirrored operational markdown files and collapses duplicate operational docs before final slicing, reducing AGENTS/CLAUDE-style tail noise without disturbing docs-only behavior.
 
 2026-03-29: Completed TASK-032. Hybrid fusion now uses source-rank-based scoring rather than directly mixing BM25 and cosine scales, allowing semantic candidates to influence weak-query ranking in live repos. Confirmed live in co-ma: 'sqlite backed persisted memories' now returns MemoryStore first with retained semantic influence.
+
+2026-03-29: Completed TASK-033. Captured the graph-aware retrieval path in docs/graph-aware-retrieval-roadmap.md and explicitly sequenced the future work as graph-aware reranking first, bounded one-hop expansion second, graph-backed context assembly third, and deeper graph-RAG exploration only after that.
 <!-- SECTION:NOTES:END -->
