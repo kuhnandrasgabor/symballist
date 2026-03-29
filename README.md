@@ -69,6 +69,7 @@ symballist should never fail closed. If parsing fails, fall back to file-level u
 - `symballist query "<text>" --docs-only`
 - `symballist show <id>`
 - `symballist show --name <symbol>`
+- `symballist show --name <symbol> --full`
 
 ## Agent Adoption
 

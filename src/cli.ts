@@ -17,6 +17,7 @@ export type CliArgs = {
   excludeTests: boolean;
   preferImplementation: boolean;
   showName: string | null;
+  showFull: boolean;
   positionals: string[];
   helpRequested: boolean;
   error: string | null;
@@ -30,8 +31,8 @@ Usage:
   symballist init [--root PATH]
   symballist index [--root PATH]
   symballist status [--root PATH]
-  symballist show <id> [--root PATH]
-  symballist show --name <symbol> [--root PATH]
+  symballist show <id> [--full] [--root PATH]
+  symballist show --name <symbol> [--full] [--root PATH]
   symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--root PATH]
 `);
 }
@@ -48,7 +49,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist status [--root PATH]");
       return;
     case "show":
-      console.log("Usage:\n  symballist show <id> [--root PATH]\n  symballist show --name <symbol> [--root PATH]");
+      console.log("Usage:\n  symballist show <id> [--full] [--root PATH]\n  symballist show --name <symbol> [--full] [--root PATH]");
       return;
     case "query":
       console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--root PATH]");
@@ -85,6 +86,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
   let excludeTests = false;
   let preferImplementation = false;
   let showName: string | null = null;
+  let showFull = false;
   let helpRequested = false;
   let error: string | null = null;
   let command: string | null = null;
@@ -101,6 +103,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       excludeTests,
       preferImplementation,
       showName,
+      showFull,
       positionals,
       helpRequested: false,
       error: null
@@ -119,6 +122,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       excludeTests,
       preferImplementation,
       showName,
+      showFull,
       positionals,
       helpRequested: true,
       error: null
@@ -193,6 +197,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       index += 1;
       continue;
     }
+    if (command === "show" && value === "--full") {
+      showFull = true;
+      continue;
+    }
     if (value.startsWith("-")) {
       error = buildUnknownOptionError(command, value);
       break;
@@ -214,6 +222,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     excludeTests,
     preferImplementation,
     showName,
+    showFull,
     positionals,
     helpRequested,
     error
@@ -248,7 +257,9 @@ export async function runCli(argv: string[]): Promise<void> {
       return;
     case "show": {
       const id = parsed.positionals[0] ?? "";
-      await runShow(parsed.root, id, parsed.showName ?? undefined);
+      await runShow(parsed.root, id, parsed.showName ?? undefined, {
+        full: parsed.showFull
+      });
       return;
     }
     case "query": {
