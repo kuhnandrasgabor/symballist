@@ -4,6 +4,7 @@ import { cwd } from "node:process";
 import { runIndex } from "./commands/index.ts";
 import { runInit } from "./commands/init.ts";
 import { runQuery } from "./commands/query.ts";
+import { runShow } from "./commands/show.ts";
 import { runStatus } from "./commands/status.ts";
 
 export type CliArgs = {
@@ -20,6 +21,7 @@ Usage:
   bun run src/cli.ts init [--root PATH]
   bun run src/cli.ts index [--root PATH]
   bun run src/cli.ts status [--root PATH]
+  bun run src/cli.ts show <id> [--root PATH]
   bun run src/cli.ts query "<text>" [--limit N] [--root PATH]
 `);
 }
@@ -65,6 +67,11 @@ async function main(): Promise<void> {
     case "status":
       await runStatus(parsed.root);
       return;
+    case "show": {
+      const id = parsed.positionals[1] ?? "";
+      await runShow(parsed.root, id);
+      return;
+    }
     case "query": {
       const query = parsed.positionals.slice(1).join(" ");
       await runQuery(parsed.root, query, parsed.limit);

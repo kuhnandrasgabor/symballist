@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
-import type { QueryResult, SymbolRecord } from "./types.ts";
+import type { QueryResult, SymbolDetails, SymbolRecord } from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 3;
 
@@ -21,7 +21,8 @@ export type StatusSummary = {
   schemaVersion: number;
 };
 
-type SearchRow = Omit<QueryResult, "snippet"> & { body: string };
+type SearchRow = Omit<QueryResult, "snippet" | "fallback"> & { body: string; fallback: number };
+type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
 
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
@@ -265,6 +266,37 @@ export function getStatusSummary(db: Database): StatusSummary {
   };
 }
 
+export function getSymbolById(db: Database, id: number): SymbolDetails | null {
+  const row = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      body,
+      doc,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn
+    FROM symbols
+    WHERE id = ?
+  `).get(id);
+
+  if (!row) {
+    return null;
+  }
+
+  const details = row as SymbolDetailsRow;
+  return {
+    ...details,
+    fallback: Boolean(details.fallback)
+  };
+}
+
 export function searchSymbols(db: Database, query: string, limit: number): QueryResult[] {
   const statement = db.query(`
     SELECT
@@ -292,6 +324,7 @@ export function searchSymbols(db: Database, query: string, limit: number): Query
   const rows = statement.all(query, limit) as SearchRow[];
   return rows.map(({ body, ...row }) => ({
     ...row,
+    fallback: Boolean(row.fallback),
     snippet: makeSnippet(body)
   }));
 }
