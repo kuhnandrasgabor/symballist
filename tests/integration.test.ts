@@ -88,7 +88,11 @@ describe("symballist vertical slice", () => {
     expect(agentsText).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
     expect(claudeText).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
     expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd query "<text>" --root ${root}`);
+    expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd lookup "<text>" --root ${root}`);
+    expect(localAgentsSnippet).toContain("changeAwareness");
     expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd index --root ${root}`);
+    expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd lookup "<text>" --root ${root}`);
+    expect(localGuide).toContain("changeAwareness");
     expect(wrapperCmd).toContain('bun "D:\\Projects\\symballist\\src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
