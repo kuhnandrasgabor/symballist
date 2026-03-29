@@ -42,6 +42,7 @@ export type QueryResult = {
   matchReason: MatchReason;
   extraction: ExtractionKind;
   trustLevel: TrustLevel;
+  retrievalTrustLevel: TrustLevel;
   fallback: boolean;
   startLine: number;
   startColumn: number;
