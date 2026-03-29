@@ -78,6 +78,7 @@ For downstream projects that want to use `symballist` as a CLI-first retrieval h
 Reusable downstream instruction snippets live in [downstream AGENTS snippet](/D:/Projects/symballist/docs/snippets/downstream-agents-symballist.md) and [downstream CLAUDE snippet](/D:/Projects/symballist/docs/snippets/downstream-claude-symballist.md).
 
 `--prefer-implementation` is intended for code-oriented queries. When used outside `--docs-only`, it now suppresses Markdown/doc noise and pushes `src/` implementations harder so the flag produces a visible ranking change.
+`--docs-only` now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors such as `AGENTS.md` and `CLAUDE.md`.
 
 ## Local State
 
