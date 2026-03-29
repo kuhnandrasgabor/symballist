@@ -16,6 +16,7 @@ V1 is intentionally narrow:
 - incremental reindexing for changed files
 - rich query results with symbol spans and snippets
 - stale-index detection in status and retrieval commands
+- lightweight import and containment relations in show output
 
 ## Query Pipeline
 
