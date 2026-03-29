@@ -30,6 +30,7 @@ Preferred downstream entrypoint after `symballist init`:
 ```powershell
 .symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd index --root <PROJECT_ROOT>
+.symballist\bin\symballist.cmd lookup "<text>" --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd query "<text>" --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd show <id> --root <PROJECT_ROOT>
 .symballist\bin\symballist.cmd show --name <symbol> --root <PROJECT_ROOT>
@@ -41,6 +42,7 @@ If `symballist` has been installed or linked as a real command, that command nam
 ```powershell
 symballist status --root <PROJECT_ROOT>
 symballist index --root <PROJECT_ROOT>
+symballist lookup "<text>" --root <PROJECT_ROOT>
 symballist query "<text>" --root <PROJECT_ROOT>
 symballist show <id> --root <PROJECT_ROOT>
 symballist show --name <symbol> --root <PROJECT_ROOT>
@@ -51,8 +53,8 @@ Typical agent flow:
 
 1. Run `status`.
 2. If `indexFreshness.stale` is `true`, run `index`.
-3. Run `query` with a focused phrase or symbol name.
-4. Run `show` on the best hit to inspect context plus related symbols.
+3. Use `lookup` when you want the common `query -> best hit -> show` flow in one response.
+4. Use `query` and `show` separately when you want to inspect multiple candidates more manually.
 5. If the symbol body is large, rerun `show` with `--full` to expand it.
 6. Verify important conclusions in the underlying file.
 

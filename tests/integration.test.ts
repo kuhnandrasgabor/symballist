@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runIndex } from "../src/commands/index.ts";
 import { runInit } from "../src/commands/init.ts";
+import { runLookup } from "../src/commands/lookup.ts";
 import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
@@ -357,6 +358,45 @@ describe("symballist vertical slice", () => {
 
     expect(shown.symbol.id).toBe(greet?.id);
     expect(shown.symbol.name).toBe("greet");
+  });
+
+  test("lookup bundles the best hit with full symbol context and alternatives", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const output = await captureConsoleLog(async () => {
+      await runLookup(root, "greet", 5);
+    });
+    const payload = JSON.parse(output) as {
+      query: string;
+      selectedResult: {
+        name: string;
+        retrievalTrustLevel: string;
+      } | null;
+      symbol: {
+        name: string;
+        body: string;
+        trustLevel: string;
+      } | null;
+      bodyPresentation: {
+        mode: string;
+      } | null;
+      relations: Array<{ kind: string }>;
+      related: Array<{ symbol: { name: string } }>;
+      alternatives: Array<{ name: string }>;
+    };
+
+    expect(payload.query).toBe("greet");
+    expect(payload.selectedResult?.name).toBe("greet");
+    expect(payload.selectedResult?.retrievalTrustLevel).toBe("high");
+    expect(payload.symbol?.name).toBe("greet");
+    expect(payload.symbol?.body).toContain('return f"Hello, {name}"');
+    expect(payload.symbol?.trustLevel).toBe("high");
+    expect(payload.bodyPresentation?.mode).toBe("full");
+    expect(payload.relations.some((relation) => relation.kind === "contained_in")).toBeTrue();
+    expect(payload.related.some((entry) => entry.symbol.name === "Greeter")).toBeTrue();
+    expect(payload.alternatives.some((entry) => entry.name === "Greeter")).toBeTrue();
   });
 
   test("show summarizes very large symbol bodies by default and supports --full expansion", async () => {
@@ -1045,6 +1085,12 @@ describe("symballist vertical slice", () => {
     const conflictingQueryParsed = parseCliArgs(["query", "greet", "--code-only", "--docs-only"]);
     expect(conflictingQueryParsed.error).toContain("--code-only or --docs-only");
 
+    const lookupParsed = parseCliArgs(["lookup", "greet", "--top", "3", "--code-only", "--full"]);
+    expect(lookupParsed.command).toBe("lookup");
+    expect(lookupParsed.limit).toBe(3);
+    expect(lookupParsed.codeOnly).toBeTrue();
+    expect(lookupParsed.showFull).toBeTrue();
+
     const showParsed = parseCliArgs(["show", "--name", "greet", "--root", "D:/Projects/co-ma"]);
     expect(showParsed.command).toBe("show");
     expect(showParsed.showName).toBe("greet");
@@ -1068,6 +1114,19 @@ describe("symballist vertical slice", () => {
       await runCli(["query", "--help"]);
     });
     expect(output).toContain('symballist query "<text>"');
+  });
+
+  test("lookup help is handled as CLI help instead of lookup text", async () => {
+    const parsed = parseCliArgs(["lookup", "--help"]);
+    expect(parsed.command).toBe("lookup");
+    expect(parsed.helpRequested).toBeTrue();
+    expect(parsed.positionals).toEqual([]);
+    expect(parsed.error).toBeNull();
+
+    const output = await captureConsoleLog(async () => {
+      await runCli(["lookup", "--help"]);
+    });
+    expect(output).toContain('symballist lookup "<text>"');
   });
 
   test("query accepts --top as a limit alias without reaching FTS with raw flag text", async () => {
