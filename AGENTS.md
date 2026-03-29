@@ -52,3 +52,11 @@ You MUST read the overview guidance to understand the complete workflow. The inf
 </CRITICAL_INSTRUCTION>
 
 <!-- BACKLOG.MD MCP GUIDELINES END -->
+
+## Symballist Retrieval
+
+When another local repo wants to use `symballist` as a retrieval helper, follow the shared adoption workflow:
+
+- [docs/agent-workflows/symballist-adoption.md](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md)
+
+Keep the integration CLI-first, use `status -> index -> query -> show`, and treat `symballist` as a read-only helper rather than the sole source of truth.
