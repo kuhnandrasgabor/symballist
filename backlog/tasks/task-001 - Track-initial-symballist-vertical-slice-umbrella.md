@@ -36,9 +36,14 @@ references:
   - TASK-026
   - TASK-035
   - DRAFT-008
+  - DRAFT-009
   - DRAFT-010
   - DRAFT-011
   - DRAFT-012
+  - DRAFT-013
+  - DRAFT-014
+  - DRAFT-015
+  - DRAFT-016
 priority: high
 ---
 
@@ -71,8 +76,9 @@ Current v1 shape:
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
 2. Treat completed slice work as closed subtasks: TASK-002 through TASK-026.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term roadmap after the vertical slice: DRAFT-010, then DRAFT-011, then DRAFT-012.
-5. Exploratory follow-up beyond that: DRAFT-008.
+4. Near-term roadmap after the vertical slice: DRAFT-013, then DRAFT-014, then DRAFT-015, then DRAFT-016.
+5. Longer-term roadmap after that: DRAFT-010, then DRAFT-011, then DRAFT-012.
+6. Exploratory follow-up beyond that: DRAFT-008 and DRAFT-009.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -116,6 +122,7 @@ Adoption and workflow
 - Done: init now supports `cli`, `tool`, and `hybrid` setup modes, persisting the chosen mode in config and generating repo-local tool-definition assets for tool-capable setups.
 - Done: init now ensures `.gitignore` contains `.symballist/` and prints a manual cleanup hint if that directory already appears to be Git-tracked.
 - Done: real dogfooding in co-ma confirms the tool is now genuinely useful for day-to-day discovery, especially for implementation-oriented queries.
+- Open polish area: fresh-session onboarding still has avoidable shell and wrapper friction, especially for agents starting in bash-like shells on Windows.
 
 Priority order from latest live feedback
 - Done: TASK-013 fixed query CLI flag parsing and help handling, including query subcommand help and `--top` alias support.
@@ -132,6 +139,10 @@ Priority order from latest live feedback
 - Done: TASK-024 preferred canonical docs and demoted duplicate operational docs in docs-only retrieval.
 - Done: TASK-025 added lightweight file-level change awareness since index and git HEAD.
 - Done: TASK-026 added a CLI-first agent-facing lookup helper on top of query/show.
+- New feedback follow-up: DRAFT-013 shell-aware onboarding and first-run invocation guidance.
+- New feedback follow-up: DRAFT-014 compact output mode for agent-facing symballist responses.
+- New feedback follow-up: DRAFT-015 explicit result quality and no-strong-match signaling.
+- New feedback follow-up: DRAFT-016 stronger conceptual retention and implementation preference for fuzzy queries.
 - Roadmap next: DRAFT-010 automatic repo-local reindexing and watch-driven refresh.
 - Roadmap later: DRAFT-011 optional local embeddings and hybrid retrieval.
 - Roadmap later: DRAFT-012 graph-aware retrieval and staged graph-RAG evolution.
@@ -184,4 +195,6 @@ Completed subtasks
 2026-03-29: Completed TASK-034. Added the first graph-aware retrieval slice via one-hop candidate agreement in the existing reranking path. Query and lookup results now expose graphSignals, and bounded same-file/import structure can influence ambiguous candidate ordering without needing deeper traversal.
 
 2026-03-29: Completed TASK-035. `symballist init` now supports explicit `--setup-type cli|tool|hybrid`, persists the selected integration mode in repo-local config, renders mode-specific managed guidance, and generates repo-local tool-definition assets under `.symballist/tools/` for tool-capable setups while keeping the CLI wrappers as the universal fallback.
+
+2026-03-29 feedback intake: created DRAFT-013 for shell-aware onboarding and first-run invocation guidance, DRAFT-014 for compact output mode, DRAFT-015 for explicit result quality / no-strong-match signaling, and DRAFT-016 for stronger conceptual retention and implementation preference on fuzzy queries. The strongest near-term order from this feedback is onboarding first, then compactness, then weak-result signaling, then deeper conceptual tuning.
 <!-- SECTION:NOTES:END -->
