@@ -35,6 +35,9 @@ references:
   - TASK-025
   - TASK-026
   - DRAFT-008
+  - DRAFT-010
+  - DRAFT-011
+  - DRAFT-012
 priority: high
 ---
 
@@ -67,8 +70,8 @@ Current v1 shape:
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
 2. Treat completed slice work as closed subtasks: TASK-002 through TASK-026.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term priority order from latest feedback: DRAFT-008.
-5. Medium-term follow-ups: DRAFT-008, then broader helper-integration questions in DRAFT-001.
+4. Near-term roadmap after the vertical slice: DRAFT-010, then DRAFT-011, then DRAFT-012.
+5. Exploratory follow-up beyond that: DRAFT-008.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -127,6 +130,9 @@ Priority order from latest live feedback
 - Done: TASK-024 preferred canonical docs and demoted duplicate operational docs in docs-only retrieval.
 - Done: TASK-025 added lightweight file-level change awareness since index and git HEAD.
 - Done: TASK-026 added a CLI-first agent-facing lookup helper on top of query/show.
+- Roadmap next: DRAFT-010 automatic repo-local reindexing and watch-driven refresh.
+- Roadmap later: DRAFT-011 optional local embeddings and hybrid retrieval.
+- Roadmap later: DRAFT-012 graph-aware retrieval and staged graph-RAG evolution.
 - Later: DRAFT-008 symbol-level and session-aware change tracking beyond file freshness.
 
 Completed subtasks
