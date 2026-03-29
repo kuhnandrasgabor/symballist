@@ -4,10 +4,26 @@ import { APP_DIR, CACHE_DIR, CONFIG_FILE, LOGS_DIR, SUPPORTED_EXTENSIONS, appPat
 
 const SKIP_DIRS = new Set([
   ".git",
+  ".hg",
+  ".svn",
+  ".venv",
+  ".pytest_cache",
+  ".pytest-basetemp",
+  ".pytest-runs",
+  ".pytest-tmp",
+  ".ruff_cache",
+  "__pycache__",
   "node_modules",
   APP_DIR,
   "backlog"
 ]);
+
+function isIgnorableFsError(error: unknown): boolean {
+  if (!(error instanceof Error) || !("code" in error)) {
+    return false;
+  }
+  return error.code === "EPERM" || error.code === "EACCES" || error.code === "ENOENT";
+}
 
 export async function ensureInitialized(root: string): Promise<void> {
   await mkdir(appPath(root), { recursive: true });
@@ -26,7 +42,16 @@ export async function listSourceFiles(root: string): Promise<Array<{ absolutePat
   const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "html" }> = [];
 
   async function walk(current: string): Promise<void> {
-    const entries = await readdir(current, { withFileTypes: true });
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch (error) {
+      if (isIgnorableFsError(error)) {
+        return;
+      }
+      throw error;
+    }
+
     for (const entry of entries) {
       const absolutePath = join(current, entry.name);
       if (entry.isDirectory()) {
@@ -58,9 +83,19 @@ export async function listSourceFiles(root: string): Promise<Array<{ absolutePat
 }
 
 export async function fileMetadata(path: string): Promise<{ size: number; mtimeMs: number }> {
-  const details = await stat(path);
-  return {
-    size: details.size,
-    mtimeMs: details.mtimeMs
-  };
+  try {
+    const details = await stat(path);
+    return {
+      size: details.size,
+      mtimeMs: details.mtimeMs
+    };
+  } catch (error) {
+    if (isIgnorableFsError(error)) {
+      return {
+        size: 0,
+        mtimeMs: 0
+      };
+    }
+    throw error;
+  }
 }

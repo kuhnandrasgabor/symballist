@@ -5,32 +5,64 @@ import { runIndex } from "./commands/index.ts";
 import { runInit } from "./commands/init.ts";
 import { runQuery } from "./commands/query.ts";
 
+export type CliArgs = {
+  command: string | null;
+  root: string;
+  limit: number;
+  positionals: string[];
+};
+
 function usage(): void {
   console.log(`symballist
 
 Usage:
-  bun run src/cli.ts init
-  bun run src/cli.ts index
-  bun run src/cli.ts query "<text>" [--limit N]
+  bun run src/cli.ts init [--root PATH]
+  bun run src/cli.ts index [--root PATH]
+  bun run src/cli.ts query "<text>" [--limit N] [--root PATH]
 `);
 }
 
-async function main(): Promise<void> {
-  const [, , command, ...args] = process.argv;
-  const root = cwd();
+export function parseCliArgs(argv: string[]): CliArgs {
+  const positionals: string[] = [];
+  let root = cwd();
+  let limit = 10;
 
-  switch (command) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === "--root") {
+      root = argv[index + 1] ?? root;
+      index += 1;
+      continue;
+    }
+    if (value === "--limit") {
+      limit = Number(argv[index + 1]) || 10;
+      index += 1;
+      continue;
+    }
+    positionals.push(value);
+  }
+
+  return {
+    command: positionals[0] ?? null,
+    root,
+    limit,
+    positionals
+  };
+}
+
+async function main(): Promise<void> {
+  const parsed = parseCliArgs(process.argv.slice(2));
+
+  switch (parsed.command) {
     case "init":
-      await runInit(root);
+      await runInit(parsed.root);
       return;
     case "index":
-      await runIndex(root);
+      await runIndex(parsed.root);
       return;
     case "query": {
-      const query = args.find((value) => !value.startsWith("--")) ?? "";
-      const limitIndex = args.findIndex((value) => value === "--limit");
-      const limit = limitIndex >= 0 ? Number(args[limitIndex + 1]) || 10 : 10;
-      await runQuery(root, query, limit);
+      const query = parsed.positionals.slice(1).join(" ");
+      await runQuery(parsed.root, query, parsed.limit);
       return;
     }
     default:
@@ -38,7 +70,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

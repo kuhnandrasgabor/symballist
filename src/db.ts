@@ -7,9 +7,31 @@ import type { QueryResult, SymbolRecord } from "./types.ts";
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
   await mkdir(dirname(path), { recursive: true });
-  const db = new Database(path);
-  migrate(db);
-  return db;
+
+  let db: Database;
+  try {
+    db = new Database(path);
+  } catch (error) {
+    throw wrapDatabaseError(error, path);
+  }
+
+  try {
+    migrate(db);
+    return db;
+  } catch (error) {
+    db.close(false);
+    throw wrapDatabaseError(error, path);
+  }
+}
+
+function wrapDatabaseError(error: unknown, path: string): Error {
+  if (error instanceof Error && "code" in error && error.code === "SQLITE_READONLY") {
+    return new Error(`Database at ${path} is not writable. Delete the existing .symballist directory or index.db and rerun init/index from your normal local shell.`);
+  }
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(String(error));
 }
 
 function migrate(db: Database): void {

@@ -2,9 +2,10 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, searchSymbols } from "../src/db.ts";
 import { runIndex } from "../src/commands/index.ts";
 import { runInit } from "../src/commands/init.ts";
+import { openDatabase, searchSymbols } from "../src/db.ts";
+import { parseCliArgs } from "../src/cli.ts";
 
 const tempRoots: string[] = [];
 
@@ -49,5 +50,12 @@ describe("symballist vertical slice", () => {
     expect(htmlResults.some((result) => result.name === "search-panel")).toBeTrue();
     expect(fallbackResults.some((result) => result.fallback)).toBeTrue();
   });
-});
 
+  test("cli args accept an explicit root path", () => {
+    const parsed = parseCliArgs(["query", "greet", "--root", "D:/Projects/co-ma", "--limit", "3"]);
+    expect(parsed.command).toBe("query");
+    expect(parsed.root).toBe("D:/Projects/co-ma");
+    expect(parsed.limit).toBe(3);
+    expect(parsed.positionals).toEqual(["query", "greet"]);
+  });
+});

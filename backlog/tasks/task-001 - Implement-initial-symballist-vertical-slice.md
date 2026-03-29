@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 09:14'
+updated_date: '2026-03-28 09:51'
 labels: []
 dependencies: []
 priority: high
@@ -43,4 +43,22 @@ Scaffolded a zero-dependency Bun + TypeScript CLI slice with init, index, and qu
 Added SQLite-backed storage, Python and HTML symbol extraction, and file-level fallback records.
 
 Added fixture-based integration tests covering init, index, and lexical query.
+
+Upgraded Python and HTML extraction to tree-sitter-backed parsing using compatible parser package versions for Windows/Bun.
+
+Added CLI support for --root so symballist can target another repository without changing directories.
+
+Verified the upgraded slice with bun test and manual explicit-root queries against the fixture repo.
+
+Dogfooding against D:\\Projects\\co-ma surfaced a walker issue: unreadable temp/cache directories should be skipped instead of aborting indexing.
+
+Initialized .symballist in D:\\Projects\\co-ma and confirmed explicit-root manual queries work on the fixture repo.
+
+A full co-ma index run remains blocked in this sandboxed session by outside-workspace write constraints after initialization, so the next real validation step should be run from a normal local shell.
+
+Adjusted init to stop eagerly creating index.db and improved readonly SQLite errors with a clearer recovery message for cross-repo dogfooding.
+
+Hardened tree-sitter extraction so large or parser-hostile files fall back to file-level records instead of aborting indexing; co-ma core.py exceeds the safe parser limit on this runtime.
+
+Added a root .gitignore covering node_modules, repo-local .symballist state, local agent tool folders, and scratch artifacts before the next commit.
 <!-- SECTION:NOTES:END -->
