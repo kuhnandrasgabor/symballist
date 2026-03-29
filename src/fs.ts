@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 import { APP_DIR, CACHE_DIR, CONFIG_FILE, LOGS_DIR, SUPPORTED_EXTENSIONS, appPath, defaultConfig } from "./config.ts";
+import type { SymballistConfig } from "./config.ts";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -36,6 +37,27 @@ export async function ensureInitialized(root: string): Promise<void> {
 
 export async function readText(path: string): Promise<string> {
   return readFile(path, "utf8");
+}
+
+export async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if (isIgnorableFsError(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+export async function readConfig(root: string): Promise<SymballistConfig | null> {
+  const path = appPath(root, CONFIG_FILE);
+  if (!(await exists(path))) {
+    return null;
+  }
+
+  return JSON.parse(await readText(path)) as SymballistConfig;
 }
 
 export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" }>> {

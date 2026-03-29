@@ -4,13 +4,21 @@ import { dirname } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
 import type { QueryResult, SymbolRecord } from "./types.ts";
 
-const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export type IndexedFileRow = {
   path: string;
   language: string;
   size: number;
   mtimeMs: number;
+};
+
+export type StatusSummary = {
+  indexedFiles: number;
+  indexedSymbols: number;
+  fallbackSymbols: number;
+  languages: string[];
+  schemaVersion: number;
 };
 
 type SearchRow = Omit<QueryResult, "snippet"> & { body: string };
@@ -228,6 +236,33 @@ export function deleteFileIndex(db: Database, path: string): void {
 
   db.query("DELETE FROM symbols WHERE path = ?").run(path);
   db.query("DELETE FROM files WHERE path = ?").run(path);
+}
+
+export function getStatusSummary(db: Database): StatusSummary {
+  const counts = db.query(`
+    SELECT
+      (SELECT COUNT(*) FROM files) AS indexedFiles,
+      (SELECT COUNT(*) FROM symbols) AS indexedSymbols,
+      (SELECT COUNT(*) FROM symbols WHERE fallback = 1) AS fallbackSymbols
+  `).get() as {
+    indexedFiles: number;
+    indexedSymbols: number;
+    fallbackSymbols: number;
+  };
+
+  const languageRows = db.query(`
+    SELECT DISTINCT language
+    FROM files
+    ORDER BY language
+  `).all() as Array<{ language: string }>;
+
+  return {
+    indexedFiles: counts.indexedFiles,
+    indexedSymbols: counts.indexedSymbols,
+    fallbackSymbols: counts.fallbackSymbols,
+    languages: languageRows.map((row) => row.language),
+    schemaVersion: getSchemaVersion(db)
+  };
 }
 
 export function searchSymbols(db: Database, query: string, limit: number): QueryResult[] {

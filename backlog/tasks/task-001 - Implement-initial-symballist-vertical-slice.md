@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-28 12:44'
+updated_date: '2026-03-28 13:13'
 labels: []
 dependencies: []
 priority: high
@@ -28,10 +28,10 @@ Build the first useful end-to-end slice for symballist as an agent-first code re
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Update the README and repo guidance so symballist is explicitly CLI-first and MCP is deferred from v1.
-2. Extend indexed symbol records with source span metadata so query results can report line and column information for Python, HTML, and fallback file records.
-3. Enrich query results with short snippets derived from indexed symbol bodies so agents can inspect likely matches without an immediate second lookup.
-4. Expand integration coverage to verify the richer query payload while preserving the existing incremental-indexing behavior.
+1. Add a status command that reports repo-local index health, including index path, supported languages, and current file/symbol counts.
+2. Extend the SQLite layer with the aggregate queries needed for status output without disturbing the existing index and query flow.
+3. Refine indexing progress output so TTY and PowerShell runs stay readable during large repo scans.
+4. Expand integration coverage for the new status surface and the updated indexing output behavior where practical.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -66,4 +66,10 @@ Made the v1 README explicitly CLI-first and moved MCP out of scope for this slic
 Extended indexed symbol records and query results with line/column spans plus normalized snippets so agents get directly usable retrieval context.
 
 Added an index metadata version so older local indexes are invalidated and rebuilt automatically when retrieval payload shape changes.
+
+Added a CLI status command that reports repo-local index health, including paths, schema version, supported languages, and aggregate file/symbol counts.
+
+Refined index progress output so non-interactive runs log periodic snapshots instead of every file, while TTY runs keep a width-aware in-place progress line.
+
+Verified the new status command and repeated incremental index behavior against D:\Projects\co-ma; status reported 110 indexed files and 1769 symbols before the latest re-run, and the next index skipped 110 of 111 discovered files with clean snapshot output.
 <!-- SECTION:NOTES:END -->

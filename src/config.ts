@@ -16,7 +16,14 @@ export function appPath(root: string, ...segments: string[]): string {
   return join(root, APP_DIR, ...segments);
 }
 
-export function defaultConfig(root: string) {
+export type SymballistConfig = {
+  version: number;
+  root: string;
+  languages: Array<"python" | "html">;
+  createdAt: string;
+};
+
+export function defaultConfig(root: string): SymballistConfig {
   return {
     version: 1,
     root,

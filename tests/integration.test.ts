@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runIndex } from "../src/commands/index.ts";
 import { runInit } from "../src/commands/init.ts";
+import { runStatus } from "../src/commands/status.ts";
 import { openDatabase, searchSymbols } from "../src/db.ts";
 import { parseCliArgs } from "../src/cli.ts";
 
@@ -24,6 +25,22 @@ async function createFixtureRepo(): Promise<string> {
   await cp("fixtures/repos/mini-py-html", root, { recursive: true });
   await rm(join(root, ".symballist"), { recursive: true, force: true });
   return root;
+}
+
+async function captureConsoleLog(run: () => Promise<void>): Promise<string> {
+  const original = console.log;
+  const lines: string[] = [];
+  console.log = (...values: unknown[]) => {
+    lines.push(values.map((value) => String(value)).join(" "));
+  };
+
+  try {
+    await run();
+  } finally {
+    console.log = original;
+  }
+
+  return lines.join("\n");
 }
 
 describe("symballist vertical slice", () => {
@@ -94,6 +111,33 @@ describe("symballist vertical slice", () => {
     expect(stats.indexedFiles).toBe(1);
     expect(stats.skippedFiles).toBe(3);
     expect(results.some((result) => result.name === "slugify")).toBeTrue();
+  });
+
+  test("status reports repo-local index health", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const output = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(output) as {
+      initialized: boolean;
+      dbExists: boolean;
+      supportedLanguages: string[];
+      indexedFiles: number;
+      indexedSymbols: number;
+      fallbackSymbols: number;
+      indexedSchemaVersion: number | null;
+    };
+
+    expect(status.initialized).toBeTrue();
+    expect(status.dbExists).toBeTrue();
+    expect(status.supportedLanguages).toEqual(["html", "python"]);
+    expect(status.indexedFiles).toBe(4);
+    expect(status.indexedSymbols).toBe(9);
+    expect(status.fallbackSymbols).toBe(1);
+    expect(status.indexedSchemaVersion).toBeGreaterThan(0);
   });
 
   test("cli args accept an explicit root path", () => {
