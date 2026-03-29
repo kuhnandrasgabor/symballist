@@ -12,6 +12,10 @@ export type CliArgs = {
   root: string;
   limit: number;
   kinds: string[];
+  codeOnly: boolean;
+  docsOnly: boolean;
+  excludeTests: boolean;
+  preferImplementation: boolean;
   showName: string | null;
   positionals: string[];
   helpRequested: boolean;
@@ -28,7 +32,7 @@ Usage:
   symballist status [--root PATH]
   symballist show <id> [--root PATH]
   symballist show --name <symbol> [--root PATH]
-  symballist query "<text>" [--limit N|--top N] [--kind class,function] [--root PATH]
+  symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--root PATH]
 `);
 }
 
@@ -47,7 +51,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist show <id> [--root PATH]\n  symballist show --name <symbol> [--root PATH]");
       return;
     case "query":
-      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--root PATH]");
+      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--root PATH]");
       return;
     default:
       usage();
@@ -76,6 +80,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
   let root = cwd();
   let limit = 5;
   const kinds: string[] = [];
+  let codeOnly = false;
+  let docsOnly = false;
+  let excludeTests = false;
+  let preferImplementation = false;
   let showName: string | null = null;
   let helpRequested = false;
   let error: string | null = null;
@@ -88,6 +96,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       root,
       limit,
       kinds,
+      codeOnly,
+      docsOnly,
+      excludeTests,
+      preferImplementation,
       showName,
       positionals,
       helpRequested: false,
@@ -102,6 +114,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       root,
       limit,
       kinds,
+      codeOnly,
+      docsOnly,
+      excludeTests,
+      preferImplementation,
       showName,
       positionals,
       helpRequested: true,
@@ -151,6 +167,22 @@ export function parseCliArgs(argv: string[]): CliArgs {
       index += 1;
       continue;
     }
+    if (command === "query" && value === "--code-only") {
+      codeOnly = true;
+      continue;
+    }
+    if (command === "query" && value === "--docs-only") {
+      docsOnly = true;
+      continue;
+    }
+    if (command === "query" && value === "--exclude-tests") {
+      excludeTests = true;
+      continue;
+    }
+    if (command === "query" && value === "--prefer-implementation") {
+      preferImplementation = true;
+      continue;
+    }
     if (command === "show" && value === "--name") {
       const next = argv[index + 1];
       if (!next) {
@@ -168,11 +200,19 @@ export function parseCliArgs(argv: string[]): CliArgs {
     positionals.push(value);
   }
 
+  if (codeOnly && docsOnly) {
+    error = "Choose only one of --code-only or --docs-only.";
+  }
+
   return {
     command,
     root,
     limit,
     kinds,
+    codeOnly,
+    docsOnly,
+    excludeTests,
+    preferImplementation,
     showName,
     positionals,
     helpRequested,
@@ -213,7 +253,12 @@ export async function runCli(argv: string[]): Promise<void> {
     }
     case "query": {
       const query = parsed.positionals.join(" ");
-      await runQuery(parsed.root, query, parsed.limit, parsed.kinds);
+      await runQuery(parsed.root, query, parsed.limit, parsed.kinds, {
+        codeOnly: parsed.codeOnly,
+        docsOnly: parsed.docsOnly,
+        excludeTests: parsed.excludeTests,
+        preferImplementation: parsed.preferImplementation
+      });
       return;
     }
     case null:

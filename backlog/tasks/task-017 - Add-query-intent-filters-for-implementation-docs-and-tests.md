@@ -1,11 +1,12 @@
 ---
 id: TASK-017
 title: 'Add query intent filters for implementation, docs, and tests'
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-28 16:46'
 labels: []
 dependencies: []
+priority: high
 ---
 
 ## Description
@@ -28,3 +29,28 @@ Observed motivation:
 - later feedback confirmed that `--kind function,class` is already a very effective doc-noise guard in practice, which suggests a first-class `--code-only` or implementation-preferring shorthand could deliver a lot of value quickly
 - downstream testing also reinforced that the default experience is still somewhat noisy for new users even though the filtered experience is already strong
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented first-class query intent controls for code/docs/tests filtering and implementation bias.
+
+What changed
+- added query flags: `--code-only`, `--docs-only`, `--exclude-tests`, and `--prefer-implementation`
+- parser now validates that `--code-only` and `--docs-only` are not combined
+- search/rerank path now applies hard filtering for docs/tests when requested and a stronger `src/` vs test/import bias when `--prefer-implementation` is enabled
+- query output now includes the selected `intent` block so downstream agents can see which mode produced the results
+- updated README and adoption workflow docs with the new query controls
+
+Verification
+- `bun test` passes with 19 tests
+- live `co-ma` query for `"memory store"` with `--code-only --exclude-tests --prefer-implementation` returns only code results and suppresses test/doc noise
+- live `co-ma` query for `"architecture"` with `--docs-only` returns only Markdown results
+- live `co-ma` query for `"gateway config api live reload"` with `--code-only --exclude-tests` returns only code results
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added first-class query intent filters so users and agents can explicitly ask for code-only, docs-only, test-excluding, or implementation-leaning retrieval. This makes the stronger filtered experience available directly from the CLI instead of relying only on implicit ranking.
+<!-- SECTION:FINAL_SUMMARY:END -->

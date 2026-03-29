@@ -53,6 +53,12 @@ Typical agent flow:
 4. Run `show` on the best hit to inspect full context plus related symbols.
 5. Verify important conclusions in the underlying file.
 
+Useful query refinements:
+
+- use `--code-only --exclude-tests` when you want implementation-heavy results
+- add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references
+- use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes
+
 ## When Agents Should Use It
 
 Good triggers:

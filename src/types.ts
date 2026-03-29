@@ -70,6 +70,13 @@ export type SymbolLookupOptions = {
   kinds?: string[];
 };
 
+export type QueryIntentOptions = {
+  codeOnly?: boolean;
+  docsOnly?: boolean;
+  excludeTests?: boolean;
+  preferImplementation?: boolean;
+};
+
 export type RelationDetails = {
   kind: "imports" | "contained_in";
   targetPath: string | null;

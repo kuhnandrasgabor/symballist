@@ -11,6 +11,7 @@ import type {
   ResultConfidence,
   SymbolDetails,
   SymbolLookupOptions,
+  QueryIntentOptions,
   SymbolRecord,
   TrustLevel
 } from "./types.ts";
@@ -57,7 +58,7 @@ type RelationRow = {
 type SearchOptions = {
   kinds?: string[];
   rawQuery?: string;
-};
+} & QueryIntentOptions;
 type ExtractionDetails = {
   extraction: ExtractionKind;
   trustLevel: TrustLevel;
@@ -393,8 +394,31 @@ function isDocOrientedQuery(rawQuery: string): boolean {
   return terms.some((term) => DOC_ORIENTED_QUERY_TERMS.has(term));
 }
 
-function computePathAdjustment(row: SearchRow, rawQuery: string): number {
+function isTestPath(path: string): boolean {
+  const normalizedPath = path.toLowerCase().replace(/\\/g, "/");
+  return normalizedPath.startsWith("tests/") || normalizedPath.includes("/test");
+}
+
+function isDocRow(row: SearchRow): boolean {
+  return row.language === "markdown";
+}
+
+function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
+  if (options.docsOnly && !isDocRow(row)) {
+    return false;
+  }
+  if (options.codeOnly && isDocRow(row)) {
+    return false;
+  }
+  if (options.excludeTests && isTestPath(row.path)) {
+    return false;
+  }
+  return true;
+}
+
+function computePathAdjustment(row: SearchRow, rawQuery: string, options: SearchOptions): number {
   const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
+  const preferImplementation = options.preferImplementation === true;
 
   if (isDocOrientedQuery(rawQuery)) {
     if (normalizedPath.startsWith("docs/")) {
@@ -420,27 +444,31 @@ function computePathAdjustment(row: SearchRow, rawQuery: string): number {
   }
 
   if (row.kind === "import") {
+    if (preferImplementation) {
+      return normalizedPath.startsWith("src/") ? 2.1 : 2.6;
+    }
     return normalizedPath.startsWith("src/") ? 1.4 : 1.9;
   }
 
   if (normalizedPath.startsWith("src/")) {
-    return -1.1;
+    return preferImplementation ? -1.8 : -1.1;
   }
   if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
-    return 0.75;
+    return preferImplementation ? 1.25 : 0.75;
   }
 
   return 0;
 }
 
-function rerankResults(rows: SearchRow[], limit: number, rawQuery: string): QueryResult[] {
+function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, options: SearchOptions): QueryResult[] {
   return rows
+    .filter((row) => rowMatchesIntent(row, options))
     .map((row) => {
       const match = computeMatchAnalysis(row, rawQuery);
       const extraction = getExtractionDetails(row);
       const adjustedScore = row.rawScore
         + (KIND_SCORE_ADJUSTMENTS.get(row.kind) ?? 0)
-        + computePathAdjustment(row, rawQuery)
+        + computePathAdjustment(row, rawQuery, options)
         + match.adjustment;
       return {
         id: row.id,
@@ -681,7 +709,7 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
     LIMIT 50
   `).all(normalizedName, ...kinds) as SearchRow[];
 
-  const [best] = rerankResults(rows, 1, normalizedName);
+  const [best] = rerankResults(rows, 1, normalizedName, {});
   if (!best) {
     return null;
   }
@@ -768,7 +796,7 @@ export function searchSymbols(db: Database, query: string, limit: number, option
 
   const candidateLimit = Math.max(limit * 10, 100);
   const rows = statement.all(query, ...kinds, candidateLimit) as SearchRow[];
-  return rerankResults(rows, limit, options.rawQuery ?? query);
+  return rerankResults(rows, limit, options.rawQuery ?? query, options);
 }
 
 function extractImportRelations(statement: string, sourcePath: string, availablePaths: Set<string>): RelationDetails[] {
