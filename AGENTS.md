@@ -64,35 +64,24 @@ Keep the integration CLI-first, use `status -> index -> query -> show`, and trea
 <!-- SYMBALLIST RETRIEVAL START -->
 ## Symballist Retrieval
 
-Use `symballist` as a CLI-first read-only retrieval helper for this repo.
+Use the generated repo-local `symballist` tool definitions when your agent runtime can load them. Keep the repo-local CLI wrappers as the robust fallback.
 
-- Preferred local entrypoint:
+- Preferred tool-definition manifest:
+  - `.symballist\tools\symballist-tools.json`
+- Tooling guide:
+  - `.symballist\tools\README.md`
+- Preferred tools:
+  - `symballist_status`
+  - `symballist_refresh`
+  - `symballist_lookup`
+  - `symballist_query`
+  - `symballist_show`
+- CLI fallback entrypoint:
   - `.symballist\bin\symballist.cmd`
-- If `symballist` is installed globally or linked, that command name is also acceptable.
-- Check freshness first:
-  - `.symballist\bin\symballist.cmd status --root D:\Projects\symballist`
-- Use the `changeAwareness` block from `status` when you want a cheap answer to what changed since the last index or, in git repos, since `HEAD`.
-- Use the `embeddings` block from `status` when you want to know whether hybrid retrieval is configured and available for the active model.
-- If the index is stale, refresh it before relying on results:
-  - `.symballist\bin\symballist.cmd index --root D:\Projects\symballist`
-- If you want a one-shot freshness sweep that automatically reuses incremental indexing:
-  - `.symballist\bin\symballist.cmd watch --once --root D:\Projects\symballist`
-- Use lookup for the common `query -> top hit -> show` flow:
-  - `.symballist\bin\symballist.cmd lookup "<text>" --root D:\Projects\symballist`
-- If embeddings are enabled, inspect the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
-- Use `retrieval.hybrid`, `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` when you need to tell whether semantic retrieval actually contributed to a result or stayed in the background.
-- Use `graphSignals` when you need to understand whether one-hop file/import structure helped rerank nearby code results.
-- Use query for discovery:
-  - `.symballist\bin\symballist.cmd query "<text>" --root D:\Projects\symballist`
-  - Add `--code-only --exclude-tests` for implementation-heavy results.
-  - Add `--prefer-implementation` when broad code queries still lean toward wiring or references.
-  - Add `--docs-only` when you are explicitly looking for workflows, plans, or architecture notes.
-- Use show for full context and related symbols:
-  - `.symballist\bin\symballist.cmd show <id> --root D:\Projects\symballist`
-  - `.symballist\bin\symballist.cmd show --name <symbol> --root D:\Projects\symballist`
-  - `.symballist\bin\symballist.cmd show --name <symbol> --full --root D:\Projects\symballist`
-- Only run `.symballist\bin\symballist.cmd watch --interval-ms 2000 --root D:\Projects\symballist` when you explicitly want a foreground polling loop while you work.
-- Optional embeddings currently start with Ollama and are configured in `.symballist\config.json`.
+- Use `symballist_status` first or run `.symballist\bin\symballist.cmd status --root D:\Projects\symballist`.
+- If the repo is stale, use `symballist_refresh` or run `.symballist\bin\symballist.cmd watch --once --root D:\Projects\symballist`.
+- Prefer `symballist_lookup` for the common `query -> top hit -> show` flow.
+- Use `symballist_query` / `symballist_show` when you want more manual control, or use the equivalent CLI commands if tool loading is unavailable.
 - Treat `symballist` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 

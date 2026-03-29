@@ -8,6 +8,8 @@ export const LOGS_DIR = "logs";
 export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
 export const DEFAULT_OLLAMA_EMBED_MODEL = "all-minilm";
 
+export type SetupType = "cli" | "tool" | "hybrid";
+
 export const SUPPORTED_EXTENSIONS = new Map<string, "python" | "html" | "markdown">([
   [".py", "python"],
   [".html", "html"],
@@ -23,6 +25,7 @@ export function appPath(root: string, ...segments: string[]): string {
 export type SymballistConfig = {
   version: number;
   root: string;
+  setupType: SetupType;
   languages: Array<"python" | "html" | "markdown">;
   createdAt: string;
   embeddings: {
@@ -36,8 +39,9 @@ export type SymballistConfig = {
 
 export function defaultConfig(root: string): SymballistConfig {
   return {
-    version: 2,
+    version: 3,
     root,
+    setupType: "hybrid",
     languages: ["python", "html", "markdown"],
     createdAt: new Date().toISOString(),
     embeddings: {

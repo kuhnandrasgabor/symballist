@@ -8,6 +8,7 @@ import { runQuery } from "./commands/query.ts";
 import { runShow } from "./commands/show.ts";
 import { runStatus } from "./commands/status.ts";
 import { runWatch } from "./commands/watch.ts";
+import type { SetupType } from "./config.ts";
 
 export type CliArgs = {
   command: string | null;
@@ -24,6 +25,7 @@ export type CliArgs = {
   showFull: boolean;
   positionals: string[];
   helpRequested: boolean;
+  setupType: SetupType | null;
   error: string | null;
 };
 
@@ -32,7 +34,7 @@ function usage(): void {
 
 Usage:
   symballist --help
-  symballist init [--root PATH]
+  symballist init [--root PATH] [--setup-type cli|tool|hybrid]
   symballist index [--root PATH]
   symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
@@ -46,7 +48,7 @@ Usage:
 function commandUsage(command: string): void {
   switch (command) {
     case "init":
-      console.log("Usage:\n  symballist init [--root PATH]");
+      console.log("Usage:\n  symballist init [--root PATH] [--setup-type cli|tool|hybrid]");
       return;
     case "index":
       console.log("Usage:\n  symballist index [--root PATH]");
@@ -102,6 +104,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
   let showName: string | null = null;
   let showFull = false;
   let helpRequested = false;
+  let setupType: SetupType | null = null;
   let error: string | null = null;
   let command: string | null = null;
   const positionals: string[] = [];
@@ -122,6 +125,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       showFull,
       positionals,
       helpRequested: false,
+      setupType,
       error: null
     };
   }
@@ -143,6 +147,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       showFull,
       positionals,
       helpRequested: true,
+      setupType,
       error: null
     };
   }
@@ -162,6 +167,16 @@ export function parseCliArgs(argv: string[]): CliArgs {
         break;
       }
       root = next;
+      index += 1;
+      continue;
+    }
+    if (command === "init" && value === "--setup-type") {
+      const next = argv[index + 1];
+      if (!next || !["cli", "tool", "hybrid"].includes(next)) {
+        error = "Expected one of cli, tool, or hybrid after --setup-type.";
+        break;
+      }
+      setupType = next as SetupType;
       index += 1;
       continue;
     }
@@ -263,6 +278,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     showFull,
     positionals,
     helpRequested,
+    setupType,
     error
   };
 }
@@ -285,7 +301,7 @@ export async function runCli(argv: string[]): Promise<void> {
 
   switch (parsed.command) {
     case "init":
-      await runInit(parsed.root);
+      await runInit(parsed.root, parsed.setupType ?? undefined);
       return;
     case "index":
       await runIndex(parsed.root);

@@ -34,6 +34,7 @@ references:
   - TASK-024
   - TASK-025
   - TASK-026
+  - TASK-035
   - DRAFT-008
   - DRAFT-010
   - DRAFT-011
@@ -112,6 +113,7 @@ Retrieval quality and context
 Adoption and workflow
 - Done: downstream adoption workflow docs and reusable snippets.
 - Done: init bootstraps local .symballist/instructions assets, wrapper commands, and managed AGENTS.md / CLAUDE.md symballist retrieval blocks.
+- Done: init now supports `cli`, `tool`, and `hybrid` setup modes, persisting the chosen mode in config and generating repo-local tool-definition assets for tool-capable setups.
 - Done: init now ensures `.gitignore` contains `.symballist/` and prints a manual cleanup hint if that directory already appears to be Git-tracked.
 - Done: real dogfooding in co-ma confirms the tool is now genuinely useful for day-to-day discovery, especially for implementation-oriented queries.
 
@@ -161,6 +163,7 @@ Completed subtasks
 - TASK-024 canonical-doc preference and operational-doc suppression in docs-only retrieval.
 - TASK-025 lightweight file-level change awareness since index and git HEAD.
 - TASK-026 agent-facing `lookup` helper for the common query/show flow.
+- TASK-035 init setup modes for CLI-only, tool-first, and hybrid downstream integration.
 
 2026-03-29: Completed TASK-027. symballist watch now provides low-overhead repo-local automatic refresh via polling, with --once for a safe one-shot sweep and --interval-ms for foreground watch mode. This closes the first roadmap step and leaves optional local embeddings + hybrid retrieval as the next major slice.
 
@@ -179,4 +182,6 @@ Completed subtasks
 2026-03-29: Completed TASK-033. Captured the graph-aware retrieval path in docs/graph-aware-retrieval-roadmap.md and explicitly sequenced the future work as graph-aware reranking first, bounded one-hop expansion second, graph-backed context assembly third, and deeper graph-RAG exploration only after that.
 
 2026-03-29: Completed TASK-034. Added the first graph-aware retrieval slice via one-hop candidate agreement in the existing reranking path. Query and lookup results now expose graphSignals, and bounded same-file/import structure can influence ambiguous candidate ordering without needing deeper traversal.
+
+2026-03-29: Completed TASK-035. `symballist init` now supports explicit `--setup-type cli|tool|hybrid`, persists the selected integration mode in repo-local config, renders mode-specific managed guidance, and generates repo-local tool-definition assets under `.symballist/tools/` for tool-capable setups while keeping the CLI wrappers as the universal fallback.
 <!-- SECTION:NOTES:END -->
