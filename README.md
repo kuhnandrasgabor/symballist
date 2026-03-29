@@ -48,6 +48,20 @@ That exposes `symballist` from this checkout. If you do not want a global link, 
 bun run src/cli.ts --help
 ```
 
+## Project Management
+
+This repo is managed locally with `backlog.md` in `backlog/`.
+
+If you are exploring, contributing to, or continuing work in this project, prefer the local Backlog workflow instead of ad hoc notes or chat-only task tracking.
+
+Useful commands from the repo root:
+
+```powershell
+backlog overview
+backlog task list
+backlog draft list
+```
+
 ## Fastest Setup In A Target Repo
 
 The simplest way to try `symballist` on another local project is:
@@ -193,7 +207,7 @@ Enable them in `.symballist/config.json`:
     "enabled": true,
     "provider": "ollama",
     "baseUrl": "http://localhost:11434",
-    "model": "all-minilm",
+    "model": "nomic-embed-text:latest",
     "dimensions": null
   }
 }
@@ -222,7 +236,6 @@ Current behavior:
 
 For downstream projects that want to use `symballist` as a retrieval helper for Codex or Claude:
 
-- [Symballist Adoption Workflow](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md)
 - [Symballist Adoption Workflow](docs/agent-workflows/symballist-adoption.md)
 - [Downstream AGENTS Snippet](docs/snippets/downstream-agents-symballist.md)
 - [Downstream CLAUDE Snippet](docs/snippets/downstream-claude-symballist.md)
