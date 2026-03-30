@@ -524,6 +524,52 @@ describe("symballist vertical slice", () => {
     expect(payload.alternatives.some((entry) => entry.name === "Greeter")).toBeTrue();
   });
 
+  test("query, lookup, and show support compact output mode without repeated semantics blocks", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const queryPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "greet", 5, [], {}, { compact: true });
+    })) as {
+      resultSemantics?: unknown;
+      retrieval: {
+        mode: string;
+      };
+      results: Array<{ name: string }>;
+    };
+
+    const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "greet", 5, [], {}, { compact: true });
+    })) as {
+      resultSemantics?: unknown;
+      trustSemantics?: unknown;
+      selectedResult: { name: string } | null;
+      symbol: { name: string } | null;
+    };
+
+    const showPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "greet", { compact: true });
+    })) as {
+      trustSemantics?: unknown;
+      symbol: { name: string };
+      bodyPresentation: { mode: string };
+    };
+
+    expect(queryPayload.resultSemantics).toBeUndefined();
+    expect(queryPayload.retrieval.mode).toBe("lexical");
+    expect(queryPayload.results[0]?.name).toBe("greet");
+
+    expect(lookupPayload.resultSemantics).toBeUndefined();
+    expect(lookupPayload.trustSemantics).toBeUndefined();
+    expect(lookupPayload.selectedResult?.name).toBe("greet");
+    expect(lookupPayload.symbol?.name).toBe("greet");
+
+    expect(showPayload.trustSemantics).toBeUndefined();
+    expect(showPayload.symbol.name).toBe("greet");
+    expect(showPayload.bodyPresentation.mode).toBe("full");
+  });
+
   test("show summarizes very large symbol bodies by default and supports --full expansion", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });
@@ -1585,6 +1631,7 @@ describe("symballist vertical slice", () => {
   test("cli args support show by symbol name, query intent flags, and default to tighter query result counts", () => {
     const queryParsed = parseCliArgs(["query", "greet"]);
     expect(queryParsed.limit).toBe(5);
+    expect(queryParsed.compactOutput).toBeFalse();
     expect(queryParsed.codeOnly).toBeFalse();
     expect(queryParsed.docsOnly).toBeFalse();
 
@@ -1609,6 +1656,9 @@ describe("symballist vertical slice", () => {
     expect(lookupParsed.codeOnly).toBeTrue();
     expect(lookupParsed.showFull).toBeTrue();
 
+    const compactLookupParsed = parseCliArgs(["lookup", "greet", "--compact"]);
+    expect(compactLookupParsed.compactOutput).toBeTrue();
+
     const watchParsed = parseCliArgs(["watch", "--root", "D:/Projects/co-ma", "--interval-ms", "1500", "--once"]);
     expect(watchParsed.command).toBe("watch");
     expect(watchParsed.root).toBe("D:/Projects/co-ma");
@@ -1625,6 +1675,9 @@ describe("symballist vertical slice", () => {
 
     const showFullParsed = parseCliArgs(["show", "--name", "greet", "--full"]);
     expect(showFullParsed.showFull).toBeTrue();
+
+    const compactShowParsed = parseCliArgs(["show", "--name", "greet", "--compact"]);
+    expect(compactShowParsed.compactOutput).toBeTrue();
   });
 
   test("query help is handled as CLI help instead of query text", async () => {

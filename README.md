@@ -152,6 +152,8 @@ symballist watch --once --root <PROJECT_ROOT>
   - resolves an exact symbol name without needing an intermediate id
 - `symballist show --name <symbol> --full`
   - expands large bodies instead of returning the summarized default
+- `--compact`
+  - trims repeated legend and semantics blocks from `query`, `lookup`, and `show` for cheaper agent consumption
 
 ## Useful Query Controls
 
@@ -217,6 +219,8 @@ Important behavior:
   - whether semantic retrieval actually contributed
 - `graphSignals`
   - one-hop graph-aware reranking hints such as `same_file_cluster`, `imports_candidate`, and `imported_by_candidate`
+
+If you want a cheaper response for agent consumers, use `--compact` to keep the retrieval payload while omitting the repeated legend / semantics blocks.
 
 ## Optional Embeddings
 

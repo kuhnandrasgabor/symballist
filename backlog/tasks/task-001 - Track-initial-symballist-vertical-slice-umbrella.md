@@ -36,6 +36,7 @@ references:
   - TASK-026
   - TASK-035
   - TASK-036
+  - TASK-037
   - DRAFT-008
   - DRAFT-009
   - DRAFT-010
@@ -79,7 +80,7 @@ Current v1 shape:
 1. Keep TASK-001 as the umbrella/epic for the initial vertical slice rather than a detailed execution log.
 2. Treat completed slice work as closed subtasks: TASK-002 through TASK-026.
 3. Use drafts for follow-up polish and next-slice ideas discovered during dogfooding.
-4. Near-term roadmap after the vertical slice: DRAFT-014, then DRAFT-016, then DRAFT-015, then DRAFT-017, then DRAFT-019, then DRAFT-018.
+4. Near-term roadmap after the vertical slice: DRAFT-016, then DRAFT-015, then DRAFT-017, then DRAFT-019, then DRAFT-018.
 5. Longer-term roadmap after that: DRAFT-010, then DRAFT-011, then DRAFT-012.
 6. Exploratory follow-up beyond that: DRAFT-008 and DRAFT-009.
 <!-- SECTION:PLAN:END -->
@@ -124,6 +125,7 @@ Adoption and workflow
 - Done: init bootstraps local .symballist/instructions assets, wrapper commands, and managed AGENTS.md / CLAUDE.md symballist retrieval blocks.
 - Done: init now supports `cli`, `tool`, and `hybrid` setup modes, persisting the chosen mode in config and generating repo-local tool-definition assets for tool-capable setups.
 - Done: shell-aware onboarding now recommends the right local wrapper for PowerShell/cmd versus bash-like shells and surfaces that guidance in both docs and status output.
+- Done: compact mode can now remove repeated legend blocks from query, lookup, and show for cheaper agent consumption.
 - Done: init now ensures `.gitignore` contains `.symballist/` and prints a manual cleanup hint if that directory already appears to be Git-tracked.
 - Done: real dogfooding in co-ma confirms the tool is now genuinely useful for day-to-day discovery, especially for implementation-oriented queries.
 - Open polish area: compact agent output and conceptual retrieval quality still lag behind the stronger exact-symbol and docs-oriented workflows.
@@ -143,7 +145,6 @@ Priority order from latest live feedback
 - Done: TASK-024 preferred canonical docs and demoted duplicate operational docs in docs-only retrieval.
 - Done: TASK-025 added lightweight file-level change awareness since index and git HEAD.
 - Done: TASK-026 added a CLI-first agent-facing lookup helper on top of query/show.
-- New feedback follow-up: DRAFT-014 compact output mode for agent-facing symballist responses.
 - New feedback follow-up: DRAFT-016 stronger conceptual retention and implementation preference for fuzzy queries.
 - New feedback follow-up: DRAFT-015 explicit result quality and no-strong-match signaling.
 - New feedback follow-up: DRAFT-017 clearer lookup versus query descriptions and tool guidance.
@@ -182,6 +183,7 @@ Completed subtasks
 - TASK-026 agent-facing `lookup` helper for the common query/show flow.
 - TASK-035 init setup modes for CLI-only, tool-first, and hybrid downstream integration.
 - TASK-036 shell-aware onboarding and first-run invocation guidance.
+- TASK-037 compact output mode for agent-facing responses.
 
 2026-03-29: Completed TASK-027. symballist watch now provides low-overhead repo-local automatic refresh via polling, with --once for a safe one-shot sweep and --interval-ms for foreground watch mode. This closes the first roadmap step and leaves optional local embeddings + hybrid retrieval as the next major slice.
 
@@ -208,4 +210,6 @@ Completed subtasks
 2026-03-29: Completed TASK-036. Added shell-aware onboarding guidance for fresh sessions, including shell-specific local wrapper recommendations in generated docs/snippets, a machine-readable `shellGuidance` block in status output, and clearer init-time quick-start logging.
 
 2026-03-30 feedback intake: reinforced DRAFT-014 (compact output mode) and DRAFT-016 (conceptual retrieval retention and implementation preference), and added DRAFT-017 for clarifying lookup versus query behavior in descriptions/tool guidance, DRAFT-019 for resolving import relations to actionable target paths, and DRAFT-018 for more agent-friendly show body defaults and expansion behavior.
+
+2026-03-30: Completed TASK-037. Added `--compact` response mode for `query`, `lookup`, and `show`, preserving the core retrieval payload while omitting repeated legend/trust explanation blocks for cheaper agent consumption.
 <!-- SECTION:NOTES:END -->

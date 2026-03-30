@@ -14,6 +14,7 @@ export type CliArgs = {
   command: string | null;
   root: string;
   limit: number;
+  compactOutput: boolean;
   watchIntervalMs: number;
   watchOnce: boolean;
   kinds: string[];
@@ -38,10 +39,10 @@ Usage:
   symballist index [--root PATH]
   symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
-  symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--root PATH]
-  symballist show <id> [--full] [--root PATH]
-  symballist show --name <symbol> [--full] [--root PATH]
-  symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--root PATH]
+  symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]
+  symballist show <id> [--full] [--compact] [--root PATH]
+  symballist show --name <symbol> [--full] [--compact] [--root PATH]
+  symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--compact] [--root PATH]
 `);
 }
 
@@ -60,13 +61,13 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist status [--root PATH]");
       return;
     case "lookup":
-      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--root PATH]");
+      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]");
       return;
     case "show":
-      console.log("Usage:\n  symballist show <id> [--full] [--root PATH]\n  symballist show --name <symbol> [--full] [--root PATH]");
+      console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]");
       return;
     case "query":
-      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--root PATH]");
+      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--compact] [--root PATH]");
       return;
     default:
       usage();
@@ -94,6 +95,7 @@ function buildUnknownOptionError(command: string | null, option: string): string
 export function parseCliArgs(argv: string[]): CliArgs {
   let root = cwd();
   let limit = 5;
+  let compactOutput = false;
   let watchIntervalMs = 2000;
   let watchOnce = false;
   const kinds: string[] = [];
@@ -114,6 +116,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       command: null,
       root,
       limit,
+      compactOutput,
       watchIntervalMs,
       watchOnce,
       kinds,
@@ -136,6 +139,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       command: null,
       root,
       limit,
+      compactOutput,
       watchIntervalMs,
       watchOnce,
       kinds,
@@ -234,6 +238,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       preferImplementation = true;
       continue;
     }
+    if ((command === "query" || command === "lookup" || command === "show") && value === "--compact") {
+      compactOutput = true;
+      continue;
+    }
     if (command === "lookup" && value === "--full") {
       showFull = true;
       continue;
@@ -267,6 +275,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     command,
     root,
     limit,
+    compactOutput,
     watchIntervalMs,
     watchOnce,
     kinds,
@@ -323,14 +332,16 @@ export async function runCli(argv: string[]): Promise<void> {
         excludeTests: parsed.excludeTests,
         preferImplementation: parsed.preferImplementation
       }, {
-        full: parsed.showFull
+        full: parsed.showFull,
+        compact: parsed.compactOutput
       });
       return;
     }
     case "show": {
       const id = parsed.positionals[0] ?? "";
       await runShow(parsed.root, id, parsed.showName ?? undefined, {
-        full: parsed.showFull
+        full: parsed.showFull,
+        compact: parsed.compactOutput
       });
       return;
     }
@@ -341,6 +352,8 @@ export async function runCli(argv: string[]): Promise<void> {
         docsOnly: parsed.docsOnly,
         excludeTests: parsed.excludeTests,
         preferImplementation: parsed.preferImplementation
+      }, {
+        compact: parsed.compactOutput
       });
       return;
     }

@@ -9,7 +9,8 @@ export async function runQuery(
   rawQuery: string,
   limit: number,
   kinds: string[] = [],
-  intent: QueryIntentOptions = {}
+  intent: QueryIntentOptions = {},
+  options: { compact?: boolean } = {}
 ): Promise<void> {
   const normalizedQuery = rawQuery.trim().replace(/\s+/g, " ");
   if (!normalizedQuery) {
@@ -42,7 +43,7 @@ export async function runQuery(
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
   db.close();
 
-  console.log(JSON.stringify({
+  const payload = {
     query: rawQuery,
     kinds,
     intent,
@@ -56,7 +57,8 @@ export async function runQuery(
       },
       hybrid: queryEmbedding ? search.diagnostics : null
     },
-    resultSemantics: {
+    ...(options.compact === true ? {} : {
+      resultSemantics: {
       distance: "lower is better",
       confidenceOrder: ["exact", "strong", "related", "fallback"],
       trustLevels: ["high", "medium", "low"],
@@ -65,7 +67,10 @@ export async function runQuery(
       retrievalChannels: ["lexical", "concept_path", "semantic"],
       hybridContribution: "lexical_only means no semantic candidate was retained; semantic_only means the result came from embeddings without lexical admission; semantic_assisted means both channels admitted the result",
       graphSignals: "same_file_cluster, imports_candidate, and imported_by_candidate reflect one-hop graph-aware reranking signals from the current candidate neighborhood"
-    },
+      }
+    }),
     results: search.results
-  }, null, 2));
+  };
+
+  console.log(JSON.stringify(payload, null, 2));
 }

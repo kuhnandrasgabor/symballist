@@ -56,7 +56,7 @@ export async function runShow(
   root: string,
   rawId: string,
   rawName?: string,
-  options: { full?: boolean } = {}
+  options: { full?: boolean; compact?: boolean } = {}
 ): Promise<void> {
   const db = await openDatabase(root);
   let symbol = null;
@@ -84,11 +84,13 @@ export async function runShow(
 
   const body = summarizeBody(symbol.body, options.full === true);
 
-  console.log(JSON.stringify({
+  const payload = {
     indexFreshness,
-    trustSemantics: {
-      trustLevel: "extraction trust only; show resolves a symbol directly and does not recompute query-time retrieval trust"
-    },
+    ...(options.compact === true ? {} : {
+      trustSemantics: {
+        trustLevel: "extraction trust only; show resolves a symbol directly and does not recompute query-time retrieval trust"
+      }
+    }),
     symbol: {
       ...symbol,
       body: body.body
@@ -96,5 +98,7 @@ export async function runShow(
     bodyPresentation: body.presentation,
     relations,
     related
-  }, null, 2));
+  };
+
+  console.log(JSON.stringify(payload, null, 2));
 }
