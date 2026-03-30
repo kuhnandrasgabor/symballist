@@ -1,10 +1,10 @@
 ---
 id: TASK-039
 title: Document opt-in embeddings setup and hidden repo-local config
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-30 07:20'
-updated_date: '2026-03-30 07:20'
+updated_date: '2026-03-30 08:43'
 labels:
   - bug
 dependencies: []
@@ -19,7 +19,13 @@ Manual onboarding showed that `symballist init` works and only patches tracked f
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Install/onboarding docs explicitly state that embeddings are disabled by default after init
-- [ ] #2 Docs tell users to enable embeddings by editing .symballist/config.json in the target repo
-- [ ] #3 Docs call out that .symballist/ is gitignored so embedding-config changes will not show up in git diff
+- [x] #1 Install/onboarding docs explicitly state that embeddings are disabled by default after init
+- [x] #2 Docs tell users to enable embeddings by editing .symballist/config.json in the target repo
+- [x] #3 Docs call out that .symballist/ is gitignored so embedding-config changes will not show up in git diff
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Updated README onboarding and embeddings docs to state that embeddings are disabled by default after init, must be enabled in `.symballist/config.json`, and that `.symballist/` is gitignored so those config changes do not appear in git diff.
+<!-- SECTION:FINAL_SUMMARY:END -->

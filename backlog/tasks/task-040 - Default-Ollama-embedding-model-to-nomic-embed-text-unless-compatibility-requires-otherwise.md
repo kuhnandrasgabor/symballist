@@ -3,9 +3,10 @@ id: TASK-040
 title: >-
   Default Ollama embedding model to nomic-embed-text unless compatibility
   requires otherwise
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-30 07:24'
+updated_date: '2026-03-30 08:43'
 labels:
   - feature
 dependencies: []
@@ -20,7 +21,13 @@ Current init output defaults `.symballist/config.json` to `embeddings.model: all
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Init-generated config uses the intended default Ollama embedding model consistently
-- [ ] #2 README and onboarding docs match the actual generated default model
-- [ ] #3 If the default remains non-nomic, the docs explain the reason explicitly
+- [x] #1 Init-generated config uses the intended default Ollama embedding model consistently
+- [x] #2 README and onboarding docs match the actual generated default model
+- [x] #3 If the default remains non-nomic, the docs explain the reason explicitly
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Changed the default Ollama embedding model in config generation to `nomic-embed-text:latest` and aligned the README/onboarding docs with the generated default, removing the earlier `all-minilm` mismatch.
+<!-- SECTION:FINAL_SUMMARY:END -->
