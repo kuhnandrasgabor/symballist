@@ -94,14 +94,14 @@ Available setup types:
 
 If you are not using a linked global command, the repo-local wrappers are the portable fallback:
 
-```powershell
-.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
-```
-
-If you are in a bash-like shell, use the POSIX wrapper instead:
-
 ```bash
 ./.symballist/bin/symballist status --root <PROJECT_ROOT>
+```
+
+On Windows, use the cmd wrapper instead:
+
+```powershell
+.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
 ```
 
 If you are invoking `symballist` from outside the target repo root, pass `--root <PROJECT_ROOT>` explicitly.
