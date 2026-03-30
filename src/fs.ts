@@ -93,8 +93,8 @@ export async function writeConfig(root: string, config: SymballistConfig): Promi
   await writeFile(appPath(root, CONFIG_FILE), JSON.stringify(config, null, 2), { flag: "w" });
 }
 
-export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" }>> {
-  const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" }> = [];
+export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" | "javascript" | "typescript" }>> {
+  const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" | "javascript" | "typescript" }> = [];
 
   async function walk(current: string): Promise<void> {
     let entries;
