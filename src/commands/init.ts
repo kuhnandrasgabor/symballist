@@ -10,5 +10,6 @@ export async function runInit(root: string, setupType?: SetupType): Promise<void
   console.log(`Initialized symballist in ${root}`);
   console.log(`Setup type: ${config?.setupType ?? "hybrid"}`);
   console.log(`From the repo root, use this entrypoint for ${shellGuidance.detectedShell}: ${shellGuidance.recommendedEntrypoint}`);
+  console.log(`If you already ran bun link from this checkout, you can also just run: ${shellGuidance.linkedEntrypoint}`);
   console.log(`Quick start from the repo root: ${shellGuidance.recommendedCommands.status}`);
 }

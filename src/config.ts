@@ -6,7 +6,7 @@ export const DB_FILE = "index.db";
 export const CACHE_DIR = "cache";
 export const LOGS_DIR = "logs";
 export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
-export const DEFAULT_OLLAMA_EMBED_MODEL = "all-minilm";
+export const DEFAULT_OLLAMA_EMBED_MODEL = "nomic-embed-text:latest";
 
 export type SetupType = "cli" | "tool" | "hybrid";
 

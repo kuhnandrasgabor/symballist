@@ -297,29 +297,30 @@ function renderCliAgentsSnippet(): string {
 
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
+- If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
-- If \`symballist\` is installed globally or linked, that command name is also acceptable.
 - Check freshness first:
-  - \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\`
+  - \`symballist status\`
 - Use the \`changeAwareness\` block from \`status\` when you want a cheap answer to what changed since the last index or, in git repos, since \`HEAD\`.
 - Use the \`embeddings\` block from \`status\` when you want to know whether hybrid retrieval is configured and available for the active model.
 - If the index is stale, refresh it before relying on results:
-  - \`.symballist\\bin\\symballist.cmd index --root <PROJECT_ROOT>\`
+  - \`symballist index\`
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing:
-  - \`.symballist\\bin\\symballist.cmd watch --once --root <PROJECT_ROOT>\`
+  - \`symballist watch --once\`
 - Use lookup for the common \`query -> top hit -> show\` flow:
-  - \`.symballist\\bin\\symballist.cmd lookup "<text>" --root <PROJECT_ROOT>\`
+  - \`symballist lookup "<text>"\`
 - Use query for discovery:
-  - \`.symballist\\bin\\symballist.cmd query "<text>" --root <PROJECT_ROOT>\`
+  - \`symballist query "<text>"\`
   - Add \`--code-only --exclude-tests\` for implementation-heavy results.
   - Add \`--prefer-implementation\` when broad code queries still lean toward wiring or references.
   - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
 - Use show for full context and related symbols:
-  - \`.symballist\\bin\\symballist.cmd show <id> --root <PROJECT_ROOT>\`
-  - \`.symballist\\bin\\symballist.cmd show --name <symbol> --root <PROJECT_ROOT>\`
-  - \`.symballist\\bin\\symballist.cmd show --name <symbol> --full --root <PROJECT_ROOT>\`
+  - \`symballist show <id>\`
+  - \`symballist show --name <symbol>\`
+  - \`symballist show --name <symbol> --full\`
+- If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 
@@ -332,21 +333,22 @@ function renderCliClaudeSnippet(): string {
 
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
+- If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
-- If \`symballist\` is installed globally or linked, that command name is also acceptable.
-- Run \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\` before trusting older results.
-- If \`indexFreshness.stale\` is true, run \`.symballist\\bin\\symballist.cmd index --root <PROJECT_ROOT>\`.
-- If you want a one-shot freshness sweep that automatically reuses incremental indexing, run \`.symballist\\bin\\symballist.cmd watch --once --root <PROJECT_ROOT>\`.
-- Use \`.symballist\\bin\\symballist.cmd lookup "<text>" --root <PROJECT_ROOT>\` for the common \`query -> top hit -> show\` flow.
+- Run \`symballist status\` before trusting older results.
+- If \`indexFreshness.stale\` is true, run \`symballist index\`.
+- If you want a one-shot freshness sweep that automatically reuses incremental indexing, run \`symballist watch --once\`.
+- Use \`symballist lookup "<text>"\` for the common \`query -> top hit -> show\` flow.
 - Use \`query\` to discover relevant code or docs.
 - Add \`--code-only --exclude-tests\` for implementation-heavy results.
 - Add \`--prefer-implementation\` when broad code queries still lean toward wiring or references.
 - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
 - Use \`show\` to inspect a result with full body, spans, relations, and related symbols.
-- If you already know the symbol, use \`.symballist\\bin\\symballist.cmd show --name <symbol> --root <PROJECT_ROOT>\`.
-- If the symbol body is large, use \`.symballist\\bin\\symballist.cmd show --name <symbol> --full --root <PROJECT_ROOT>\`.
+- If you already know the symbol, use \`symballist show --name <symbol>\`.
+- If the symbol body is large, use \`symballist show --name <symbol> --full\`.
+- If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
 
@@ -369,6 +371,7 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
+- If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - Shell-specific CLI fallbacks:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
@@ -392,6 +395,7 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
+- If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - Shell-specific CLI fallbacks:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
@@ -423,13 +427,15 @@ Use the generated repo-local \`symballist\` tool definitions when your agent run
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
+- If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
-- Use \`symballist_status\` first or run \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\`.
-- If the repo is stale, use \`symballist_refresh\` or run \`.symballist\\bin\\symballist.cmd watch --once --root <PROJECT_ROOT>\`.
+- Use \`symballist_status\` first or run \`symballist status\`.
+- If the repo is stale, use \`symballist_refresh\` or run \`symballist watch --once\`.
 - Prefer \`symballist_lookup\` for the common \`query -> top hit -> show\` flow.
 - Use \`symballist_query\` / \`symballist_show\` when you want more manual control, or use the equivalent CLI commands if tool loading is unavailable.
+- If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 
@@ -444,13 +450,15 @@ Use the generated repo-local \`symballist\` tool definitions when your runtime c
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
+- If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
-- Start with \`symballist_status\` or \`.symballist\\bin\\symballist.cmd status --root <PROJECT_ROOT>\`.
-- Refresh stale indexes with \`symballist_refresh\` or \`.symballist\\bin\\symballist.cmd watch --once --root <PROJECT_ROOT>\`.
+- Start with \`symballist_status\` or \`symballist status\`.
+- Refresh stale indexes with \`symballist_refresh\` or \`symballist watch --once\`.
 - Prefer \`symballist_lookup\` for the common single-call discovery flow.
 - Use \`symballist_query\` and \`symballist_show\` when you need more manual inspection.
+- If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
 
@@ -478,7 +486,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
           properties: {},
           additionalProperties: false
         },
-        commandTemplate: [".symballist\\bin\\symballist.cmd", "status", "--root", "<PROJECT_ROOT>"]
+        commandTemplate: [".symballist\\bin\\symballist.cmd", "status"]
       },
       {
         name: "symballist_refresh",
@@ -488,7 +496,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
           properties: {},
           additionalProperties: false
         },
-        commandTemplate: [".symballist\\bin\\symballist.cmd", "watch", "--once", "--root", "<PROJECT_ROOT>"]
+        commandTemplate: [".symballist\\bin\\symballist.cmd", "watch", "--once"]
       },
       {
         name: "symballist_query",
@@ -510,7 +518,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
           required: ["text"],
           additionalProperties: false
         },
-        commandTemplate: [".symballist\\bin\\symballist.cmd", "query", "<text>", "--root", "<PROJECT_ROOT>"]
+        commandTemplate: [".symballist\\bin\\symballist.cmd", "query", "<text>"]
       },
       {
         name: "symballist_lookup",
@@ -533,7 +541,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
           required: ["text"],
           additionalProperties: false
         },
-        commandTemplate: [".symballist\\bin\\symballist.cmd", "lookup", "<text>", "--root", "<PROJECT_ROOT>"]
+        commandTemplate: [".symballist\\bin\\symballist.cmd", "lookup", "<text>"]
       },
       {
         name: "symballist_show",
@@ -547,7 +555,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
           },
           additionalProperties: false
         },
-        commandTemplate: [".symballist\\bin\\symballist.cmd", "show", "<id-or-name>", "--root", "<PROJECT_ROOT>"]
+        commandTemplate: [".symballist\\bin\\symballist.cmd", "show", "<id-or-name>"]
       }
     ]
   }, null, 2);
@@ -564,6 +572,7 @@ Recommended use:
 
 - load the generated tool definitions into your agent runtime if it supports repo-local tools
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
+- if this checkout was linked with \`bun link\`, the plain \`symballist\` command is the simplest manual fallback from the target repo root
 - keep shell-appropriate CLI wrappers as the execution backend and universal fallback
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`

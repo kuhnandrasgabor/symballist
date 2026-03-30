@@ -39,6 +39,18 @@ From the repo root:
 bun install
 ```
 
+If Bun reports blocked lifecycle scripts for the tree-sitter packages, inspect them with:
+
+```powershell
+bun pm untrusted
+```
+
+If you trust those packages, run:
+
+```powershell
+bun pm trust tree-sitter tree-sitter-html tree-sitter-python
+```
+
 If you want a globally callable command while developing locally:
 
 ```powershell
@@ -51,28 +63,14 @@ That exposes `symballist` from this checkout. If you do not want a global link, 
 bun run src/cli.ts --help
 ```
 
-## Project Management
-
-This repo is managed locally with `backlog.md` in `backlog/`.
-
-If you are exploring, contributing to, or continuing work in this project, prefer the local Backlog workflow instead of ad hoc notes or chat-only task tracking.
-
-Useful commands from the repo root:
-
-```powershell
-backlog overview
-backlog task list
-backlog draft list
-```
-
 ## Fastest Setup In A Target Repo
 
-The simplest way to try `symballist` on another local project is:
+If you already ran `bun link` from this checkout, the simplest way to try `symballist` on another local project is from that target repo root:
 
 ```powershell
-symballist init --root <PROJECT_ROOT> --setup-type hybrid
-symballist index --root <PROJECT_ROOT>
-symballist lookup "your query here" --root <PROJECT_ROOT>
+symballist init --setup-type hybrid
+symballist index
+symballist lookup "your query here"
 ```
 
 After `init`, the target repo gets:
@@ -94,7 +92,7 @@ Available setup types:
 - `cli`
   - skips tool-definition assets and keeps the integration CLI-only
 
-If you prefer the repo-local wrapper instead of a linked global command:
+If you are not using a linked global command, the repo-local wrappers are the portable fallback:
 
 ```powershell
 .symballist\bin\symballist.cmd status --root <PROJECT_ROOT>
@@ -106,27 +104,28 @@ If you are in a bash-like shell, use the POSIX wrapper instead:
 ./.symballist/bin/symballist status --root <PROJECT_ROOT>
 ```
 
+If you are invoking `symballist` from outside the target repo root, pass `--root <PROJECT_ROOT>` explicitly.
+
 ## 60-Second Workflow
 
-Typical usage looks like this:
+Once `init` and `index` have completed successfully, setup is effectively done. Typical day-to-day usage from the target repo root looks like this:
 
 ```powershell
-symballist status --root <PROJECT_ROOT>
-symballist index --root <PROJECT_ROOT>
-symballist lookup "memory store" --root <PROJECT_ROOT>
-symballist show --name MemoryStore --root <PROJECT_ROOT>
+symballist status
+symballist lookup "memory store"
+symballist show --name MemoryStore
 ```
 
-Or, if you want a foreground auto-refresh loop while you work:
+If you are actively developing and want the index to stay warm, run a foreground watch loop while you work:
 
 ```powershell
-symballist watch --interval-ms 2000 --root <PROJECT_ROOT>
+symballist watch --interval-ms 2000
 ```
 
 For agents, `watch --once` is usually the safer automatic-refresh step:
 
 ```powershell
-symballist watch --once --root <PROJECT_ROOT>
+symballist watch --once
 ```
 
 ## Core Commands
@@ -226,7 +225,7 @@ If you want a cheaper response for agent consumers, use `--compact` to keep the 
 
 Embeddings are opt-in and local-first. Current provider support starts with Ollama.
 
-Enable them in `.symballist/config.json`:
+They are disabled by default after `init`. Enable them by editing `.symballist/config.json` in the target repo:
 
 ```json
 {
@@ -239,6 +238,8 @@ Enable them in `.symballist/config.json`:
   }
 }
 ```
+
+Because `.symballist/` is gitignored, config changes here will not appear in `git diff`.
 
 Current behavior:
 
@@ -274,6 +275,20 @@ The intended downstream posture is:
 - read-only helper
 - verify freshness before trusting results
 - fall back to normal file reads/search when needed
+
+## Project Management
+
+This repo is managed locally with `backlog.md` in `backlog/`.
+
+If you are exploring, contributing to, or continuing work in this project, prefer the local Backlog workflow instead of ad hoc notes or chat-only task tracking.
+
+Useful commands from the repo root:
+
+```powershell
+backlog overview
+backlog task list
+backlog draft list
+```
 
 ## Scope
 
