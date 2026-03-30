@@ -1,10 +1,10 @@
 ---
 id: TASK-041
 title: Rework README quickstart to prioritize linked global symballist usage
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-30 07:24'
-updated_date: '2026-03-30 07:31'
+updated_date: '2026-03-30 08:43'
 labels:
   - bug
 dependencies: []
@@ -19,10 +19,10 @@ Manual onboarding on macOS showed that after running `bun link`, downstream usag
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 README install/quickstart sections clearly distinguish the linked global command flow from the repo-local wrapper flow
-- [ ] #2 The more explicit path-heavy and --root-based forms remain documented as fallback/reference guidance
-- [ ] #3 The primary quickstart examples use the simpler linked command style when bun link has been completed
-- [ ] #4 Quickstart/onboarding docs tell users when setup is effectively complete and suggest an optional watch loop for active development
+- [x] #1 README install/quickstart sections clearly distinguish the linked global command flow from the repo-local wrapper flow
+- [x] #2 The more explicit path-heavy and --root-based forms remain documented as fallback/reference guidance
+- [x] #3 The primary quickstart examples use the simpler linked command style when bun link has been completed
+- [x] #4 Quickstart/onboarding docs tell users when setup is effectively complete and suggest an optional watch loop for active development
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -34,3 +34,9 @@ Additional onboarding feedback from manual macOS run:
 - Suggest an optional foreground watch loop for active work, around a 2-5 second interval, as the low-friction keep-fresh path once tools/skills are wired up.
 - Positive signal: lookup and status both behaved well in the target repo during manual testing.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Reworked README quickstart/onboarding to prioritize linked `symballist` usage from the target repo root, keep `--root <PROJECT_ROOT>` and repo-local wrappers as fallback/reference guidance, move Project Management later in the README, and clarify that setup is effectively complete after init/index with optional watch guidance for active development.
+<!-- SECTION:FINAL_SUMMARY:END -->
