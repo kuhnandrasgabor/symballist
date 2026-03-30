@@ -96,6 +96,7 @@ Typical agent flow:
 10. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
 11. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import structure contributed to reranking.
 12. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
+13. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
 
 Useful query refinements:
 
