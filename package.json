@@ -14,5 +14,10 @@
     "tree-sitter": "^0.21.1",
     "tree-sitter-html": "^0.23.2",
     "tree-sitter-python": "^0.21.0"
-  }
+  },
+  "trustedDependencies": [
+    "tree-sitter",
+    "tree-sitter-html",
+    "tree-sitter-python"
+  ]
 }
