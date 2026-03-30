@@ -3,6 +3,7 @@ export type ShellFlavor = "powershell" | "cmd" | "posix" | "unknown";
 export type ShellGuidance = {
   detectedShell: ShellFlavor;
   recommendedEntrypoint: string;
+  linkedEntrypoint: string;
   alternativeEntrypoints: {
     cmd: string;
     powershell: string;
@@ -73,15 +74,16 @@ export function getShellGuidance(
   return {
     detectedShell,
     recommendedEntrypoint,
+    linkedEntrypoint: "symballist",
     alternativeEntrypoints: {
       cmd: cmdEntrypoint,
       powershell: powershellEntrypoint,
       posix: posixEntrypoint
     },
     recommendedCommands: {
-      status: `${recommendedEntrypoint} status --root ${root}`,
-      watchOnce: `${recommendedEntrypoint} watch --once --root ${root}`,
-      lookup: `${recommendedEntrypoint} lookup "<text>" --root ${root}`
+      status: `${recommendedEntrypoint} status`,
+      watchOnce: `${recommendedEntrypoint} watch --once`,
+      lookup: `${recommendedEntrypoint} lookup "<text>"`
     }
   };
 }

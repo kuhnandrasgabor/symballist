@@ -52,6 +52,10 @@ async function captureConsoleLog(run: () => Promise<void>): Promise<string> {
   return lines.join("\n");
 }
 
+function normalizeRepoPath(value: string | null | undefined): string | null | undefined {
+  return value?.replace(/\\/g, "/");
+}
+
 async function withMockFetch<T>(
   handler: (url: string, init?: RequestInit) => Promise<Response>,
   run: () => Promise<T>
@@ -118,12 +122,12 @@ describe("symballist vertical slice", () => {
     expect(agentsText).toContain("./.symballist/bin/symballist");
     expect(claudeText).toContain("./.symballist/bin/symballist");
     expect(localAgentsSnippet).toContain("symballist_lookup");
-    expect(localAgentsSnippet).toContain(`.symballist\\bin\\symballist.cmd status --root ${root}`);
-    expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd index --root ${root}`);
-    expect(localGuide).toContain(`.symballist\\bin\\symballist.cmd lookup "<text>" --root ${root}`);
+    expect(localAgentsSnippet).toContain("symballist status");
+    expect(localGuide).toContain("symballist watch --once");
+    expect(localGuide).toContain('symballist lookup "<text>"');
     expect(localGuide).toContain("setup-type hybrid");
     expect(toolManifest).toContain("\"name\": \"symballist_lookup\"");
-    expect(wrapperCmd).toContain('bun "D:\\Projects\\symballist\\src\\cli.ts" %*');
+    expect(wrapperCmd).toContain('src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
     expect(gitignore).toContain(".symballist/");
@@ -164,7 +168,7 @@ describe("symballist vertical slice", () => {
     const cliAgents = await readFile(join(cliRoot, "AGENTS.md"), "utf8");
     expect(cliConfig?.setupType).toBe("cli");
     expect(await Bun.file(join(cliRoot, ".symballist", "tools", "symballist-tools.json")).exists()).toBeFalse();
-    expect(cliAgents).toContain(`.symballist\\bin\\symballist.cmd status --root ${cliRoot}`);
+    expect(cliAgents).toContain("symballist status");
     expect(cliAgents).not.toContain(".symballist\\tools\\symballist-tools.json");
 
     const toolRoot = await createFixtureRepo();
@@ -191,7 +195,7 @@ describe("symballist vertical slice", () => {
     });
     expect(posixGuidance.detectedShell).toBe("posix");
     expect(posixGuidance.recommendedEntrypoint).toBe("./.symballist/bin/symballist");
-    expect(posixGuidance.recommendedCommands.status).toContain("./.symballist/bin/symballist status --root D:/Projects/co-ma");
+    expect(posixGuidance.recommendedCommands.status).toBe("./.symballist/bin/symballist status");
 
     const cmdGuidance = getShellGuidance("D:/Projects/co-ma", {
       env: { ComSpec: "C:\\Windows\\System32\\cmd.exe" },
@@ -380,7 +384,7 @@ describe("symballist vertical slice", () => {
     expect(status.changeAwareness.sinceIndex.newFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.deletedFiles).toBe(0);
     expect(status.shellGuidance.recommendedEntrypoint.length).toBeGreaterThan(0);
-    expect(status.shellGuidance.recommendedCommands.status).toContain("status --root");
+    expect(status.shellGuidance.recommendedCommands.status).toContain("status");
   });
 
   test("show resolves a queried symbol id into full stored context", async () => {
@@ -718,7 +722,7 @@ describe("symballist vertical slice", () => {
 
     expect(results[0]?.kind).toBe("class");
     expect(results[0]?.name).toBe("DistillationEngine");
-    expect(results[0]?.path).toBe("src\\distiller.py");
+    expect(normalizeRepoPath(results[0]?.path)).toBe("src/distiller.py");
     expect(results[0]?.confidence).toBe("exact");
     expect(results[0]?.matchReason).toBe("exact_symbol_name");
     expect(results.some((result) => result.name === "distillation_engine")).toBeTrue();
@@ -757,9 +761,9 @@ describe("symballist vertical slice", () => {
     const architectureResults = searchSymbols(db, buildFtsQuery("architecture"), 5, { rawQuery: "architecture" });
     db.close();
 
-    expect(memoryResults[0]?.path).toBe("src\\memory.py");
+    expect(normalizeRepoPath(memoryResults[0]?.path)).toBe("src/memory.py");
     expect(memoryResults[0]?.language).toBe("python");
-    expect(memoryResults.some((result) => result.path === "tests\\test_memory.py")).toBeTrue();
+    expect(memoryResults.some((result) => normalizeRepoPath(result.path) === "tests/test_memory.py")).toBeTrue();
     expect(architectureResults[0]?.path).toBe("architecture.md");
     expect(architectureResults[0]?.language).toBe("markdown");
   });
@@ -793,12 +797,12 @@ describe("symballist vertical slice", () => {
     });
     db.close();
 
-    expect(results[0]?.path).toBe("src\\distiller.py");
+    expect(normalizeRepoPath(results[0]?.path)).toBe("src/distiller.py");
     expect(results[0]?.name).toBe("DistillationEngine");
     expect(results[0]?.kind).toBe("class");
     expect(results[0]?.matchReason).toBe("path_concept");
     expect(results[0]?.confidence).toBe("strong");
-    expect(results.some((result) => result.path === "tests\\test_distiller.py")).toBeTrue();
+    expect(results.some((result) => normalizeRepoPath(result.path) === "tests/test_distiller.py")).toBeTrue();
   });
 
   test("query-time trust and match reasons stay meaningful for recovered exact hits and loose token matches", async () => {
@@ -951,9 +955,9 @@ describe("symballist vertical slice", () => {
     expect(codeOnly.every((result) => result.language !== "markdown")).toBeTrue();
     expect(docsOnly.length).toBeGreaterThan(0);
     expect(docsOnly.every((result) => result.language === "markdown")).toBeTrue();
-    expect(excludeTests.every((result) => !result.path.startsWith("tests\\"))).toBeTrue();
+    expect(excludeTests.every((result) => !normalizeRepoPath(result.path)?.startsWith("tests/"))).toBeTrue();
     expect(preferImplementation.every((result) => result.language !== "markdown")).toBeTrue();
-    expect(preferImplementation[0]?.path).toBe("src\\memory_store.py");
+    expect(normalizeRepoPath(preferImplementation[0]?.path)).toBe("src/memory_store.py");
 
     const payload = JSON.parse(await captureConsoleLog(async () => {
       await runQuery(root, "memory store", 5, [], {
@@ -969,7 +973,7 @@ describe("symballist vertical slice", () => {
     };
 
     expect(payload.intent.preferImplementation).toBeTrue();
-    expect(payload.results[0]?.path).toBe("src\\memory_store.py");
+    expect(normalizeRepoPath(payload.results[0]?.path)).toBe("src/memory_store.py");
     expect(payload.results.every((result) => !result.path.endsWith(".md"))).toBeTrue();
   });
 
@@ -1015,7 +1019,7 @@ describe("symballist vertical slice", () => {
 
     expect(docsOnly.length).toBeGreaterThan(0);
     expect(docsOnly.every((result) => result.language === "markdown")).toBeTrue();
-    expect(docsOnly[0]?.path).toBe("docs\\memory-management.md");
+    expect(normalizeRepoPath(docsOnly[0]?.path)).toBe("docs/memory-management.md");
     expect(docsOnly.slice(0, 2).some((result) => result.path === "README.md")).toBeTrue();
     expect(docsOnly.slice(0, 2).every((result) => !["AGENTS.md", "CLAUDE.md"].includes(result.path))).toBeTrue();
 
@@ -1034,7 +1038,7 @@ describe("symballist vertical slice", () => {
     };
 
     expect(payload.intent.docsOnly).toBeTrue();
-    expect(payload.results[0]?.path).toBe("docs\\memory-management.md");
+    expect(normalizeRepoPath(payload.results[0]?.path)).toBe("docs/memory-management.md");
     expect(payload.results.every((result) => result.language === "markdown")).toBeTrue();
     expect(payload.results.slice(0, 2).every((result) => !["AGENTS.md", "CLAUDE.md"].includes(result.path))).toBeTrue();
   });
@@ -1068,7 +1072,7 @@ describe("symballist vertical slice", () => {
     db.close();
 
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0]?.path).toBe("docs\\memory-management.md");
+    expect(normalizeRepoPath(results[0]?.path)).toBe("docs/memory-management.md");
     expect(results.slice(0, 5).filter((result) => ["AGENTS.md", "CLAUDE.md"].includes(result.path)).length).toBeLessThanOrEqual(1);
   });
 
@@ -1106,7 +1110,7 @@ describe("symballist vertical slice", () => {
 
     expect(defaultResults.some((result) => result.language === "markdown")).toBeTrue();
     expect(preferResults.every((result) => result.language !== "markdown")).toBeTrue();
-    expect(preferResults[0]?.path.startsWith("src\\")).toBeTrue();
+    expect(normalizeRepoPath(preferResults[0]?.path)?.startsWith("src/")).toBeTrue();
   });
 
   test("graph-aware reranking promotes import-connected implementation neighborhoods", async () => {
@@ -1138,10 +1142,10 @@ describe("symballist vertical slice", () => {
     db.close();
 
     expect(results.length).toBeGreaterThanOrEqual(3);
-    expect(results[0]?.path).toBe("src\\bootstrap.py");
-    expect(results[1]?.path).toBe("src\\store.py");
+    expect(normalizeRepoPath(results[0]?.path)).toBe("src/bootstrap.py");
+    expect(normalizeRepoPath(results[1]?.path)).toBe("src/store.py");
     expect(results[1]?.graphSignals).toContain("imported_by_candidate");
-    expect(results.findIndex((result) => result.path === "src\\store.py")).toBeLessThan(results.findIndex((result) => result.path === "src\\notes.py"));
+    expect(results.findIndex((result) => normalizeRepoPath(result.path) === "src/store.py")).toBeLessThan(results.findIndex((result) => normalizeRepoPath(result.path) === "src/notes.py"));
   });
 
   test("status and query report stale indexes after source changes", async () => {
@@ -1559,7 +1563,7 @@ describe("symballist vertical slice", () => {
       expect(output.retrieval.hybrid?.semanticCandidatesRetained).toBeGreaterThan(0);
       expect(output.retrieval.hybrid?.topResultHasSemanticSignal).toBeTrue();
       expect(output.results[0]?.name).toBe("MemoryStore");
-      expect(output.results[0]?.path).toBe("src\\memory_store.py");
+      expect(normalizeRepoPath(output.results[0]?.path)).toBe("src/memory_store.py");
       expect(output.results[0]?.retrievalChannels).toContain("semantic");
       expect(["semantic_only", "semantic_assisted"]).toContain(output.results[0]?.hybridContribution ?? "");
       expect(output.results[0]?.semanticSimilarity).toBeGreaterThan(0.8);
@@ -1568,7 +1572,7 @@ describe("symballist vertical slice", () => {
 
   test("embedding payloads are truncated for very large symbol bodies", () => {
     const text = buildEmbeddingText({
-      path: "src\\memory_store.py",
+      path: "src/memory_store.py",
       language: "python",
       kind: "class",
       name: "MemoryStore",
