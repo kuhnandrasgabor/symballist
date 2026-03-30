@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-29 16:45'
+updated_date: '2026-03-30 07:43'
 labels: []
 dependencies: []
 references:
@@ -212,4 +212,11 @@ Completed subtasks
 2026-03-30 feedback intake: reinforced DRAFT-014 (compact output mode) and DRAFT-016 (conceptual retrieval retention and implementation preference), and added DRAFT-017 for clarifying lookup versus query behavior in descriptions/tool guidance, DRAFT-019 for resolving import relations to actionable target paths, and DRAFT-018 for more agent-friendly show body defaults and expansion behavior.
 
 2026-03-30: Completed TASK-037. Added `--compact` response mode for `query`, `lookup`, and `show`, preserving the core retrieval payload while omitting repeated legend/trust explanation blocks for cheaper agent consumption.
+
+External usage feedback from Claude Sonnet during downstream testing:
+- Symballist is useful as a first-pass codebase navigation tool before direct grep/glob or file reads.
+- Especially valuable for finding Python classes/functions by name or concept, then verifying in source.
+- Hybrid mode produced a strong positive hit for a grade-normalization query (`parse_grade_string`) without the exact symbol name, which validates semantic retrieval value for concept queries.
+- Source-filtered querying also surfaced the expected function (`fetch_chunk_nodes`) for the tested concept.
+- The non-authoritative guidance is landing correctly: use symballist to narrow search, then read the actual file before changing code.
 <!-- SECTION:NOTES:END -->
