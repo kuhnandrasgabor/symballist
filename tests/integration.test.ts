@@ -281,6 +281,75 @@ describe("symballist vertical slice", () => {
     expect(markdownHeading?.snippet).toContain("backlog CLI");
   });
 
+  test("indexes JavaScript and TypeScript symbols and reports those languages in status", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "web.js"),
+      [
+        "export class Greeter {",
+        "  greet(name) {",
+        "    return name;",
+        "  }",
+        "}",
+        "",
+        "export function slugify(value) {",
+        "  return value.toLowerCase();",
+        "}",
+        "",
+        "export const buildWidget = (label) => label;"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "agent.ts"),
+      [
+        "export interface AgentConfig {",
+        "  name: string;",
+        "}",
+        "",
+        "export type AgentId = string;",
+        "",
+        "export enum Mode {",
+        "  Fast,",
+        "  Safe",
+        "}",
+        "",
+        "export const createAgent = (name: string): AgentConfig => ({ name });"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    const stats = await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const greeterResults = searchSymbols(db, buildFtsQuery("Greeter"), 5, { rawQuery: "Greeter" });
+    const agentConfigResults = searchSymbols(db, buildFtsQuery("AgentConfig"), 5, { rawQuery: "AgentConfig" });
+    const createAgentResults = searchSymbols(db, buildFtsQuery("createAgent"), 5, { rawQuery: "createAgent" });
+    const greetResults = searchSymbols(db, buildFtsQuery("greet"), 5, { rawQuery: "greet" });
+    db.close();
+
+    expect(stats.discoveredFiles).toBe(9);
+    expect(greeterResults[0]?.language).toBe("javascript");
+    expect(normalizeRepoPath(greeterResults[0]?.path)).toBe("src/web.js");
+    expect(greeterResults[0]?.kind).toBe("class");
+    expect(agentConfigResults[0]?.language).toBe("typescript");
+    expect(normalizeRepoPath(agentConfigResults[0]?.path)).toBe("src/agent.ts");
+    expect(agentConfigResults[0]?.kind).toBe("interface");
+    expect(createAgentResults[0]?.kind).toBe("function");
+    expect(greetResults.some((result) => result.kind === "method")).toBeTrue();
+
+    const status = JSON.parse(await captureConsoleLog(async () => {
+      await runStatus(root);
+    })) as {
+      supportedLanguages: string[];
+    };
+
+    expect(status.supportedLanguages).toContain("javascript");
+    expect(status.supportedLanguages).toContain("typescript");
+  });
+
   test("repeated index runs skip unchanged files", async () => {
     const root = await createFixtureRepo();
     await runInit(root);

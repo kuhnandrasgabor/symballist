@@ -1,4 +1,5 @@
 import { extractHtmlSymbols } from "./html.ts";
+import { extractJavaScriptSymbols, extractTypeScriptSymbols } from "./javascript.ts";
 import { extractMarkdownSymbols } from "./markdown.ts";
 import { extractPythonSymbols } from "./python.ts";
 import type { SupportedLanguage, SymbolRecord } from "../types.ts";
@@ -23,6 +24,10 @@ export function extractSymbols(path: string, language: SupportedLanguage, source
       return extractHtmlSymbols(path, source);
     case "markdown":
       return extractMarkdownSymbols(path, source);
+    case "javascript":
+      return extractJavaScriptSymbols(path, source);
+    case "typescript":
+      return extractTypeScriptSymbols(path, source);
     default:
       return [
         {
