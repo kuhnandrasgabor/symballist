@@ -299,8 +299,8 @@ Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
-  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Check freshness first:
   - \`symballist status\`
 - Use the \`changeAwareness\` block from \`status\` when you want a cheap answer to what changed since the last index or, in git repos, since \`HEAD\`.
@@ -335,8 +335,8 @@ Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
-  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Run \`symballist status\` before trusting older results.
 - If \`indexFreshness.stale\` is true, run \`symballist index\`.
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing, run \`symballist watch --once\`.
@@ -373,8 +373,8 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
   - \`symballist_show\`
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - Shell-specific CLI fallbacks:
-  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Use \`symballist_status\` first to inspect freshness, change awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` before relying on retrieval output.
 - Prefer \`symballist_lookup\` for the common \`query -> top hit -> show\` flow.
@@ -397,8 +397,8 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
 - Tooling guide: \`.symballist\\tools\\README.md\`
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - Shell-specific CLI fallbacks:
-  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Start with \`symballist_status\` to check freshness and embeddings state.
 - Use \`symballist_refresh\` when the repo is stale.
 - Use \`symballist_lookup\` for the common single-call discovery flow.
@@ -429,8 +429,8 @@ Use the generated repo-local \`symballist\` tool definitions when your agent run
   - \`symballist_show\`
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
-  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Use \`symballist_status\` first or run \`symballist status\`.
 - If the repo is stale, use \`symballist_refresh\` or run \`symballist watch --once\`.
 - Prefer \`symballist_lookup\` for the common \`query -> top hit -> show\` flow.
@@ -452,8 +452,8 @@ Use the generated repo-local \`symballist\` tool definitions when your runtime c
 - Tooling guide: \`.symballist\\tools\\README.md\`
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
-  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Start with \`symballist_status\` or \`symballist status\`.
 - Refresh stale indexes with \`symballist_refresh\` or \`symballist watch --once\`.
 - Prefer \`symballist_lookup\` for the common single-call discovery flow.
@@ -574,8 +574,8 @@ Recommended use:
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
 - if this checkout was linked with \`bun link\`, the plain \`symballist\` command is the simplest manual fallback from the target repo root
 - keep shell-appropriate CLI wrappers as the execution backend and universal fallback
-  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
+  - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 
 These definitions are intentionally vendor-neutral. They are meant to be adapted to Anthropic, OpenAI, or other local tool-loading flows without removing the CLI fallback path.
 `;
