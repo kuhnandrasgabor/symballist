@@ -183,6 +183,7 @@ export type QueryIntentOptions = {
   codeOnly?: boolean;
   docsOnly?: boolean;
   excludeTests?: boolean;
+  excludePaths?: string[];
   preferImplementation?: boolean;
 };
 

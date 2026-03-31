@@ -231,6 +231,8 @@ Recommended query styles by goal:
   - `symballist lookup "WorkspaceManager"`
 - fuzzy implementation concept:
   - `symballist query "workspace switching flow" --code-only --exclude-tests --prefer-implementation`
+- noisy legacy or deprecated zones:
+  - `symballist query "memory store" --code-only --prefer-implementation --exclude-path _deprecated --exclude-path legacy`
 - graph traversal from a known symbol:
   - `symballist graph --name "build_message"`
 - config path:

@@ -517,6 +517,7 @@ Current language coverage:
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
   - fuzzy implementation concept: \`symballist_query\` with \`codeOnly: true\`, \`excludeTests: true\`, and usually \`preferImplementation: true\`
+  - noisy legacy zones: add \`excludePaths: ["_deprecated", "legacy"]\` when you want to suppress specific path fragments
   - config path: \`symballist_lookup\`
   - CSS selector from a real stylesheet: \`symballist_lookup\`
   - known id or exact symbol inspection: \`symballist_show\`
@@ -597,6 +598,7 @@ Current language coverage:
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
   - fuzzy implementation concept: \`symballist_query\` with \`--code-only --exclude-tests --prefer-implementation\`
+  - noisy legacy zones: add repeated \`--exclude-path <fragment>\` flags such as \`--exclude-path _deprecated --exclude-path legacy\`
   - config path: \`symballist_lookup\`
   - CSS selector from a real stylesheet: \`symballist_lookup\`
   - known id or exact symbol inspection: \`symballist_show\`
@@ -691,6 +693,10 @@ function renderToolManifest(root: string, setupType: SetupType): string {
             codeOnly: { type: "boolean" },
             docsOnly: { type: "boolean" },
             excludeTests: { type: "boolean" },
+            excludePaths: {
+              type: "array",
+              items: { type: "string" }
+            },
             preferImplementation: { type: "boolean" }
           },
           required: ["text"],
@@ -713,6 +719,10 @@ function renderToolManifest(root: string, setupType: SetupType): string {
             codeOnly: { type: "boolean" },
             docsOnly: { type: "boolean" },
             excludeTests: { type: "boolean" },
+            excludePaths: {
+              type: "array",
+              items: { type: "string" }
+            },
             preferImplementation: { type: "boolean" },
             full: { type: "boolean" }
           },

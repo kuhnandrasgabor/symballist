@@ -1469,6 +1469,18 @@ function normalizePathForHeuristics(path: string): string {
   return path.toLowerCase().replace(/\\/g, "/");
 }
 
+function pathMatchesNegativeFilter(path: string, filters: string[] | undefined): boolean {
+  if (!filters || filters.length === 0) {
+    return false;
+  }
+
+  const normalizedPath = normalizePathForHeuristics(path);
+  return filters
+    .map((filter) => normalizePathForHeuristics(filter).trim())
+    .filter(Boolean)
+    .some((filter) => normalizedPath.includes(filter));
+}
+
 function classifyGraphRootCandidate(input: RootHeuristicInput): string[] {
   const normalizedPath = normalizePathForHeuristics(input.path);
   const fileName = normalizedPath.split("/").at(-1) ?? normalizedPath;
@@ -1669,6 +1681,9 @@ function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
     return false;
   }
   if (options.excludeTests && isTestPath(row.path)) {
+    return false;
+  }
+  if (pathMatchesNegativeFilter(row.path, options.excludePaths)) {
     return false;
   }
   return true;

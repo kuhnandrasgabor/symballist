@@ -1681,6 +1681,65 @@ describe("symballist vertical slice", () => {
     expect(results.some((result) => normalizeRepoPath(result.path) === "tests/test_memory_store.py")).toBeTrue();
   });
 
+  test("negative path filters suppress legacy or deprecated zones without changing the query", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "_deprecated"), { recursive: true });
+    await mkdir(join(root, "legacy"), { recursive: true });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "_deprecated", "memory.py"),
+      [
+        "def memory_store():",
+        "    return 'deprecated memory store'"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "legacy", "memory.py"),
+      [
+        "def memory_store_legacy():",
+        "    return 'legacy memory store'"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "memory.py"),
+      [
+        "def memory_store():",
+        "    return 'canonical memory store'"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const unfilteredPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "memory store", 5, [], {
+        codeOnly: true,
+        preferImplementation: true
+      });
+    })) as {
+      results: Array<{ path: string }>;
+    };
+
+    const filteredPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "memory store", 5, [], {
+        codeOnly: true,
+        preferImplementation: true,
+        excludePaths: ["_deprecated", "legacy"]
+      });
+    })) as {
+      results: Array<{ path: string }>;
+    };
+
+    expect(unfilteredPayload.results.some((result) => normalizeRepoPath(result.path)?.startsWith("_deprecated/"))).toBeTrue();
+    expect(unfilteredPayload.results.some((result) => normalizeRepoPath(result.path)?.startsWith("legacy/"))).toBeTrue();
+    expect(filteredPayload.results.every((result) => !normalizeRepoPath(result.path)?.startsWith("_deprecated/"))).toBeTrue();
+    expect(filteredPayload.results.every((result) => !normalizeRepoPath(result.path)?.startsWith("legacy/"))).toBeTrue();
+    expect(normalizeRepoPath(filteredPayload.results[0]?.path)).toBe("src/memory.py");
+  });
+
   test("query-time trust and match reasons stay meaningful for recovered exact hits and loose token matches", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });
@@ -3036,6 +3095,16 @@ describe("symballist vertical slice", () => {
     expect(filteredQueryParsed.excludeTests).toBeTrue();
     expect(filteredQueryParsed.preferImplementation).toBeTrue();
     expect(filteredQueryParsed.docsOnly).toBeFalse();
+
+    const excludePathParsed = parseCliArgs([
+      "query",
+      "greet",
+      "--exclude-path",
+      "_deprecated",
+      "--exclude-path",
+      "legacy"
+    ]);
+    expect(excludePathParsed.excludePaths).toEqual(["_deprecated", "legacy"]);
 
     const conflictingQueryParsed = parseCliArgs(["query", "greet", "--code-only", "--docs-only"]);
     expect(conflictingQueryParsed.error).toContain("--code-only or --docs-only");

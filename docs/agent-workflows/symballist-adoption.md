@@ -117,6 +117,8 @@ Useful query refinements:
   - `lookup "WorkspaceManager"`
 - fuzzy implementation concept:
   - `query "workspace switching flow" --code-only --exclude-tests --prefer-implementation`
+- noisy legacy or deprecated zones:
+  - `query "memory store" --code-only --prefer-implementation --exclude-path _deprecated --exclude-path legacy`
 - config path:
   - `lookup "services.dashboard.build.dockerfile"`
 - CSS selector from a real stylesheet:
@@ -124,6 +126,7 @@ Useful query refinements:
 - known id or exact symbol inspection:
   - `show --name WorkspaceManager`
 - use `--code-only --exclude-tests` when you want implementation-heavy results
+- add one or more `--exclude-path <fragment>` flags when legacy, deprecated, generated, or vendor directories are polluting the result set
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
 - use the `changeAwareness` block from `status` when you want a cheap answer to "what changed since the last index?" or, in git repos, "what changed since HEAD?"
