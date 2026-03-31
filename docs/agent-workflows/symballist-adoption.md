@@ -26,6 +26,13 @@ Do not treat it as authoritative yet. Agents should use `symballist` to narrow t
 - optionally enable local Ollama embeddings in `.symballist/config.json` when concept queries need more help
 - fall back to normal file reads or search when results are weak or missing
 
+Important distinction:
+
+- `.symballist/tools/symballist-tools.json` is a repo-local manifest on disk
+- it does not make `symballist_*` directly callable by itself
+- only use the generated tool names if your current runtime has actually loaded that manifest
+- if not, use the repo-local CLI wrapper immediately instead of probing further
+
 `symballist init` now supports three downstream setup modes:
 
 - `--setup-type hybrid`
@@ -86,8 +93,8 @@ symballist show --name <symbol> --full --root <PROJECT_ROOT>
 Typical agent flow:
 
 1. Run `status`.
-2. If `indexFreshness.stale` is `true`, run `index`.
-3. If you want a single command to sweep for stale files and reuse incremental indexing, run `watch --once`.
+2. If `indexFreshness.stale` is `true`, run `watch --once` or `index`.
+3. If auto-watch is already active, `watch --once` may return an already-fresh no-op. That is expected.
 4. Use `lookup` when you want the one-shot best-match flow: one selected result, symbol context, and alternatives in one response.
 5. Use `query` when you want ranked candidate exploration and plan to inspect multiple hits more manually.
 6. Use `show` when you already know the symbol id or exact name and want direct inspection.
@@ -103,6 +110,16 @@ Typical agent flow:
 
 Useful query refinements:
 
+- exact symbol:
+  - `lookup "WorkspaceManager"`
+- fuzzy implementation concept:
+  - `query "workspace switching flow" --code-only --exclude-tests --prefer-implementation`
+- config path:
+  - `lookup "services.dashboard.build.dockerfile"`
+- CSS selector from a real stylesheet:
+  - `lookup ".loading-card"`
+- known id or exact symbol inspection:
+  - `show --name WorkspaceManager`
 - use `--code-only --exclude-tests` when you want implementation-heavy results
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
@@ -112,6 +129,9 @@ Useful query refinements:
 - use `watch --once` when you want a safe repo-local auto-refresh sweep without leaving a long-running process behind
 - use `watch --interval-ms 2000` or similar only when you explicitly want a foreground polling loop while you work
 - enable embeddings only if you already have a local Ollama endpoint and want better concept/fuzzy retrieval; lexical retrieval remains the default safety net
+- treat `resultQuality.noStrongMatch: true` as an explicit weak-result outcome rather than a tool failure
+- downstream consumers may rely on `path`, `file.path`, and `location.path` being present and equivalent in compact and non-compact flows
+- if the repo lacks a language you want to validate, create a temporary isolated fixture under `tmp/` or another scratch directory, index it, validate the behavior, and then remove it
 
 ## When Agents Should Use It
 

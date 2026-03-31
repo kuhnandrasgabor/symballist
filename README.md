@@ -91,6 +91,13 @@ After `init`, the target repo gets:
 - managed `AGENTS.md` / `CLAUDE.md` retrieval blocks
 - a `.gitignore` entry for `.symballist/`
 
+Important distinction:
+
+- `.symballist/tools/symballist-tools.json` is a repo-local manifest on disk
+- it does not make `symballist_*` tool functions callable by itself
+- only use the generated `symballist_*` tools if your current agent runtime has actually loaded that manifest
+- if not, use `symballist` or the repo-local wrapper immediately instead of probing further
+
 Available setup types:
 
 - `hybrid`
@@ -130,6 +137,14 @@ symballist status
 symballist lookup "memory store"
 symballist show --name MemoryStore
 ```
+
+For agents, the default contract should be:
+
+1. Run `symballist status`.
+2. If `indexFreshness.stale` is `true`, run `symballist watch --once` or `symballist index`.
+3. Otherwise proceed with `lookup`, `query`, or `show`.
+
+If auto-watch is already keeping the repo fresh, `watch --once` may return an already-fresh no-op. That is expected, not a failure.
 
 If you are actively developing and want the index to stay warm, run a foreground watch loop while you work:
 
@@ -172,6 +187,19 @@ symballist watch --once
   - trims repeated legend and semantics blocks from `query`, `lookup`, and `show` for cheaper agent consumption
 
 ## Useful Query Controls
+
+Recommended query styles by goal:
+
+- exact symbol:
+  - `symballist lookup "WorkspaceManager"`
+- fuzzy implementation concept:
+  - `symballist query "workspace switching flow" --code-only --exclude-tests --prefer-implementation`
+- config path:
+  - `symballist lookup "services.dashboard.build.dockerfile"`
+- CSS selector from a real stylesheet:
+  - `symballist lookup ".loading-card"`
+- direct inspection of a known id or exact symbol:
+  - `symballist show --name WorkspaceManager`
 
 For code-heavy retrieval:
 
@@ -239,6 +267,10 @@ Important behavior:
   - one-hop graph-aware reranking hints such as `same_file_cluster`, `imports_candidate`, `imported_by_candidate`, `uses_candidate`, `used_by_candidate`, and `root_candidate`
 - `graphDiagnostics`
   - index-bounded structural diagnostics on returned symbols/results, such as no known inbound references, test-only inbound references, same-file-only connectivity, disconnected-from-indexed-graph, root-like status, and possible-orphan candidacy
+- `resultQuality.noStrongMatch`
+  - for weak or fuzzy queries, `true` is a valid retrieval outcome rather than a tool failure
+- `path`, `file.path`, and `location.path`
+  - downstream consumers may rely on these being present and equivalent in both compact and non-compact flows
 
 If you want a cheaper response for agent consumers, use `--compact` to keep the retrieval payload while omitting the repeated legend / semantics blocks.
 
@@ -256,9 +288,11 @@ They are disabled by default after `init`. Enable them by editing `.symballist/c
     "baseUrl": "http://localhost:11434",
     "model": "nomic-embed-text:latest",
     "dimensions": null
-  }
+}
 }
 ```
+
+When testing language support in a repo that does not naturally contain that language, prefer creating a temporary isolated fixture under `tmp/` or another scratch directory, index it, validate the behavior, and then remove it cleanly.
 
 Because `.symballist/` is gitignored, config changes here will not appear in `git diff`.
 

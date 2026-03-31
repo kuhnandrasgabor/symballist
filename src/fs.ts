@@ -366,10 +366,10 @@ function buildSetupTypeNote(setupType: SetupType): string {
     case "cli":
       return `> This repo was initialized with \`symballist init --setup-type cli\`.\n> Use the repo-local CLI wrappers in \`.symballist/bin/\` as the primary integration surface.`;
     case "tool":
-      return `> This repo was initialized with \`symballist init --setup-type tool\`.\n> Prefer the generated tool-definition files in \`.symballist/tools/\`. Keep the CLI wrappers in \`.symballist/bin/\` as the execution backend and fallback path.`;
+      return `> This repo was initialized with \`symballist init --setup-type tool\`.\n> Prefer the generated tool-definition files in \`.symballist/tools/\` only when your current runtime has actually loaded them. The JSON manifest existing on disk does not make \`symballist_*\` callable by itself. Keep the CLI wrappers in \`.symballist/bin/\` as the execution backend and immediate fallback path.`;
     case "hybrid":
     default:
-      return `> This repo was initialized with \`symballist init --setup-type hybrid\`.\n> Prefer the generated tool-definition files in \`.symballist/tools/\` when your agent runtime can load them, and fall back to the repo-local CLI wrappers in \`.symballist/bin/\` when it cannot.`;
+      return `> This repo was initialized with \`symballist init --setup-type hybrid\`.\n> Prefer the generated tool-definition files in \`.symballist/tools/\` only when your current runtime has actually loaded them. The JSON manifest existing on disk does not make \`symballist_*\` callable by itself. If the tools are unavailable, fall back to the repo-local CLI wrappers in \`.symballist/bin/\` immediately instead of probing further.`;
   }
 }
 
@@ -395,20 +395,25 @@ Current language coverage:
 - Preferred local entrypoints:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Check freshness first:
-  - \`symballist status\`
+- Mandatory first step:
+  - run \`symballist status\`
 - Use the \`changeAwareness\` block from \`status\` when you want a cheap answer to what changed since the last index or, in git repos, since \`HEAD\`.
 - Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
 - Use the \`embeddings\` block from \`status\` when you want to know whether hybrid retrieval is configured and available for the active model.
 - If the index is stale, refresh it before relying on results:
-  - \`symballist index\`
-- If you want a one-shot freshness sweep that automatically reuses incremental indexing:
   - \`symballist watch --once\`
+  - or \`symballist index\`
+- If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.
 - Use lookup when you want the common one-shot best-match flow:
   - \`symballist lookup "<text>"\`
+- Recommended lookup styles:
+  - exact symbol: \`symballist lookup "WorkspaceManager"\`
+  - config path: \`symballist lookup "services.dashboard.build.dockerfile"\`
+  - CSS selector from a real stylesheet: \`symballist lookup ".loading-card"\`
 - Use \`graphDiagnostics\` on returned results or symbols when you want a bounded structural read on isolation, inbound references, root-like status, or possible-orphan candidacy without overclaiming dead code.
 - Use query when you want ranked candidate exploration and plan to inspect multiple hits:
   - \`symballist query "<text>"\`
+  - fuzzy implementation concept: \`symballist query "workspace switching flow" --code-only --exclude-tests --prefer-implementation\`
   - Add \`--code-only --exclude-tests\` for implementation-heavy results.
   - Add \`--prefer-implementation\` when broad code queries still lean toward wiring or references.
   - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
@@ -417,6 +422,9 @@ Current language coverage:
   - \`symballist show --name <symbol>\`
   - \`symballist show --name <symbol> --full\`
 - Large bodies summarize by default in \`lookup\` and \`show\`; check \`bodyPresentation.fullerBodyAvailable\` and \`bodyPresentation.expansionHint\` to decide whether \`--full\` is worth the extra payload.
+- Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in both compact and non-compact flows.
+- If a weak query reports \`resultQuality.noStrongMatch: true\`, treat that as an explicit weak-result outcome rather than a tool failure.
+- If this repo lacks a language you want to validate, create a temporary isolated fixture under \`tmp/\` or another scratch directory, index it, validate behavior, and remove it afterward.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -461,7 +469,7 @@ Reference:
 function renderToolAgentsSnippet(): string {
   return `## Symballist Retrieval
 
-Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo.
+Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo only when your current runtime has actually loaded them.
 
 Current language coverage:
 - Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
@@ -476,16 +484,24 @@ Current language coverage:
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
+- The manifest file existing on disk does not make \`symballist_*\` directly callable by itself.
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - Shell-specific CLI fallbacks:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Use \`symballist_status\` first to inspect freshness, change awareness, graph awareness, and embeddings state.
+- Mandatory first step: use \`symballist_status\` first to inspect freshness, change awareness, graph awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` before relying on retrieval output.
+- If runtime tool loading is unavailable, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
-- If the runtime cannot load the generated tool definitions, fall back to \`.symballist\\bin\\symballist.cmd\`.
+- Query styles by goal:
+  - exact symbol: \`symballist_lookup\`
+  - fuzzy implementation concept: \`symballist_query\` with \`codeOnly: true\`, \`excludeTests: true\`, and usually \`preferImplementation: true\`
+  - config path: \`symballist_lookup\`
+  - CSS selector from a real stylesheet: \`symballist_lookup\`
+  - known id or exact symbol inspection: \`symballist_show\`
+- Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 
@@ -496,23 +512,25 @@ Reference:
 function renderToolClaudeSnippet(): string {
   return `## Symballist Retrieval
 
-Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo.
+Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo only when your current runtime has actually loaded them.
 
 Current language coverage:
 - Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
+- The manifest file existing on disk does not make \`symballist_*\` directly callable by itself.
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - Shell-specific CLI fallbacks:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Start with \`symballist_status\` to check freshness, graph awareness, and embeddings state.
+- Mandatory first step: start with \`symballist_status\` to check freshness, graph awareness, and embeddings state.
 - Use \`symballist_refresh\` when the repo is stale.
+- If runtime tool loading is unavailable, use the repo-local CLI wrapper immediately instead of probing further.
 - Use \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
-- If the runtime cannot load the generated tool definitions, fall back to \`.symballist\\bin\\symballist.cmd\`.
+- Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
 
@@ -523,7 +541,7 @@ Reference:
 function renderHybridAgentsSnippet(): string {
   return `## Symballist Retrieval
 
-Use the generated repo-local \`symballist\` tool definitions when your agent runtime can load them. Keep the repo-local CLI wrappers as the robust fallback.
+Use the generated repo-local \`symballist\` tool definitions when your agent runtime has actually loaded them. Keep the repo-local CLI wrappers as the robust fallback.
 
 Current language coverage:
 - Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
@@ -538,14 +556,25 @@ Current language coverage:
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
+- The JSON manifest existing on disk does not make \`symballist_*\` callable by itself.
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Use \`symballist_status\` first or run \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
+- Mandatory first step: use \`symballist_status\` first or run \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` or run \`symballist watch --once\`.
+- If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.
+- If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` / \`symballist_show\` when you want more manual ranked exploration or direct symbol inspection with graph diagnostics, or use the equivalent CLI commands if tool loading is unavailable.
+- Query styles by goal:
+  - exact symbol: \`symballist_lookup\`
+  - fuzzy implementation concept: \`symballist_query\` with \`--code-only --exclude-tests --prefer-implementation\`
+  - config path: \`symballist_lookup\`
+  - CSS selector from a real stylesheet: \`symballist_lookup\`
+  - known id or exact symbol inspection: \`symballist_show\`
+- Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows.
+- If \`resultQuality.noStrongMatch\` is true on a weak query, treat that as a valid weak-result signal rather than a tool failure.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -557,21 +586,25 @@ Reference:
 function renderHybridClaudeSnippet(): string {
   return `## Symballist Retrieval
 
-Use the generated repo-local \`symballist\` tool definitions when your runtime can load them, and fall back to the repo-local CLI wrappers when it cannot.
+Use the generated repo-local \`symballist\` tool definitions when your runtime has actually loaded them, and fall back to the repo-local CLI wrappers when it cannot.
 
 Current language coverage:
 - Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
+- The JSON manifest existing on disk does not make \`symballist_*\` callable by itself.
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Start with \`symballist_status\` or \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
+- Mandatory first step: start with \`symballist_status\` or \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
 - Refresh stale indexes with \`symballist_refresh\` or \`symballist watch --once\`.
+- If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.
+- If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection with graph diagnostics.
+- Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -682,12 +715,22 @@ This repo was initialized with \`setupType: ${setupType}\`.
 
 The file \`symballist-tools.json\` contains repo-local tool definitions that wrap the generated CLI entrypoints in \`.symballist/bin/\`.
 
+Important distinction:
+
+- the manifest existing on disk does not make \`symballist_*\` callable by itself
+- only use the generated tool names when your current runtime has actually loaded that manifest
+- otherwise use the repo-local CLI wrapper immediately instead of probing further
+
 Recommended use:
 
 - load the generated tool definitions into your agent runtime if it supports repo-local tools
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
-- use \`symballist_status\` to inspect graph awareness as well as freshness and embeddings state
+- start with \`symballist_status\` to inspect graph awareness as well as freshness and embeddings state
+- if the repo is stale, use \`symballist_refresh\` or the equivalent \`watch --once\` CLI path before retrieval
+- if auto-watch is already active, a manual \`watch --once\` refresh can legitimately return already-fresh without doing more work
 - expect \`symballist_query\`, \`symballist_lookup\`, and \`symballist_show\` to expose graph diagnostics in addition to retrieval output
+- consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows
+- treat \`resultQuality.noStrongMatch: true\` as a valid weak-result signal rather than a tool failure
 - if this checkout was linked with \`bun link\`, the plain \`symballist\` command is the simplest manual fallback from the target repo root
 - keep shell-appropriate CLI wrappers as the execution backend and universal fallback
   - bash / zsh / sh: \`./.symballist/bin/symballist\`

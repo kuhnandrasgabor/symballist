@@ -1,19 +1,23 @@
 ## Symballist Retrieval
 
-Use the generated repo-local `symballist` tool definitions when your runtime can load them, and fall back to the repo-local CLI wrappers when it cannot.
+Use the generated repo-local `symballist` tool definitions when your runtime has actually loaded them, and fall back to the repo-local CLI wrappers when it cannot.
 
 Current language coverage:
 - Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Tool-definition manifest: `.symballist\tools\symballist-tools.json`
 - Tooling guide: `.symballist\tools\README.md`
+- The JSON manifest existing on disk does not make `symballist_*` callable by itself.
 - CLI fallback entrypoints:
   - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
   - bash / zsh / sh: `./.symballist/bin/symballist`
-- Start with `symballist_status` or `.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>`.
+- Mandatory first step: start with `symballist_status` or `.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>`.
 - Refresh stale indexes with `symballist_refresh` or `.symballist\bin\symballist.cmd watch --once --root <PROJECT_ROOT>`.
+- If auto-watch is already active, `watch --once` may return an already-fresh no-op. That is expected.
+- If runtime tool loading is unavailable, use the CLI wrapper immediately instead of probing further.
 - Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.
 - Use `symballist_query` and `symballist_show` when you need ranked exploration or direct symbol inspection.
+- Treat `resultQuality.noStrongMatch: true` as a valid weak-result signal rather than a tool failure.
 - Verify important conclusions in the source files before making changes.
 - If `symballist` misses, use normal file search and direct reads.
 
