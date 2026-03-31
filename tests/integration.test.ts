@@ -1740,6 +1740,65 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(filteredPayload.results[0]?.path)).toBe("src/memory.py");
   });
 
+  test("query diversifies repeated same-file hits and reports grouped file context", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "memory_store.py"),
+      [
+        "class MemoryStore:",
+        "    pass",
+        "",
+        "def build_memory_store():",
+        "    return 'memory store pipeline'",
+        "",
+        "def summarize_memory_store():",
+        "    return 'memory store status'"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "memory_store_cache.py"),
+      [
+        "class MemoryStoreCache:",
+        "    pass",
+        "",
+        "def memory_store_cache():",
+        "    return 'memory store cache'"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const payload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "memory store", 4, [], {
+        codeOnly: true,
+        preferImplementation: true
+      });
+    })) as {
+      fileGroups: Array<{
+        path: string;
+        hitCount: number;
+        topKinds: string[];
+        topNames: string[];
+      }>;
+      results: Array<{
+        path: string;
+        name: string;
+      }>;
+    };
+
+    const topPaths = payload.results.map((result) => normalizeRepoPath(result.path));
+    expect(topPaths[0]).toBe("src/memory_store.py");
+    expect(new Set(topPaths.slice(0, 3)).size).toBeGreaterThan(1);
+    expect(payload.fileGroups[0]?.path).toBe("src/memory_store.py");
+    expect(payload.fileGroups[0]?.hitCount).toBeGreaterThan(1);
+    expect(payload.fileGroups[0]?.topNames).toContain("MemoryStore");
+    expect(payload.fileGroups.some((group) => normalizeRepoPath(group.path) === "src/memory_store_cache.py")).toBeTrue();
+  });
+
   test("query-time trust and match reasons stay meaningful for recovered exact hits and loose token matches", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });

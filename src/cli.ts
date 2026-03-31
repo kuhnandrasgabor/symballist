@@ -92,7 +92,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
       return;
     case "query":
-      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates with graph signals and graph diagnostics for manual inspection. Use this for fuzzy concepts and broader exploration; use lookup when you want the best hit already resolved.");
+      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates plus lightweight fileGroups context for manual inspection. Use this for fuzzy concepts and broader exploration; use lookup when you want the best hit already resolved.");
       return;
     default:
       usage();

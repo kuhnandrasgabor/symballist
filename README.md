@@ -207,7 +207,7 @@ symballist watch --once
 - `symballist report`
   - shows the opt-in repo-local usage and workflow-impact summary without storing raw query text
 - `symballist query "<text>"`
-  - exploration flow: returns ranked candidates when you want to inspect multiple hits
+  - exploration flow: returns ranked candidates plus `fileGroups` when you want to inspect multiple hits without losing track of which files dominate the list
 - `symballist lookup "<text>"`
   - best-match flow: returns the selected hit plus resolved symbol context and alternatives
 - `symballist show <id>`

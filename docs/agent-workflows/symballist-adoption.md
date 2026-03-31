@@ -126,6 +126,7 @@ Useful query refinements:
 - known id or exact symbol inspection:
   - `show --name WorkspaceManager`
 - use `--code-only --exclude-tests` when you want implementation-heavy results
+- check `fileGroups` on query responses when several hits come from the same file and you want a cheap grouped view without giving up symbol-level results
 - add one or more `--exclude-path <fragment>` flags when legacy, deprecated, generated, or vendor directories are polluting the result set
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
