@@ -386,9 +386,11 @@ describe("symballist vertical slice", () => {
     await writeFile(
       join(root, "Dockerfile"),
       [
-        "FROM node:20 AS builder",
+        "FROM python:3.11-slim AS builder",
+        "WORKDIR /app",
+        "COPY requirements.txt ./requirements.txt",
+        "RUN pip install -r requirements.txt && mkdir -p /tmp/cache",
         "ARG APP_ENV=prod",
-        "RUN bun install",
         "",
         "FROM nginx:alpine AS runtime",
         "ENV PORT=8080"
@@ -428,6 +430,8 @@ describe("symballist vertical slice", () => {
     const shellResults = searchSymbols(db, buildFtsQuery("deploy_app"), 5, { rawQuery: "deploy_app" });
     const dockerFileResults = searchSymbols(db, buildFtsQuery("Dockerfile"), 5, { rawQuery: "Dockerfile" });
     const dockerResults = searchSymbols(db, buildFtsQuery("builder"), 5, { rawQuery: "builder" });
+    const dockerInstructionResults = searchSymbols(db, buildFtsQuery("COPY requirements pip install"), 5, { rawQuery: "COPY requirements pip install" });
+    const dockerBaseImageResults = searchSymbols(db, buildFtsQuery("FROM python base image RUN mkdir"), 5, { rawQuery: "FROM python base image RUN mkdir" });
     const cssResults = searchSymbols(db, buildFtsQuery("search-panel"), 5, { rawQuery: "search-panel" });
     const cssSelectorResults = searchSymbols(db, buildFtsQuery(".section-header"), 5, { rawQuery: ".section-header" });
     db.close();
@@ -442,6 +446,9 @@ describe("symballist vertical slice", () => {
     expect(dockerFileResults[0]?.name).toBe("Dockerfile");
     expect(dockerResults[0]?.language).toBe("dockerfile");
     expect(dockerResults[0]?.kind).toBe("stage");
+    expect(dockerInstructionResults[0]?.language).toBe("dockerfile");
+    expect(["file", "copy", "run"]).toContain(dockerInstructionResults[0]?.kind ?? "");
+    expect(dockerBaseImageResults[0]?.language).toBe("dockerfile");
     expect(cssResults.some((result) => result.language === "css" && result.kind === "selector")).toBeTrue();
     expect(cssSelectorResults[0]?.language).toBe("css");
     expect(cssSelectorResults[0]?.kind).toBe("selector");

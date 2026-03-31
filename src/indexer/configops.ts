@@ -54,7 +54,7 @@ function standaloneFileRecord(
     kind: "file",
     name: baseName(path),
     signature: path,
-    body: source.slice(0, 500).trim(),
+    body: source.trim(),
     doc,
     fallback: false,
     ...fullFileSpan(source)
@@ -201,7 +201,6 @@ export function extractDockerfileSymbols(path: string, source: string): SymbolRe
         fallback: false,
         ...spanForLine(line, index + 1)
       });
-      continue;
     }
 
     const argEnvMatch = trimmed.match(/^(ARG|ENV)\s+([A-Za-z_][A-Za-z0-9_]*)/i);
@@ -214,6 +213,24 @@ export function extractDockerfileSymbols(path: string, source: string): SymbolRe
         signature: trimmed,
         body: trimmed,
         doc: null,
+        fallback: false,
+        ...spanForLine(line, index + 1)
+      });
+      continue;
+    }
+
+    const instructionMatch = trimmed.match(/^([A-Z]+)\s+(.+)$/);
+    if (instructionMatch) {
+      const instruction = instructionMatch[1].toLowerCase();
+      const payload = instructionMatch[2].trim();
+      symbols.push({
+        path,
+        language: "dockerfile",
+        kind: instruction,
+        name: payload.split(/\s+/).slice(0, 4).join(" "),
+        signature: trimmed,
+        body: trimmed,
+        doc: `${instruction} ${payload}`.toLowerCase(),
         fallback: false,
         ...spanForLine(line, index + 1)
       });
