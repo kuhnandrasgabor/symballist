@@ -400,6 +400,25 @@ describe("symballist vertical slice", () => {
       "utf8"
     );
     await writeFile(
+      join(root, "Dockerfile.dashboard"),
+      [
+        "FROM node:20-alpine AS dashboard",
+        "WORKDIR /app",
+        "COPY package.json ./package.json",
+        "RUN npm ci"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "Containerfile.dev"),
+      [
+        "FROM python:3.11-slim AS dev",
+        "WORKDIR /workspace",
+        "RUN pip install -U pip"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
       join(root, "styles", "site.css"),
       [
         ".search-panel {",
@@ -434,11 +453,13 @@ describe("symballist vertical slice", () => {
     const dockerResults = searchSymbols(db, buildFtsQuery("builder"), 5, { rawQuery: "builder" });
     const dockerInstructionResults = searchSymbols(db, buildFtsQuery("COPY requirements pip install"), 5, { rawQuery: "COPY requirements pip install" });
     const dockerBaseImageResults = searchSymbols(db, buildFtsQuery("FROM python base image RUN mkdir"), 5, { rawQuery: "FROM python base image RUN mkdir" });
+    const dockerDotfileResults = searchSymbols(db, buildFtsQuery("Dockerfile.dashboard"), 5, { rawQuery: "Dockerfile.dashboard" });
+    const containerDotfileResults = searchSymbols(db, buildFtsQuery("Containerfile.dev"), 5, { rawQuery: "Containerfile.dev" });
     const cssResults = searchSymbols(db, buildFtsQuery("search-panel"), 5, { rawQuery: "search-panel" });
     const cssSelectorResults = searchSymbols(db, buildFtsQuery(".section-header"), 5, { rawQuery: ".section-header" });
     db.close();
 
-    expect(stats.discoveredFiles).toBe(11);
+    expect(stats.discoveredFiles).toBe(13);
     expect(yamlResults[0]?.language).toBe("yaml");
     expect(yamlResults[0]?.kind).toBe("key");
     expect(shellResults[0]?.language).toBe("shell");
@@ -451,6 +472,10 @@ describe("symballist vertical slice", () => {
     expect(dockerInstructionResults[0]?.language).toBe("dockerfile");
     expect(["file", "copy", "run"]).toContain(dockerInstructionResults[0]?.kind ?? "");
     expect(dockerBaseImageResults[0]?.language).toBe("dockerfile");
+    expect(dockerDotfileResults[0]?.language).toBe("dockerfile");
+    expect(normalizeRepoPath(dockerDotfileResults[0]?.path)).toBe("Dockerfile.dashboard");
+    expect(containerDotfileResults[0]?.language).toBe("dockerfile");
+    expect(normalizeRepoPath(containerDotfileResults[0]?.path)).toBe("Containerfile.dev");
     expect(cssResults.some((result) => result.language === "css" && result.kind === "selector")).toBeTrue();
     expect(cssSelectorResults[0]?.language).toBe("css");
     expect(cssSelectorResults[0]?.kind).toBe("selector");
@@ -458,6 +483,8 @@ describe("symballist vertical slice", () => {
 
     const currentFiles = await listSourceFiles(root);
     expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "Dockerfile" && file.language === "dockerfile")).toBeTrue();
+    expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "Dockerfile.dashboard" && file.language === "dockerfile")).toBeTrue();
+    expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "Containerfile.dev" && file.language === "dockerfile")).toBeTrue();
 
     const status = JSON.parse(await captureConsoleLog(async () => {
       await runStatus(root);
