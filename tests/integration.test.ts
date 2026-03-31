@@ -1034,6 +1034,8 @@ describe("symballist vertical slice", () => {
         importedBy: Array<{ symbol: { name: string; path: string } }>;
         usedBy: Array<{ symbol: { name: string; path: string } }>;
         containedIn: Array<{ symbol: { name: string; path: string } }>;
+      };
+      graphSummary: {
         totalEdges: number;
       };
     };
@@ -1046,7 +1048,57 @@ describe("symballist vertical slice", () => {
     expect(payload.graph.imports.length).toBe(0);
     expect(payload.graph.uses.length).toBe(0);
     expect(payload.graph.containedIn.length).toBe(0);
-    expect(payload.graph.totalEdges).toBeGreaterThanOrEqual(4);
+    expect(payload.graphSummary.totalEdges).toBeGreaterThanOrEqual(4);
+  });
+
+  test("graph compact mode strips neighbor bodies and keeps grouped collections list-typed", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "consumer.py"),
+      [
+        "from helpers import slugify",
+        "",
+        "def render_slug(name: str) -> str:",
+        "    return slugify(name)"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const output = await captureConsoleLog(async () => {
+      await runGraph(root, "", "slugify", { compact: true });
+    });
+    const payload = JSON.parse(output) as {
+      symbol: {
+        name: string;
+        body?: string;
+      };
+      graph: {
+        imports: Array<{ symbol: { name: string; body?: string } }>;
+        uses: Array<{ symbol: { name: string; body?: string } }>;
+        importedBy: Array<{ symbol: { name: string; body?: string } }>;
+        usedBy: Array<{ symbol: { name: string; body?: string } }>;
+        containedIn: Array<{ symbol: { name: string; body?: string } }>;
+      };
+      graphSummary: {
+        totalEdges: number;
+      };
+    };
+
+    expect(payload.symbol.name).toBe("slugify");
+    expect("body" in payload.symbol).toBeFalse();
+    expect(Array.isArray(payload.graph.imports)).toBeTrue();
+    expect(Array.isArray(payload.graph.uses)).toBeTrue();
+    expect(Array.isArray(payload.graph.importedBy)).toBeTrue();
+    expect(Array.isArray(payload.graph.usedBy)).toBeTrue();
+    expect(Array.isArray(payload.graph.containedIn)).toBeTrue();
+    expect(payload.graph.importedBy.length).toBeGreaterThan(0);
+    expect(payload.graph.importedBy.every((entry) => !("body" in entry.symbol))).toBeTrue();
+    expect(payload.graph.usedBy.every((entry) => !("body" in entry.symbol))).toBeTrue();
+    expect(payload.graphSummary.totalEdges).toBeGreaterThanOrEqual(payload.graph.importedBy.length + payload.graph.usedBy.length);
   });
 
   test("show resolves exact symbol names without requiring an intermediate id", async () => {

@@ -9,6 +9,37 @@ import {
 } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
+import type { GraphTraversalEntry, SymbolDetails } from "../types.ts";
+
+function compactSymbol(symbol: SymbolDetails): Omit<SymbolDetails, "body" | "doc" | "graphDiagnostics"> {
+  return {
+    id: symbol.id,
+    path: symbol.path,
+    file: symbol.file,
+    location: symbol.location,
+    language: symbol.language,
+    kind: symbol.kind,
+    name: symbol.name,
+    signature: symbol.signature,
+    extraction: symbol.extraction,
+    trustLevel: symbol.trustLevel,
+    fallback: symbol.fallback,
+    startLine: symbol.startLine,
+    startColumn: symbol.startColumn,
+    endLine: symbol.endLine,
+    endColumn: symbol.endColumn
+  };
+}
+
+function compactTraversalEntry(entry: GraphTraversalEntry): Omit<GraphTraversalEntry, "symbol"> & {
+  symbol: ReturnType<typeof compactSymbol>;
+} {
+  return {
+    traversal: entry.traversal,
+    relation: entry.relation,
+    symbol: compactSymbol(entry.symbol)
+  };
+}
 
 export async function runGraph(
   root: string,
@@ -41,6 +72,24 @@ export async function runGraph(
     throw new Error(`No indexed symbol found for id ${rawId}.`);
   }
 
+  const groupedGraph = {
+    imports: traversals.filter((entry) => entry.traversal === "imports"),
+    uses: traversals.filter((entry) => entry.traversal === "uses"),
+    importedBy: traversals.filter((entry) => entry.traversal === "imported_by"),
+    usedBy: traversals.filter((entry) => entry.traversal === "used_by"),
+    containedIn: traversals.filter((entry) => entry.traversal === "contained_in")
+  };
+  const presentedSymbol = options.compact === true ? compactSymbol(symbol) : symbol;
+  const presentedGraph = options.compact === true
+    ? {
+        imports: groupedGraph.imports.map(compactTraversalEntry),
+        uses: groupedGraph.uses.map(compactTraversalEntry),
+        importedBy: groupedGraph.importedBy.map(compactTraversalEntry),
+        usedBy: groupedGraph.usedBy.map(compactTraversalEntry),
+        containedIn: groupedGraph.containedIn.map(compactTraversalEntry)
+      }
+    : groupedGraph;
+
   const payload = {
     indexFreshness,
     ...(options.compact === true ? {} : {
@@ -49,14 +98,10 @@ export async function runGraph(
         caveat: "Traversal is bounded by the currently indexed lightweight graph and is intended for navigation, not exhaustiveness."
       }
     }),
-    symbol,
+    symbol: presentedSymbol,
     relations,
-    graph: {
-      imports: traversals.filter((entry) => entry.traversal === "imports"),
-      uses: traversals.filter((entry) => entry.traversal === "uses"),
-      importedBy: traversals.filter((entry) => entry.traversal === "imported_by"),
-      usedBy: traversals.filter((entry) => entry.traversal === "used_by"),
-      containedIn: traversals.filter((entry) => entry.traversal === "contained_in"),
+    graph: presentedGraph,
+    graphSummary: {
       totalEdges: traversals.length
     }
   };
