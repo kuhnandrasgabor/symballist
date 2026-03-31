@@ -696,6 +696,46 @@ describe("symballist vertical slice", () => {
     expect(shown.related.some((entry) => entry.symbol.name === "slugify" && entry.relation.kind === "imports")).toBeTrue();
   });
 
+  test("import relations resolve package submodule imports to actionable module paths", async () => {
+    const root = await mkdtemp(join(tmpdir(), "symballist-"));
+    tempRoots.push(root);
+    await mkdir(join(root, "pkg"), { recursive: true });
+    await writeFile(join(root, "pkg", "__init__.py"), "", "utf8");
+    await writeFile(
+      join(root, "pkg", "helpers.py"),
+      'def slugify(value: str) -> str:\n    return value.lower().replace(" ", "-")\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app.py"),
+      'from pkg import helpers\n\n\ndef greet(name: str) -> str:\n    return helpers.slugify(name)\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const greet = getBestSymbolByName(db, "greet");
+    const relationsFromDb = greet ? getRelationsForSymbol(db, greet) : [];
+    db.close();
+
+    expect(relationsFromDb.some((relation) => relation.kind === "imports" && relation.targetLabel === "pkg.helpers" && normalizeRepoPath(relation.targetPath) === "pkg/helpers.py")).toBeTrue();
+
+    const output = await captureConsoleLog(async () => {
+      await runLookup(root, "greet", 5);
+    });
+    const payload = JSON.parse(output) as {
+      relations: Array<{
+        kind: string;
+        targetPath: string | null;
+        targetLabel: string;
+      }>;
+    };
+
+    expect(payload.relations.some((relation) => relation.kind === "imports" && relation.targetLabel === "pkg.helpers" && normalizeRepoPath(relation.targetPath) === "pkg/helpers.py")).toBeTrue();
+  });
+
   test("show resolves exact symbol names without requiring an intermediate id", async () => {
     const root = await createFixtureRepo();
     await runInit(root);
@@ -769,6 +809,10 @@ describe("symballist vertical slice", () => {
       await runQuery(root, "greet", 5, [], {}, { compact: true });
     })) as {
       resultSemantics?: unknown;
+      resultQuality: {
+        level: string;
+        noStrongMatch: boolean;
+      };
       retrieval: {
         mode: string;
       };
@@ -785,6 +829,10 @@ describe("symballist vertical slice", () => {
     })) as {
       resultSemantics?: unknown;
       trustSemantics?: unknown;
+      resultQuality: {
+        level: string;
+        noStrongMatch: boolean;
+      };
       selectedResult: {
         name: string;
         path: string;
@@ -808,6 +856,8 @@ describe("symballist vertical slice", () => {
     };
 
     expect(queryPayload.resultSemantics).toBeUndefined();
+    expect(queryPayload.resultQuality.level).toBe("strong");
+    expect(queryPayload.resultQuality.noStrongMatch).toBeFalse();
     expect(queryPayload.retrieval.mode).toBe("lexical");
     expect(queryPayload.results[0]?.name).toBe("greet");
     expect(normalizeRepoPath(queryPayload.results[0]?.file.path)).toBe(normalizeRepoPath(queryPayload.results[0]?.path));
@@ -816,6 +866,8 @@ describe("symballist vertical slice", () => {
 
     expect(lookupPayload.resultSemantics).toBeUndefined();
     expect(lookupPayload.trustSemantics).toBeUndefined();
+    expect(lookupPayload.resultQuality.level).toBe("strong");
+    expect(lookupPayload.resultQuality.noStrongMatch).toBeFalse();
     expect(lookupPayload.selectedResult?.name).toBe("greet");
     expect(lookupPayload.symbol?.name).toBe("greet");
     expect(normalizeRepoPath(lookupPayload.selectedResult?.file.path)).toBe(normalizeRepoPath(lookupPayload.selectedResult?.path));
@@ -919,6 +971,15 @@ describe("symballist vertical slice", () => {
         trustLevel: string;
         retrievalTrustLevel: string;
       };
+      resultQuality: {
+        level: string;
+        reason: string;
+        noStrongMatch: boolean;
+        strongMatchCount: number;
+        resultCount: number;
+        topResultConfidence: string | null;
+        topResultRetrievalTrustLevel: string | null;
+      };
       results: Array<{
         kind: string;
         distance: number;
@@ -937,6 +998,11 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.resultSemantics.confidenceOrder).toEqual(["exact", "strong", "related", "fallback"]);
     expect(queryPayload.resultSemantics.trustLevel).toContain("extraction trust");
     expect(queryPayload.resultSemantics.retrievalTrustLevel).toContain("retrieval trust");
+    expect(queryPayload.resultQuality.level).toBe("strong");
+    expect(queryPayload.resultQuality.reason).toBe("top_result_strong");
+    expect(queryPayload.resultQuality.noStrongMatch).toBeFalse();
+    expect(queryPayload.resultQuality.strongMatchCount).toBeGreaterThan(0);
+    expect(queryPayload.resultQuality.resultCount).toBe(queryPayload.results.length);
     expect(queryPayload.results.length).toBeGreaterThan(0);
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
     expect(queryPayload.results.every((result) => typeof result.distance === "number")).toBeTrue();
@@ -1055,6 +1121,48 @@ describe("symballist vertical slice", () => {
     expect(results[0]?.matchReason).toBe("path_concept");
     expect(results[0]?.confidence).toBe("strong");
     expect(results.some((result) => normalizeRepoPath(result.path) === "tests/test_distiller.py")).toBeTrue();
+  });
+
+  test("broad conceptual queries with filler terms still promote canonical src implementations", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "tests"), { recursive: true });
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(
+      join(root, "src", "memory_store.py"),
+      'class MemoryStore:\n    """Stores retrieval context for the pipeline."""\n    pass\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "memory_notes.py"),
+      'def summarize_memory() -> str:\n    return "memory store notes"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "tests", "test_memory_store.py"),
+      'def test_memory_store_flow():\n    assert "memory store"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "docs", "memory-store.md"),
+      "# Memory Store\n\nOverview of how the memory store works at a high level.\n",
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, buildFtsQuery("how does memory store work"), 5, {
+      rawQuery: "how does memory store work"
+    });
+    db.close();
+
+    expect(normalizeRepoPath(results[0]?.path)).toBe("src/memory_store.py");
+    expect(results[0]?.name).toBe("MemoryStore");
+    expect(results[0]?.kind).toBe("class");
+    expect(results.some((result) => normalizeRepoPath(result.path) === "docs/memory-store.md")).toBeTrue();
+    expect(results.some((result) => normalizeRepoPath(result.path) === "tests/test_memory_store.py")).toBeTrue();
   });
 
   test("query-time trust and match reasons stay meaningful for recovered exact hits and loose token matches", async () => {
@@ -1326,6 +1434,101 @@ describe("symballist vertical slice", () => {
     expect(results.length).toBeGreaterThan(0);
     expect(normalizeRepoPath(results[0]?.path)).toBe("docs/memory-management.md");
     expect(results.slice(0, 5).filter((result) => ["AGENTS.md", "CLAUDE.md"].includes(result.path)).length).toBeLessThanOrEqual(1);
+  });
+
+  test("query and lookup expose explicit no-strong-match signaling for weak or empty cases", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(
+      join(root, "docs", "memory-management.md"),
+      "# Memory Management\n\nProject memory handling and retention notes.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "AGENTS.md"),
+      "## Memory Notes\n\nOperational mirror for memory handling guidance.\n",
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const weakQueryPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "memory ghost cleanup", 5);
+    })) as {
+      resultQuality: {
+        level: string;
+        reason: string;
+        noStrongMatch: boolean;
+        strongMatchCount: number;
+        resultCount: number;
+        topResultConfidence: string | null;
+        topResultRetrievalTrustLevel: string | null;
+      };
+      results: Array<{ path: string }>;
+    };
+
+    const weakLookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "zzzzzz no such symbol", 5);
+    })) as {
+      resultQuality: {
+        level: string;
+        reason: string;
+        noStrongMatch: boolean;
+        strongMatchCount: number;
+        resultCount: number;
+        topResultConfidence: string | null;
+        topResultRetrievalTrustLevel: string | null;
+      };
+      selectedResult: unknown;
+      alternatives: unknown[];
+    };
+
+    const blankRoot = await mkdtemp(join(tmpdir(), "symballist-"));
+    tempRoots.push(blankRoot);
+    await runInit(blankRoot);
+    await runIndex(blankRoot, { progress: false });
+
+    const emptyLookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(blankRoot, "zzzzzz no such symbol", 5);
+    })) as {
+      resultQuality: {
+        level: string;
+        reason: string;
+        noStrongMatch: boolean;
+        strongMatchCount: number;
+        resultCount: number;
+        topResultConfidence: string | null;
+        topResultRetrievalTrustLevel: string | null;
+      };
+      selectedResult: unknown;
+      alternatives: unknown[];
+    };
+
+    expect(weakQueryPayload.results.length).toBeGreaterThan(0);
+    expect(weakQueryPayload.resultQuality.level).not.toBe("strong");
+    expect(weakQueryPayload.resultQuality.noStrongMatch).toBeTrue();
+    expect(weakQueryPayload.resultQuality.strongMatchCount).toBe(0);
+    expect(weakQueryPayload.resultQuality.resultCount).toBe(weakQueryPayload.results.length);
+    expect(["related", "fallback"]).toContain(weakQueryPayload.resultQuality.topResultConfidence ?? "");
+
+    expect(weakLookupPayload.selectedResult).not.toBeNull();
+    expect(weakLookupPayload.resultQuality.level).toBe("weak");
+    expect(weakLookupPayload.resultQuality.reason).toBe("only_weak_matches");
+    expect(weakLookupPayload.resultQuality.noStrongMatch).toBeTrue();
+    expect(weakLookupPayload.resultQuality.strongMatchCount).toBe(0);
+    expect(weakLookupPayload.resultQuality.topResultConfidence).toBe("fallback");
+    expect(weakLookupPayload.resultQuality.topResultRetrievalTrustLevel).toBe("low");
+
+    expect(emptyLookupPayload.selectedResult).toBeNull();
+    expect(emptyLookupPayload.alternatives).toEqual([]);
+    expect(emptyLookupPayload.resultQuality.level).toBe("none");
+    expect(emptyLookupPayload.resultQuality.reason).toBe("no_results");
+    expect(emptyLookupPayload.resultQuality.noStrongMatch).toBeTrue();
+    expect(emptyLookupPayload.resultQuality.strongMatchCount).toBe(0);
+    expect(emptyLookupPayload.resultQuality.resultCount).toBe(0);
+    expect(emptyLookupPayload.resultQuality.topResultConfidence).toBeNull();
+    expect(emptyLookupPayload.resultQuality.topResultRetrievalTrustLevel).toBeNull();
   });
 
   test("prefer-implementation alone suppresses doc noise and visibly changes default ranking", async () => {

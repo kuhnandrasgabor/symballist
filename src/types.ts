@@ -18,6 +18,13 @@ export type MatchReason =
 export type RetrievalChannel = "lexical" | "concept_path" | "semantic";
 export type HybridContribution = "lexical_only" | "semantic_only" | "semantic_assisted";
 export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_by_candidate";
+export type RetrievalQualityLevel = "strong" | "moderate" | "weak" | "none";
+export type RetrievalQualityReason =
+  | "top_result_strong"
+  | "strong_match_present"
+  | "related_but_actionable"
+  | "only_weak_matches"
+  | "no_results";
 
 export type FileReference = {
   path: string;
@@ -91,6 +98,16 @@ export type SearchDiagnostics = {
     retained: boolean;
     resultRank: number | null;
   } | null;
+};
+
+export type RetrievalQualitySummary = {
+  level: RetrievalQualityLevel;
+  reason: RetrievalQualityReason;
+  noStrongMatch: boolean;
+  strongMatchCount: number;
+  resultCount: number;
+  topResultConfidence: ResultConfidence | null;
+  topResultRetrievalTrustLevel: TrustLevel | null;
 };
 
 export type SymbolDetails = {

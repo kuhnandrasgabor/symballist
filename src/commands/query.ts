@@ -3,6 +3,7 @@ import { embedTexts, getActiveEmbeddingsConfig, summarizeEmbeddingSupport } from
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
 import type { QueryIntentOptions } from "../types.ts";
+import { summarizeRetrievalQuality } from "./resultQuality.ts";
 
 export async function runQuery(
   root: string,
@@ -42,6 +43,7 @@ export async function runQuery(
   });
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
   db.close();
+  const resultQuality = summarizeRetrievalQuality(search.results);
 
   const payload = {
     query: rawQuery,
@@ -70,6 +72,7 @@ export async function runQuery(
       graphSignals: "same_file_cluster, imports_candidate, and imported_by_candidate reflect one-hop graph-aware reranking signals from the current candidate neighborhood"
       }
     }),
+    resultQuality,
     results: search.results
   };
 

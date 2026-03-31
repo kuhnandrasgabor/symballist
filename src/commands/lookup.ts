@@ -11,6 +11,7 @@ import { embedTexts, getActiveEmbeddingsConfig, summarizeEmbeddingSupport } from
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
 import type { QueryIntentOptions } from "../types.ts";
+import { summarizeRetrievalQuality } from "./resultQuality.ts";
 import { summarizeBody } from "./show.ts";
 
 export async function runLookup(
@@ -55,6 +56,7 @@ export async function runLookup(
   const related = symbol ? getRelatedSymbolsForSymbol(db, symbol) : [];
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
   db.close();
+  const resultQuality = summarizeRetrievalQuality(search.results);
 
   const body = symbol ? summarizeBody(symbol.body, options.full === true) : null;
 
@@ -88,6 +90,7 @@ export async function runLookup(
         selectedSymbolTrustLevel: "extraction trust for the resolved top result symbol"
       }
     }),
+    resultQuality,
     selectedResult,
     symbol: symbol ? {
       ...symbol,

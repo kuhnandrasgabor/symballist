@@ -139,6 +139,36 @@ const DOC_ORIENTED_QUERY_TERMS = new Set([
   "roadmap",
   "workflow"
 ]);
+const CONCEPTUAL_STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "by",
+  "do",
+  "does",
+  "for",
+  "how",
+  "in",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "the",
+  "this",
+  "to",
+  "what",
+  "when",
+  "where",
+  "which",
+  "why",
+  "with",
+  "work",
+  "works"
+]);
 
 const SEMANTIC_EXACT_THRESHOLD = 0.9;
 const SEMANTIC_STRONG_THRESHOLD = 0.75;
@@ -301,6 +331,10 @@ function tokenizeLookupTerms(value: string): string[] {
     .filter(Boolean);
 }
 
+function conceptualTerms(value: string): string[] {
+  return tokenizeLookupTerms(value).filter((term) => !CONCEPTUAL_STOPWORDS.has(term));
+}
+
 function splitCamelCase(value: string): string[] {
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -397,7 +431,7 @@ function analyzeConceptPathMatch(row: SearchRow, rawQuery: string): MatchAnalysi
     return null;
   }
 
-  const queryTerms = tokenizeLookupTerms(rawQuery);
+  const queryTerms = conceptualTerms(rawQuery);
   if (queryTerms.length === 0 || isDocOrientedQuery(rawQuery)) {
     return null;
   }
@@ -763,7 +797,7 @@ function isDocOrientedQuery(rawQuery: string): boolean {
 }
 
 function isDockerfileInstructionQuery(rawQuery: string): boolean {
-  const terms = tokenizeLookupTerms(rawQuery);
+  const terms = conceptualTerms(rawQuery);
   if (terms.length === 0) {
     return false;
   }
@@ -826,6 +860,13 @@ function isImplementationFocusedIntent(options: SearchOptions, rawQuery?: string
   return options.preferImplementation === true && !options.docsOnly && !isDocOrientedQuery(rawQuery ?? options.rawQuery ?? "");
 }
 
+function isBroadConceptualCodeQuery(rawQuery: string, options: SearchOptions): boolean {
+  if (options.docsOnly || isDocOrientedQuery(rawQuery) || isSymbolShapedQuery(rawQuery)) {
+    return false;
+  }
+  return conceptualTerms(rawQuery).length >= 2;
+}
+
 function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
   if (options.docsOnly && !isDocRow(row)) {
     return false;
@@ -847,6 +888,7 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   const preferImplementation = isImplementationFocusedIntent(options, rawQuery);
   const docsOnly = options.docsOnly === true;
   const dockerfileInstructionQuery = isDockerfileInstructionQuery(rawQuery);
+  const broadConceptualCodeQuery = isBroadConceptualCodeQuery(rawQuery, options);
 
   if (docsOnly) {
     if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
@@ -890,6 +932,9 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
     if (preferImplementation) {
       return 2.5;
     }
+    if (broadConceptualCodeQuery) {
+      return normalizedPath.startsWith("docs/") ? 1.35 : 0.95;
+    }
     if (normalizedPath.startsWith("docs/")) {
       return 0.35;
     }
@@ -907,7 +952,11 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   }
 
   if (normalizedPath.startsWith("src/")) {
-    return preferImplementation ? -2.6 : -1.1;
+    let adjustment = preferImplementation ? -2.6 : -1.1;
+    if (broadConceptualCodeQuery && isDefinitionLikeKind(row.kind)) {
+      adjustment -= 0.9;
+    }
+    return adjustment;
   }
   if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
     return preferImplementation ? 1.8 : 0.75;
@@ -1619,7 +1668,7 @@ function shouldExpandConceptCandidates(rawQuery: string, options: SearchOptions)
   return !options.docsOnly
     && !isDocOrientedQuery(rawQuery)
     && !isSymbolShapedQuery(rawQuery)
-    && tokenizeLookupTerms(rawQuery).length > 0;
+    && conceptualTerms(rawQuery).length > 0;
 }
 
 function mergeSearchRows(...rowSets: SearchRow[][]): SearchRow[] {
@@ -1659,7 +1708,7 @@ function getConceptPathCandidates(
   kinds: string[],
   limit: number
 ): SearchRow[] {
-  const queryTerms = tokenizeLookupTerms(rawQuery);
+  const queryTerms = conceptualTerms(rawQuery);
   if (queryTerms.length === 0) {
     return [];
   }
@@ -1966,9 +2015,25 @@ function extractImportRelations(statement: string, sourcePath: string, available
 
   return importedNames.map((importedName) => ({
     kind: "imports" as const,
-    targetPath,
+    targetPath: resolveImportedTargetPath(moduleName, importedName, sourcePath, availablePaths) ?? targetPath,
     targetLabel: `${moduleName}.${importedName}`
   }));
+}
+
+function resolveImportedTargetPath(
+  moduleName: string,
+  importedName: string,
+  sourcePath: string,
+  availablePaths: Set<string>
+): string | null {
+  const trimmedModule = moduleName.trim();
+  const trimmedImport = importedName.trim();
+  if (!trimmedModule || !trimmedImport || trimmedImport === "*") {
+    return null;
+  }
+
+  const separator = trimmedModule.endsWith(".") ? "" : ".";
+  return resolvePythonModulePath(`${trimmedModule}${separator}${trimmedImport}`, sourcePath, availablePaths);
 }
 
 function resolvePythonModulePath(moduleName: string, sourcePath: string, availablePaths: Set<string>): string | null {
