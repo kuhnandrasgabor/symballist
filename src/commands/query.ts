@@ -69,7 +69,7 @@ export async function runQuery(
       locationFields: "path remains the canonical file path; file.path and location.path are duplicated for consumers that expect explicit file/location objects. Compact mode preserves these fields.",
       retrievalChannels: ["lexical", "concept_path", "semantic"],
       hybridContribution: "lexical_only means no semantic candidate was retained; semantic_only means the result came from embeddings without lexical admission; semantic_assisted means both channels admitted the result",
-      graphSignals: "same_file_cluster, imports_candidate, and imported_by_candidate reflect one-hop graph-aware reranking signals from the current candidate neighborhood"
+      graphSignals: "same_file_cluster, imports_candidate, imported_by_candidate, uses_candidate, used_by_candidate, and root_candidate reflect one-hop graph-aware reranking signals from the current candidate neighborhood"
       }
     }),
     resultQuality,

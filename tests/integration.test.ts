@@ -1692,6 +1692,56 @@ describe("symballist vertical slice", () => {
     expect(results.findIndex((result) => normalizeRepoPath(result.path) === "src/store.py")).toBeLessThan(results.findIndex((result) => normalizeRepoPath(result.path) === "src/notes.py"));
   });
 
+  test("status and retrieval surface likely graph roots for startup-oriented code", async () => {
+    const root = await mkdtemp(join(tmpdir(), "symballist-"));
+    tempRoots.push(root);
+    await mkdir(join(root, "scripts"), { recursive: true });
+    await writeFile(
+      join(root, "worker.py"),
+      'def bootstrap_store() -> str:\n    """bootstrap worker flow"""\n    return "ok"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "main.py"),
+      'from worker import bootstrap_store\n\n\ndef main() -> str:\n    return bootstrap_store()\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "scripts", "startup"),
+      '#!/usr/bin/env bash\nrun_stack() {\n  echo "start"\n}\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const statusOutput = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(statusOutput) as {
+      graphAwareness: {
+        likelyRoots: Array<{
+          path: string;
+          language: string;
+          reasons: string[];
+        }>;
+      };
+    };
+
+    expect(status.graphAwareness.likelyRoots.some((entry) => normalizeRepoPath(entry.path) === "main.py" && entry.reasons.length > 0)).toBeTrue();
+    expect(status.graphAwareness.likelyRoots.some((entry) => normalizeRepoPath(entry.path) === "scripts/startup" && entry.reasons.length > 0)).toBeTrue();
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, buildFtsQuery("startup main bootstrap"), 5, {
+      rawQuery: "startup main bootstrap"
+    });
+    db.close();
+
+    const mainResult = results.find((result) => normalizeRepoPath(result.path) === "main.py" && result.name === "main");
+    expect(mainResult).toBeDefined();
+    expect(mainResult?.graphSignals).toContain("root_candidate");
+  });
+
   test("status and query report stale indexes after source changes", async () => {
     const root = await createFixtureRepo();
     await runInit(root);

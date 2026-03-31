@@ -216,6 +216,8 @@ Important behavior:
   - whether the indexed repo is stale relative to the filesystem
 - `changeAwareness`
   - file-level change summaries since index and, when available, since `git HEAD`
+- `graphAwareness`
+  - bounded likely-root hints for obvious startup or entrypoint files such as `main.py`, `scripts/...`, or extensionless startup scripts
 - `shellGuidance`
   - the best local wrapper to use for the current shell plus shell-specific alternatives
 - `retrieval.mode`
@@ -233,7 +235,7 @@ Important behavior:
 - `hybridContribution`
   - whether semantic retrieval actually contributed
 - `graphSignals`
-  - one-hop graph-aware reranking hints such as `same_file_cluster`, `imports_candidate`, and `imported_by_candidate`
+  - one-hop graph-aware reranking hints such as `same_file_cluster`, `imports_candidate`, `imported_by_candidate`, `uses_candidate`, `used_by_candidate`, and `root_candidate`
 
 If you want a cheaper response for agent consumers, use `--compact` to keep the retrieval payload while omitting the repeated legend / semantics blocks.
 

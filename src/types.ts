@@ -17,7 +17,7 @@ export type MatchReason =
 
 export type RetrievalChannel = "lexical" | "concept_path" | "semantic";
 export type HybridContribution = "lexical_only" | "semantic_only" | "semantic_assisted";
-export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_by_candidate" | "uses_candidate" | "used_by_candidate";
+export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_by_candidate" | "uses_candidate" | "used_by_candidate" | "root_candidate";
 export type RetrievalQualityLevel = "strong" | "moderate" | "weak" | "none";
 export type RetrievalQualityReason =
   | "top_result_strong"

@@ -138,6 +138,18 @@ export type SymbolChangeSummary = StoredSymbolChangeSummary & {
   truncated: boolean;
 };
 
+export type GraphRootCandidate = {
+  path: string;
+  language: SymbolRecord["language"];
+  reasons: string[];
+};
+
+type RootHeuristicInput = {
+  path: string;
+  language: SymbolRecord["language"];
+  topLevelNames: string[];
+};
+
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
   ["class", -1.1],
   ["function", -1.0],
@@ -899,6 +911,95 @@ function isTestPath(path: string): boolean {
   return normalizedPath.startsWith("tests/") || normalizedPath.includes("/test");
 }
 
+function normalizePathForHeuristics(path: string): string {
+  return path.toLowerCase().replace(/\\/g, "/");
+}
+
+function classifyGraphRootCandidate(input: RootHeuristicInput): string[] {
+  const normalizedPath = normalizePathForHeuristics(input.path);
+  const fileName = normalizedPath.split("/").at(-1) ?? normalizedPath;
+  const baseName = fileName.replace(/\.[^.]+$/, "");
+  const reasons = new Set<string>();
+
+  if (fileName === "__main__.py") {
+    reasons.add("python __main__ entrypoint");
+  }
+
+  if ([
+    "main.py",
+    "app.py",
+    "cli.py",
+    "manage.py",
+    "server.py",
+    "bootstrap.py",
+    "main.js",
+    "app.js",
+    "cli.js",
+    "server.js",
+    "main.ts",
+    "app.ts",
+    "cli.ts",
+    "server.ts",
+    "startup",
+    "start",
+    "run",
+    "serve"
+  ].includes(fileName)) {
+    reasons.add("common startup or entrypoint filename");
+  }
+
+  if (
+    input.language === "shell"
+    && ["startup", "start", "run", "serve", "bootstrap"].includes(baseName)
+  ) {
+    reasons.add("shell startup script name");
+  }
+
+  if (
+    normalizedPath.startsWith("bin/")
+    || normalizedPath.startsWith("scripts/")
+    || normalizedPath.includes("/bin/")
+    || normalizedPath.includes("/scripts/")
+  ) {
+    reasons.add("script or bin path");
+  }
+
+  const normalizedNames = input.topLevelNames.map((name) => name.toLowerCase());
+  if (normalizedNames.includes("main")) {
+    reasons.add("top-level main symbol");
+  }
+  if (normalizedNames.includes("cli") || normalizedNames.includes("run") || normalizedNames.includes("startup")) {
+    reasons.add("top-level entry symbol");
+  }
+
+  return [...reasons].slice(0, 3);
+}
+
+function isRootAwareQuery(rawQuery: string): boolean {
+  const terms = conceptualTerms(rawQuery);
+  if (terms.length === 0) {
+    return false;
+  }
+
+  const rootTerms = new Set([
+    "main",
+    "entrypoint",
+    "startup",
+    "start",
+    "bootstrap",
+    "boot",
+    "run",
+    "serve",
+    "server",
+    "cli",
+    "script",
+    "launch",
+    "worker"
+  ]);
+
+  return terms.some((term) => rootTerms.has(term));
+}
+
 function isDocRow(row: SearchRow): boolean {
   return row.language === "markdown";
 }
@@ -1227,6 +1328,14 @@ function buildGraphSupportById(
   }
 
   const graphEnabled = !options.codeOnly || options.preferImplementation || !isDocOrientedQuery(rawQuery);
+  const rootAware = isRootAwareQuery(rawQuery);
+  const rootPaths = rootAware
+    ? new Set(
+        getLikelyGraphRoots(db, Math.max(candidatePaths.length, 12))
+          .map((entry) => entry.path)
+          .filter((path) => candidatePaths.includes(path))
+      )
+    : new Set<string>();
 
   for (const candidate of codeCandidates) {
     if (!graphEnabled) {
@@ -1265,6 +1374,11 @@ function buildGraphSupportById(
       const usageWeight = isDefinitionLikeKind(candidate.kind) ? 0.7 : 0.35;
       adjustment -= usageWeight * Math.min(usageIncomingCount, 2);
       signals.push("used_by_candidate");
+    }
+
+    if (rootPaths.has(candidate.path)) {
+      adjustment -= isDefinitionLikeKind(candidate.kind) ? 0.45 : 0.2;
+      signals.push("root_candidate");
     }
 
     if (candidate.kind === "import") {
@@ -1583,6 +1697,56 @@ export function getStatusSummary(db: Database): StatusSummary {
     languages: languageRows.map((row) => row.language),
     schemaVersion: getSchemaVersion(db)
   };
+}
+
+export function getLikelyGraphRoots(db: Database, limit = 12): GraphRootCandidate[] {
+  const rows = db.query(`
+    SELECT
+      files.path AS path,
+      files.language AS language,
+      symbols.name AS name
+    FROM files
+    LEFT JOIN symbols
+      ON symbols.path = files.path
+      AND symbols.kind NOT IN ('import', 'file')
+      AND symbols.start_line <= 160
+    ORDER BY files.path, symbols.start_line, symbols.id
+  `).all() as Array<{
+    path: string;
+    language: SymbolRecord["language"];
+    name: string | null;
+  }>;
+
+  const byPath = new Map<string, RootHeuristicInput>();
+  for (const row of rows) {
+    const existing = byPath.get(row.path);
+    if (!existing) {
+      byPath.set(row.path, {
+        path: row.path,
+        language: row.language,
+        topLevelNames: row.name ? [row.name] : []
+      });
+      continue;
+    }
+    if (row.name) {
+      existing.topLevelNames.push(row.name);
+    }
+  }
+
+  return [...byPath.values()]
+    .map((entry) => ({
+      path: entry.path,
+      language: entry.language,
+      reasons: classifyGraphRootCandidate(entry)
+    }))
+    .filter((entry) => entry.reasons.length > 0)
+    .sort((left, right) => {
+      if (right.reasons.length !== left.reasons.length) {
+        return right.reasons.length - left.reasons.length;
+      }
+      return left.path.localeCompare(right.path);
+    })
+    .slice(0, limit);
 }
 
 export function getEmbeddingSummary(
