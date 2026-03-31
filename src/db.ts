@@ -21,6 +21,9 @@ import type {
 } from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 6;
+
+const SYMBOL_CHANGE_SUMMARY_KEY = "latest_symbol_change_summary";
+const MAX_SYMBOL_CHANGE_SAMPLES = 20;
 export const CURRENT_EMBEDDING_PROVIDER = "ollama";
 
 export type IndexedFileRow = {
@@ -114,6 +117,25 @@ type SearchExecution = {
 type GraphSupport = {
   adjustment: number;
   signals: GraphSignal[];
+};
+
+type StoredSymbolChangeSummary = {
+  addedCount: number;
+  removedCount: number;
+  changedCount: number;
+  added: SymbolChangeSample[];
+  removed: SymbolChangeSample[];
+  changed: SymbolChangeSample[];
+};
+
+export type SymbolChangeSample = {
+  path: string;
+  kind: string;
+  name: string;
+};
+
+export type SymbolChangeSummary = StoredSymbolChangeSummary & {
+  truncated: boolean;
 };
 
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
@@ -296,6 +318,46 @@ function setSchemaVersion(db: Database, version: number): void {
     VALUES ('schema_version', ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(String(version));
+}
+
+function defaultSymbolChangeSummary(): StoredSymbolChangeSummary {
+  return {
+    addedCount: 0,
+    removedCount: 0,
+    changedCount: 0,
+    added: [],
+    removed: [],
+    changed: []
+  };
+}
+
+function readStoredSymbolChangeSummary(db: Database): StoredSymbolChangeSummary {
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(SYMBOL_CHANGE_SUMMARY_KEY) as { value?: string } | null;
+  if (!row?.value) {
+    return defaultSymbolChangeSummary();
+  }
+
+  try {
+    const parsed = JSON.parse(row.value) as Partial<StoredSymbolChangeSummary>;
+    return {
+      addedCount: Number(parsed.addedCount ?? 0) || 0,
+      removedCount: Number(parsed.removedCount ?? 0) || 0,
+      changedCount: Number(parsed.changedCount ?? 0) || 0,
+      added: Array.isArray(parsed.added) ? parsed.added.filter(Boolean).slice(0, MAX_SYMBOL_CHANGE_SAMPLES) as SymbolChangeSample[] : [],
+      removed: Array.isArray(parsed.removed) ? parsed.removed.filter(Boolean).slice(0, MAX_SYMBOL_CHANGE_SAMPLES) as SymbolChangeSample[] : [],
+      changed: Array.isArray(parsed.changed) ? parsed.changed.filter(Boolean).slice(0, MAX_SYMBOL_CHANGE_SAMPLES) as SymbolChangeSample[] : []
+    };
+  } catch {
+    return defaultSymbolChangeSummary();
+  }
+}
+
+function writeStoredSymbolChangeSummary(db: Database, summary: StoredSymbolChangeSummary): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(SYMBOL_CHANGE_SUMMARY_KEY, JSON.stringify(summary));
 }
 
 function clearIndexData(db: Database): void {
@@ -1228,6 +1290,7 @@ export function replaceFileIndex(
   symbols: SymbolRecord[],
   options: { availablePaths?: Set<string> } = {}
 ): number {
+  const previousSymbols = getStoredSymbolsForPath(db, file.path);
   deleteFileIndex(db, file.path);
   db.query("INSERT INTO files (path, language, size, mtime_ms) VALUES (?, ?, ?, ?)").run(
     file.path,
@@ -1303,6 +1366,11 @@ export function replaceFileIndex(
     count += 1;
   }
 
+  const changes = diffSymbols(previousSymbols, symbols);
+  if (changes.added.length > 0 || changes.removed.length > 0 || changes.changed.length > 0) {
+    accumulateSymbolChanges(db, changes);
+  }
+
   return count;
 }
 
@@ -1316,6 +1384,130 @@ export function getIndexedFiles(db: Database): IndexedFileRow[] {
     FROM files
   `);
   return rows.all() as IndexedFileRow[];
+}
+
+function getStoredSymbolsForPath(db: Database, path: string): SymbolRecord[] {
+  const rows = db.query(`
+    SELECT
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      body,
+      doc,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn
+    FROM symbols
+    WHERE path = ?
+    ORDER BY start_line, start_column, end_line, end_column, kind, name, id
+  `).all(path) as Array<SymbolRecord>;
+
+  return rows.map((row) => ({
+    ...row,
+    fallback: Boolean(row.fallback)
+  }));
+}
+
+function symbolIdentity(symbol: SymbolRecord): string {
+  return [symbol.path, symbol.kind, symbol.name, symbol.signature ?? ""].join("\u001f");
+}
+
+function symbolFingerprint(symbol: SymbolRecord): string {
+  return [
+    symbol.path,
+    symbol.kind,
+    symbol.name,
+    symbol.signature ?? "",
+    symbol.doc ?? "",
+    symbol.body,
+    symbol.startLine,
+    symbol.startColumn,
+    symbol.endLine,
+    symbol.endColumn,
+    symbol.fallback ? "1" : "0"
+  ].join("\u001f");
+}
+
+function sampleSymbol(symbol: SymbolRecord): SymbolChangeSample {
+  return {
+    path: symbol.path,
+    kind: symbol.kind,
+    name: symbol.name
+  };
+}
+
+function pushBoundedSample(target: SymbolChangeSample[], sample: SymbolChangeSample): void {
+  if (target.length >= MAX_SYMBOL_CHANGE_SAMPLES) {
+    return;
+  }
+  if (target.some((entry) => entry.path === sample.path && entry.kind === sample.kind && entry.name === sample.name)) {
+    return;
+  }
+  target.push(sample);
+}
+
+function accumulateSymbolChanges(db: Database, changes: { added: SymbolRecord[]; removed: SymbolRecord[]; changed: SymbolRecord[] }): void {
+  const summary = readStoredSymbolChangeSummary(db);
+  summary.addedCount += changes.added.length;
+  summary.removedCount += changes.removed.length;
+  summary.changedCount += changes.changed.length;
+
+  for (const symbol of changes.added) {
+    pushBoundedSample(summary.added, sampleSymbol(symbol));
+  }
+  for (const symbol of changes.removed) {
+    pushBoundedSample(summary.removed, sampleSymbol(symbol));
+  }
+  for (const symbol of changes.changed) {
+    pushBoundedSample(summary.changed, sampleSymbol(symbol));
+  }
+
+  writeStoredSymbolChangeSummary(db, summary);
+}
+
+function diffSymbols(previous: SymbolRecord[], next: SymbolRecord[]): { added: SymbolRecord[]; removed: SymbolRecord[]; changed: SymbolRecord[] } {
+  const previousByIdentity = new Map(previous.map((symbol) => [symbolIdentity(symbol), symbol]));
+  const nextByIdentity = new Map(next.map((symbol) => [symbolIdentity(symbol), symbol]));
+  const added: SymbolRecord[] = [];
+  const removed: SymbolRecord[] = [];
+  const changed: SymbolRecord[] = [];
+
+  for (const [identity, nextSymbol] of nextByIdentity) {
+    const previousSymbol = previousByIdentity.get(identity);
+    if (!previousSymbol) {
+      added.push(nextSymbol);
+      continue;
+    }
+    if (symbolFingerprint(previousSymbol) !== symbolFingerprint(nextSymbol)) {
+      changed.push(nextSymbol);
+    }
+  }
+
+  for (const [identity, previousSymbol] of previousByIdentity) {
+    if (!nextByIdentity.has(identity)) {
+      removed.push(previousSymbol);
+    }
+  }
+
+  return { added, removed, changed };
+}
+
+export function resetLatestSymbolChangeSummary(db: Database): void {
+  writeStoredSymbolChangeSummary(db, defaultSymbolChangeSummary());
+}
+
+export function getLatestSymbolChangeSummary(db: Database): SymbolChangeSummary {
+  const summary = readStoredSymbolChangeSummary(db);
+  return {
+    ...summary,
+    truncated: summary.addedCount > summary.added.length
+      || summary.removedCount > summary.removed.length
+      || summary.changedCount > summary.changed.length
+  };
 }
 
 export function deleteFileIndex(db: Database, path: string): void {

@@ -1737,6 +1737,50 @@ describe("symballist vertical slice", () => {
     expect(status.changeAwareness.sinceGitHead.deletedFiles).toBe(0);
   });
 
+  test("status reports bounded symbol-level changes from the most recent index run", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    await writeFile(
+      join(root, "helpers.py"),
+      [
+        "def slugify(value: str) -> str:",
+        "    return value.lower()",
+        "",
+        "def normalize_slug(value: str) -> str:",
+        "    return slugify(value).strip('-')"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runIndex(root, { progress: false });
+
+    const output = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(output) as {
+      changeAwareness: {
+        symbolChangesSinceIndex: {
+          addedCount: number;
+          removedCount: number;
+          changedCount: number;
+          added: Array<{ path: string; kind: string; name: string }>;
+          removed: Array<{ path: string; kind: string; name: string }>;
+          changed: Array<{ path: string; kind: string; name: string }>;
+          truncated: boolean;
+        };
+      };
+    };
+
+    expect(status.changeAwareness.symbolChangesSinceIndex.addedCount).toBe(1);
+    expect(status.changeAwareness.symbolChangesSinceIndex.removedCount).toBe(0);
+    expect(status.changeAwareness.symbolChangesSinceIndex.changedCount).toBe(1);
+    expect(status.changeAwareness.symbolChangesSinceIndex.added.some((entry) => entry.path === "helpers.py" && entry.name === "normalize_slug")).toBeTrue();
+    expect(status.changeAwareness.symbolChangesSinceIndex.changed.some((entry) => entry.path === "helpers.py" && entry.name === "slugify")).toBeTrue();
+    expect(status.changeAwareness.symbolChangesSinceIndex.truncated).toBeFalse();
+  });
+
   test("freshness ignores tiny mtime jitter immediately after indexing", async () => {
     const root = await createFixtureRepo();
     await runInit(root);
