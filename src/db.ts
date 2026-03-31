@@ -778,6 +778,11 @@ function conceptualTerms(value: string): string[] {
   return tokenizeLookupTerms(value).filter((term) => !CONCEPTUAL_STOPWORDS.has(term));
 }
 
+type TypedQueryIntent = {
+  parameterTerms: string[];
+  returnTerms: string[];
+};
+
 function normalizeConceptTerm(term: string): string {
   let normalized = term.trim().toLowerCase();
   if (!normalized) {
@@ -807,6 +812,28 @@ function countNormalizedConceptMatches(queryTerms: string[], ...candidateTermGro
     candidateTermGroups.flatMap((group) => normalizeConceptTerms(group))
   );
   return normalizeConceptTerms(queryTerms).filter((term) => candidateTerms.has(term)).length;
+}
+
+function extractTypedQueryIntent(rawQuery: string): TypedQueryIntent {
+  const conceptual = conceptualTerms(rawQuery);
+  if (conceptual.length === 0) {
+    return { parameterTerms: [], returnTerms: [] };
+  }
+
+  const parameterHintTerms = new Set(["accept", "accepts", "take", "takes", "parameter", "parameters", "argument", "arguments"]);
+  const returnHintTerms = new Set(["return", "returns", "yield", "yields", "output", "outputs"]);
+
+  const parameterTerms = conceptual.filter((term) => !parameterHintTerms.has(term) && !returnHintTerms.has(term));
+  const returnTerms = conceptual.filter((term) => !parameterHintTerms.has(term) && !returnHintTerms.has(term));
+
+  return {
+    parameterTerms: conceptual.some((term) => parameterHintTerms.has(term)) ? parameterTerms : [],
+    returnTerms: conceptual.some((term) => returnHintTerms.has(term)) ? returnTerms : []
+  };
+}
+
+function isTypedLanguage(language: SearchRow["language"]): boolean {
+  return language === "python" || language === "typescript";
 }
 
 function splitCamelCase(value: string): string[] {
@@ -1290,6 +1317,9 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string, options: SearchO
   const queryTermsPresentInDoc = requiredTerms.length > 0 && requiredTerms.every((term) => docLower.includes(term));
   const matchedImplementationTerms = countNormalizedConceptMatches(requiredTerms, nameTerms, signatureTerms, bodyTerms);
   const matchedImplementationAndPathTerms = countNormalizedConceptMatches(requiredTerms, nameTerms, signatureTerms, bodyTerms, pathTerms);
+  const typedIntent = extractTypedQueryIntent(rawQuery);
+  const matchedParameterTypeTerms = countNormalizedConceptMatches(typedIntent.parameterTerms, signatureTerms);
+  const matchedReturnTypeTerms = countNormalizedConceptMatches(typedIntent.returnTerms, signatureTerms);
   const strongImplementationBodyMatch = isStrongImplementationBodyMatch(
     row,
     rawQuery,
@@ -1298,6 +1328,21 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string, options: SearchO
     queryTermsPresentInSignature,
     queryTermsPresentInDoc
   );
+
+  if (
+    isTypedLanguage(row.language)
+    && isDefinitionLikeKind(row.kind)
+    && (
+      (typedIntent.parameterTerms.length > 0 && matchedParameterTypeTerms === normalizeConceptTerms(typedIntent.parameterTerms).length)
+      || (typedIntent.returnTerms.length > 0 && matchedReturnTypeTerms === normalizeConceptTerms(typedIntent.returnTerms).length)
+    )
+  ) {
+    return {
+      adjustment: -0.9 + definitionBias,
+      reason: "signature_text",
+      confidence: "strong"
+    };
+  }
 
   if (strongImplementationBodyMatch) {
     return {

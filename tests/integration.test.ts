@@ -356,6 +356,57 @@ describe("symballist vertical slice", () => {
     expect(status.supportedLanguages).toContain("typescript");
   });
 
+  test("typed queries can match TypeScript parameter types and Python return annotations", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "agent.ts"),
+      [
+        "export interface WorkspaceConfig {",
+        "  id: string;",
+        "}",
+        "",
+        "export function startWorkspace(config: WorkspaceConfig): boolean {",
+        "  return Boolean(config.id);",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "grades.py"),
+      [
+        "from typing import List",
+        "",
+        "def list_grades() -> List[int]:",
+        "    return [1, 2, 3]"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const tsResults = searchSymbols(db, buildFtsQuery("what accepts WorkspaceConfig"), 5, {
+      rawQuery: "what accepts WorkspaceConfig"
+    });
+    const pyResults = searchSymbols(db, buildFtsQuery("what returns list int"), 5, {
+      rawQuery: "what returns list int"
+    });
+    db.close();
+
+    expect(normalizeRepoPath(tsResults[0]?.path)).toBe("src/agent.ts");
+    expect(tsResults[0]?.name).toBe("startWorkspace");
+    expect(tsResults[0]?.matchReason).toBe("signature_text");
+    expect(tsResults[0]?.confidence).toBe("strong");
+
+    expect(normalizeRepoPath(pyResults[0]?.path)).toBe("src/grades.py");
+    expect(pyResults[0]?.name).toBe("list_grades");
+    expect(pyResults[0]?.signature).toContain("-> List[int]");
+    expect(pyResults[0]?.matchReason).toBe("signature_text");
+    expect(pyResults[0]?.confidence).toBe("strong");
+  });
+
   test("frontend JS and CSS participate in graph relations and diagnostics for fuzzy implementation queries", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "dashboard_frontend", "core"), { recursive: true });

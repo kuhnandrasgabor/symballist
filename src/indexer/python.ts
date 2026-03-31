@@ -21,6 +21,11 @@ function nodeText(source: string, node: SyntaxNode | null): string {
   return source.slice(node.startIndex, node.endIndex);
 }
 
+function extractPythonReturnSuffixFromHeader(headerText: string): string {
+  const match = headerText.match(/(?:async\s+def|def)\s+[A-Za-z_][A-Za-z0-9_]*\s*\(.*?\)\s*(->\s*[^:\n]+)\s*:/s);
+  return match?.[1]?.trim() ?? "";
+}
+
 type PythonTopLevelSymbol = {
   node: SyntaxNode;
   record: SymbolRecord;
@@ -231,13 +236,14 @@ function recoverOversizedPythonSymbols(path: string, source: string): SymbolReco
       const match = headerText.match(new RegExp(`^(?:async\\s+def|def)\\s+(${PYTHON_IDENTIFIER})(\\s*\\(.*\\))(?:\\s*->\\s*.+)?\\s*:$`));
       const name = match?.[1] ?? "";
       const parameters = match?.[2]?.trim() ?? "";
+      const returnSuffix = extractPythonReturnSuffixFromHeader(headerText);
       if (name) {
         symbols.push({
           path,
           language: "python",
           kind: "function",
           name,
-          signature: `${name}${parameters}`,
+          signature: `${name}${parameters}${returnSuffix ? ` ${returnSuffix}` : ""}`,
           body: bodyText || headerText,
           doc: "Recovered from oversized Python file via lightweight top-level scan.",
           fallback: false,
@@ -552,7 +558,8 @@ export function extractPythonSymbols(path: string, source: string, availablePath
       if (!name) {
         return;
       }
-      const signature = `${name}${nodeText(source, parametersNode).trim()}`;
+      const returnSuffix = extractPythonReturnSuffixFromHeader(nodeText(source, node));
+      const signature = `${name}${nodeText(source, parametersNode).trim()}${returnSuffix ? ` ${returnSuffix}` : ""}`;
       symbols.push({
         node,
         record: {
