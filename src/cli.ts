@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { cwd } from "node:process";
+import { runGraph } from "./commands/graph.ts";
 import { runIndex } from "./commands/index.ts";
 import { runInit } from "./commands/init.ts";
 import { runLookup } from "./commands/lookup.ts";
@@ -41,6 +42,8 @@ Usage:
   symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
   symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]
+  symballist graph <id> [--compact] [--root PATH]
+  symballist graph --name <symbol> [--compact] [--root PATH]
   symballist show <id> [--full] [--compact] [--root PATH]
   symballist show --name <symbol> [--full] [--compact] [--root PATH]
   symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--compact] [--root PATH]
@@ -48,12 +51,13 @@ Usage:
 Command intent:
   query   ranked candidate exploration when you want to inspect multiple hits
   lookup  best-match-plus-context in one response, with alternatives included
+  graph   direct traversal of indexed imports, uses, inbound neighbors, and containers
   show    direct inspection of a known id or symbol name; large bodies summarize unless --full
 
 Runtime contract:
   repo-local tool-definition JSON on disk does not make symballist_* callable by itself
   if your runtime has not actually loaded those tools, use symballist or the repo-local wrapper immediately
-  start with status; if stale or indexCompatibility.requiresRebuild, run watch --once or index --rebuild; then proceed with lookup/query/show
+  start with status; if stale or indexCompatibility.requiresRebuild, run watch --once or index --rebuild; then proceed with lookup/query/show/graph
 `);
 }
 
@@ -73,6 +77,9 @@ function commandUsage(command: string): void {
       return;
     case "lookup":
       console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives. Use this for exact symbols, config paths, CSS selectors from real .css files, and other one-shot lookups.");
+      return;
+    case "graph":
+      console.log("Usage:\n  symballist graph <id> [--compact] [--root PATH]\n  symballist graph --name <symbol> [--compact] [--root PATH]\n\nTraversal flow: resolve a known symbol and return grouped graph neighbors such as imports, uses, importedBy, usedBy, and containedIn.");
       return;
     case "show":
       console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
@@ -256,7 +263,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       preferImplementation = true;
       continue;
     }
-    if ((command === "query" || command === "lookup" || command === "show") && value === "--compact") {
+    if ((command === "query" || command === "lookup" || command === "show" || command === "graph") && value === "--compact") {
       compactOutput = true;
       continue;
     }
@@ -264,7 +271,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       showFull = true;
       continue;
     }
-    if (command === "show" && value === "--name") {
+    if ((command === "show" || command === "graph") && value === "--name") {
       const next = argv[index + 1];
       if (!next) {
         error = "Expected a symbol name after --name.";
@@ -360,6 +367,13 @@ export async function runCli(argv: string[]): Promise<void> {
       const id = parsed.positionals[0] ?? "";
       await runShow(parsed.root, id, parsed.showName ?? undefined, {
         full: parsed.showFull,
+        compact: parsed.compactOutput
+      });
+      return;
+    }
+    case "graph": {
+      const id = parsed.positionals[0] ?? "";
+      await runGraph(parsed.root, id, parsed.showName ?? undefined, {
         compact: parsed.compactOutput
       });
       return;

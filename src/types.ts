@@ -45,6 +45,20 @@ export type RelationDetails = {
   targetLabel: string;
 };
 
+export type GraphTraversalKind =
+  | "imports"
+  | "uses"
+  | "contained_in"
+  | "imported_by"
+  | "used_by"
+  | "container";
+
+export type GraphTraversalEntry = {
+  traversal: GraphTraversalKind;
+  relation: RelationDetails;
+  symbol: SymbolDetails;
+};
+
 export type SymbolRecord = {
   path: string;
   language: SupportedLanguage;

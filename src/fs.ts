@@ -423,6 +423,9 @@ Current language coverage:
   - \`symballist show <id>\`
   - \`symballist show --name <symbol>\`
   - \`symballist show --name <symbol> --full\`
+- Use graph when you want direct traversal of a known symbol's indexed neighbors:
+  - \`symballist graph --name <symbol>\`
+  - check grouped \`imports\`, \`uses\`, \`importedBy\`, \`usedBy\`, and \`containedIn\`
 - Large bodies summarize by default in \`lookup\` and \`show\`; check \`bodyPresentation.fullerBodyAvailable\` and \`bodyPresentation.expansionHint\` to decide whether \`--full\` is worth the extra payload.
 - Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in both compact and non-compact flows.
 - If a weak query reports \`resultQuality.noStrongMatch: true\`, treat that as an explicit weak-result outcome rather than a tool failure.
@@ -458,6 +461,7 @@ Current language coverage:
 - Add \`--prefer-implementation\` when broad code queries still lean toward wiring or references.
 - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
 - Use \`show\` to inspect a known result id or exact symbol name with spans, relations, and related symbols.
+- Use \`graph\` when you want direct navigation across indexed imports, uses, callers, or containers from a known symbol.
 - If you already know the symbol, use \`symballist show --name <symbol>\`.
 - If \`bodyPresentation.fullerBodyAvailable\` is true, rerun \`lookup\` or \`show\` with \`--full\` to expand the complete stored body.
 - Use \`graphDiagnostics\` on returned results or symbols when you want a bounded structural read on isolation, inbound references, root-like status, or possible-orphan candidacy without overclaiming dead code.
@@ -499,6 +503,7 @@ Current language coverage:
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
+- Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
   - fuzzy implementation concept: \`symballist_query\` with \`codeOnly: true\`, \`excludeTests: true\`, and usually \`preferImplementation: true\`
@@ -535,6 +540,7 @@ Current language coverage:
 - Use \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
+- Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -573,6 +579,7 @@ Current language coverage:
 - If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` / \`symballist_show\` when you want more manual ranked exploration or direct symbol inspection with graph diagnostics, or use the equivalent CLI commands if tool loading is unavailable.
+- Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
   - fuzzy implementation concept: \`symballist_query\` with \`--code-only --exclude-tests --prefer-implementation\`
@@ -611,6 +618,7 @@ Current language coverage:
 - If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection with graph diagnostics.
+- Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.

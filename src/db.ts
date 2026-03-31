@@ -6,6 +6,8 @@ import type {
   ExtractionKind,
   GraphDiagnostics,
   GraphSignal,
+  GraphTraversalEntry,
+  GraphTraversalKind,
   HybridContribution,
   MatchReason,
   QueryResult,
@@ -95,6 +97,9 @@ type RelationRow = {
   kind: RelationDetails["kind"];
   targetPath: string | null;
   targetLabel: string;
+};
+type InboundRelationRow = RelationRow & {
+  sourcePath: string;
 };
 type SearchOptions = {
   kinds?: string[];
@@ -2342,6 +2347,46 @@ export function getRelatedSymbolsForSymbol(db: Database, symbol: SymbolDetails, 
   return related;
 }
 
+export function getGraphTraversalForSymbol(db: Database, symbol: SymbolDetails, limit = 5): GraphTraversalEntry[] {
+  const traversals: GraphTraversalEntry[] = [];
+  const seen = new Set<string>();
+
+  const pushTraversal = (traversal: GraphTraversalKind, relation: RelationDetails, candidates: SymbolDetails[]): void => {
+    for (const candidate of candidates) {
+      if (candidate.id === symbol.id) {
+        continue;
+      }
+      const key = `${traversal}\u001f${candidate.id}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      traversals.push({
+        traversal,
+        relation,
+        symbol: candidate
+      });
+      break;
+    }
+  };
+
+  for (const relation of getRelationsForSymbol(db, symbol)) {
+    if (relation.kind === "contained_in") {
+      pushTraversal("contained_in", relation, getContainerSymbolCandidates(db, symbol));
+      continue;
+    }
+    pushTraversal(relation.kind, relation, getTargetSymbolCandidates(db, relation));
+  }
+
+  const inboundRelations = getInboundRelationsForSymbol(db, symbol, ["imports", "uses"]);
+  for (const relation of inboundRelations) {
+    const traversal = relation.kind === "imports" ? "imported_by" : "used_by";
+    pushTraversal(traversal, relation, getSourceSymbolCandidates(db, relation));
+  }
+
+  return traversals.slice(0, limit);
+}
+
 export function searchSymbols(db: Database, query: string, limit: number, options: SearchOptions = {}): QueryResult[] {
   return searchSymbolsWithDiagnostics(db, query, limit, options).results;
 }
@@ -2878,6 +2923,84 @@ function getTargetSymbolCandidates(db: Database, relation: RelationDetails): Sym
   return rows.map((row) => ({
     ...row,
     fallback: Boolean(row.fallback)
+  }));
+}
+
+function getSourceSymbolCandidates(db: Database, relation: InboundRelationRow): SymbolDetails[] {
+  if (!relation.targetPath) {
+    return [];
+  }
+
+  const preferredName = relation.targetLabel.split(".").at(-1) ?? relation.targetLabel;
+  const rows = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      body,
+      doc,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn
+    FROM symbols
+    WHERE path = ?
+      AND kind NOT IN ('import', 'file')
+    ORDER BY
+      CASE
+        WHEN lower(name) = lower(?) THEN 0
+        WHEN lower(COALESCE(signature, '')) LIKE lower(?) THEN 1
+        WHEN lower(body) LIKE lower(?) THEN 2
+        ELSE 3
+      END,
+      CASE kind
+        WHEN 'class' THEN 0
+        WHEN 'function' THEN 1
+        WHEN 'title' THEN 2
+        WHEN 'element' THEN 3
+        ELSE 4
+      END,
+      start_line,
+      id
+    LIMIT 5
+  `).all(relation.sourcePath, preferredName, `%${preferredName}%`, `%${preferredName}%`) as SymbolDetailsRow[];
+
+  return rows.map((row) => ({
+    ...row,
+    fallback: Boolean(row.fallback)
+  }));
+}
+
+function getInboundRelationsForSymbol(
+  db: Database,
+  symbol: SymbolDetails,
+  kinds: Array<"imports" | "uses">
+): InboundRelationRow[] {
+  if (kinds.length === 0) {
+    return [];
+  }
+
+  const rows = db.query(`
+    SELECT DISTINCT
+      source_path AS sourcePath,
+      relation_kind AS kind,
+      target_path AS targetPath,
+      target_label AS targetLabel
+    FROM relations
+    WHERE target_path = ?
+      AND relation_kind IN (${kinds.map(() => "?").join(", ")})
+    ORDER BY relation_kind, target_label
+  `).all(symbol.path, ...kinds) as InboundRelationRow[];
+
+  return rows.map((row) => ({
+    sourcePath: row.sourcePath,
+    kind: row.kind,
+    targetPath: row.targetPath,
+    targetLabel: row.targetLabel
   }));
 }
 

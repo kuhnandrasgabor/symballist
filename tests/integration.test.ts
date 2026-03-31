@@ -3,6 +3,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runIndex } from "../src/commands/index.ts";
+import { runGraph } from "../src/commands/graph.ts";
 import { runInit } from "../src/commands/init.ts";
 import { runLookup } from "../src/commands/lookup.ts";
 import { runQuery } from "../src/commands/query.ts";
@@ -998,6 +999,51 @@ describe("symballist vertical slice", () => {
 
     expect(payload.relations.some((relation) => relation.kind === "uses" && relation.targetLabel === "helpers.slugify" && normalizeRepoPath(relation.targetPath) === "helpers.py")).toBeTrue();
     expect(payload.related.some((entry) => entry.relation.kind === "uses" && entry.symbol.name === "slugify" && normalizeRepoPath(entry.symbol.path) === "helpers.py")).toBeTrue();
+  });
+
+  test("graph command groups outbound and inbound traversal neighbors", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "consumer.py"),
+      [
+        "from helpers import slugify",
+        "",
+        "def render_slug(name: str) -> str:",
+        "    return slugify(name)"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const output = await captureConsoleLog(async () => {
+      await runGraph(root, "", "slugify");
+    });
+    const payload = JSON.parse(output) as {
+      symbol: {
+        name: string;
+      };
+      graph: {
+        imports: Array<{ symbol: { name: string; path: string } }>;
+        uses: Array<{ symbol: { name: string; path: string } }>;
+        importedBy: Array<{ symbol: { name: string; path: string } }>;
+        usedBy: Array<{ symbol: { name: string; path: string } }>;
+        containedIn: Array<{ symbol: { name: string; path: string } }>;
+        totalEdges: number;
+      };
+    };
+
+    expect(payload.symbol.name).toBe("slugify");
+    expect(payload.graph.importedBy.some((entry) => entry.symbol.name === "build_message" && normalizeRepoPath(entry.symbol.path) === "app.py")).toBeTrue();
+    expect(payload.graph.usedBy.some((entry) => entry.symbol.name === "build_message" && normalizeRepoPath(entry.symbol.path) === "app.py")).toBeTrue();
+    expect(payload.graph.importedBy.some((entry) => entry.symbol.name === "render_slug" && normalizeRepoPath(entry.symbol.path) === "src/consumer.py")).toBeTrue();
+    expect(payload.graph.usedBy.some((entry) => entry.symbol.name === "render_slug" && normalizeRepoPath(entry.symbol.path) === "src/consumer.py")).toBeTrue();
+    expect(payload.graph.imports.length).toBe(0);
+    expect(payload.graph.uses.length).toBe(0);
+    expect(payload.graph.containedIn.length).toBe(0);
+    expect(payload.graph.totalEdges).toBeGreaterThanOrEqual(4);
   });
 
   test("show resolves exact symbol names without requiring an intermediate id", async () => {
@@ -2810,6 +2856,12 @@ describe("symballist vertical slice", () => {
 
     const compactShowParsed = parseCliArgs(["show", "--name", "greet", "--compact"]);
     expect(compactShowParsed.compactOutput).toBeTrue();
+
+    const graphParsed = parseCliArgs(["graph", "--name", "slugify", "--compact"]);
+    expect(graphParsed.command).toBe("graph");
+    expect(graphParsed.showName).toBe("slugify");
+    expect(graphParsed.compactOutput).toBeTrue();
+    expect(graphParsed.error).toBeNull();
   });
 
   test("query help is handled as CLI help instead of query text", async () => {
@@ -2838,6 +2890,20 @@ describe("symballist vertical slice", () => {
     });
     expect(output).toContain('symballist lookup "<text>"');
     expect(output).toContain("Best-match flow");
+  });
+
+  test("graph help is handled as CLI help instead of graph text", async () => {
+    const parsed = parseCliArgs(["graph", "--help"]);
+    expect(parsed.command).toBe("graph");
+    expect(parsed.helpRequested).toBeTrue();
+    expect(parsed.positionals).toEqual([]);
+    expect(parsed.error).toBeNull();
+
+    const output = await captureConsoleLog(async () => {
+      await runCli(["graph", "--help"]);
+    });
+    expect(output).toContain("symballist graph --name <symbol>");
+    expect(output).toContain("Traversal flow");
   });
 
   test("query accepts --top as a limit alias without reaching FTS with raw flag text", async () => {
