@@ -48,6 +48,11 @@ Command intent:
   query   ranked candidate exploration when you want to inspect multiple hits
   lookup  best-match-plus-context in one response, with alternatives included
   show    direct inspection of a known id or symbol name; large bodies summarize unless --full
+
+Runtime contract:
+  repo-local tool-definition JSON on disk does not make symballist_* callable by itself
+  if your runtime has not actually loaded those tools, use symballist or the repo-local wrapper immediately
+  start with status; if stale, run watch --once or index; then proceed with lookup/query/show
 `);
 }
 
@@ -60,19 +65,19 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist index [--root PATH]");
       return;
     case "watch":
-      console.log("Usage:\n  symballist watch [--root PATH] [--interval-ms N] [--once]");
+      console.log("Usage:\n  symballist watch [--root PATH] [--interval-ms N] [--once]\n\nRefresh flow: --once performs a one-shot freshness sweep and may legitimately no-op when auto-watch already kept the repo fresh.");
       return;
     case "status":
-      console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, embeddings, graph awareness, and shell guidance for the current repo.");
+      console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, embeddings, graph awareness, and shell guidance for the current repo. This is the mandatory first step before trusting older retrieval output.");
       return;
     case "lookup":
-      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives.");
+      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives. Use this for exact symbols, config paths, CSS selectors from real .css files, and other one-shot lookups.");
       return;
     case "show":
       console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
       return;
     case "query":
-      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates with graph signals and graph diagnostics for manual inspection. Use lookup when you want the best hit already resolved.");
+      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates with graph signals and graph diagnostics for manual inspection. Use this for fuzzy concepts and broader exploration; use lookup when you want the best hit already resolved.");
       return;
     default:
       usage();
