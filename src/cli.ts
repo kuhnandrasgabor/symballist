@@ -15,6 +15,7 @@ export type CliArgs = {
   root: string;
   limit: number;
   compactOutput: boolean;
+  rebuildIndex: boolean;
   watchIntervalMs: number;
   watchOnce: boolean;
   kinds: string[];
@@ -36,7 +37,7 @@ function usage(): void {
 Usage:
   symballist --help
   symballist init [--root PATH] [--setup-type cli|tool|hybrid]
-  symballist index [--root PATH]
+  symballist index [--root PATH] [--rebuild]
   symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
   symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]
@@ -52,7 +53,7 @@ Command intent:
 Runtime contract:
   repo-local tool-definition JSON on disk does not make symballist_* callable by itself
   if your runtime has not actually loaded those tools, use symballist or the repo-local wrapper immediately
-  start with status; if stale, run watch --once or index; then proceed with lookup/query/show
+  start with status; if stale or indexCompatibility.requiresRebuild, run watch --once or index --rebuild; then proceed with lookup/query/show
 `);
 }
 
@@ -62,13 +63,13 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist init [--root PATH] [--setup-type cli|tool|hybrid]");
       return;
     case "index":
-      console.log("Usage:\n  symballist index [--root PATH]");
+      console.log("Usage:\n  symballist index [--root PATH] [--rebuild]\n\nIndex flow: performs an incremental-aware pass by default. Use --rebuild to force a full reindex when extractor/storage behavior changed or status reports indexCompatibility.requiresRebuild.");
       return;
     case "watch":
       console.log("Usage:\n  symballist watch [--root PATH] [--interval-ms N] [--once]\n\nRefresh flow: --once performs a one-shot freshness sweep and may legitimately no-op when auto-watch already kept the repo fresh.");
       return;
     case "status":
-      console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, embeddings, graph awareness, and shell guidance for the current repo. This is the mandatory first step before trusting older retrieval output.");
+      console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, index compatibility, embeddings, graph awareness, and shell guidance for the current repo. This is the mandatory first step before trusting older retrieval output.");
       return;
     case "lookup":
       console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives. Use this for exact symbols, config paths, CSS selectors from real .css files, and other one-shot lookups.");
@@ -106,6 +107,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
   let root = cwd();
   let limit = 5;
   let compactOutput = false;
+  let rebuildIndex = false;
   let watchIntervalMs = 2000;
   let watchOnce = false;
   const kinds: string[] = [];
@@ -127,6 +129,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       root,
       limit,
       compactOutput,
+      rebuildIndex,
       watchIntervalMs,
       watchOnce,
       kinds,
@@ -150,6 +153,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       root,
       limit,
       compactOutput,
+      rebuildIndex,
       watchIntervalMs,
       watchOnce,
       kinds,
@@ -192,6 +196,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
       }
       setupType = next as SetupType;
       index += 1;
+      continue;
+    }
+    if (command === "index" && value === "--rebuild") {
+      rebuildIndex = true;
       continue;
     }
     if (command === "watch" && value === "--interval-ms") {
@@ -286,6 +294,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     root,
     limit,
     compactOutput,
+    rebuildIndex,
     watchIntervalMs,
     watchOnce,
     kinds,
@@ -323,7 +332,7 @@ export async function runCli(argv: string[]): Promise<void> {
       await runInit(parsed.root, parsed.setupType ?? undefined);
       return;
     case "index":
-      await runIndex(parsed.root);
+      await runIndex(parsed.root, { rebuild: parsed.rebuildIndex });
       return;
     case "watch":
       await runWatch(parsed.root, {

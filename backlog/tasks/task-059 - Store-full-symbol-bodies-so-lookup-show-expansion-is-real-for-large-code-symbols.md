@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-03-31 12:23'
-updated_date: '2026-03-31 12:27'
+updated_date: '2026-03-31 12:39'
 labels:
   - bug
 dependencies: []
@@ -30,4 +30,6 @@ Downstream retesting found that bodyPresentation signaling is effectively absent
 
 <!-- SECTION:NOTES:BEGIN -->
 Fixed the real storage bug rather than the show layer. Python and JavaScript/TypeScript parsed symbols were only storing a short preview body at index time, which made bodyPresentation ineffective and caused --full to return the same truncated content. Updated those extractors to store the full parsed symbol body. Added a regression proving that a large but still parsed class now returns summarized output by default with fullerBodyAvailable true, and that rerunning show with --full materially expands the returned body.
+
+2026-03-31 downstream retest after the storage fix still showed ~320-character bodies with bodyPresentation.fullerBodyAvailable false on large real Python symbols. That pattern strongly suggests the target repo is still serving an index built before the storage fix landed. Current indexing skips unchanged files, so storage-format changes do not retroactively refresh old symbol bodies unless the index is fully rebuilt.
 <!-- SECTION:NOTES:END -->

@@ -21,6 +21,7 @@ Current language coverage:
   - bash / zsh / sh: `./.symballist/bin/symballist`
 - Mandatory first step: use `symballist_status` first or run `.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>`.
 - If the repo is stale, use `symballist_refresh` or run `.symballist\bin\symballist.cmd watch --once --root <PROJECT_ROOT>`.
+- If `indexCompatibility.requiresRebuild` is true, run `.symballist\bin\symballist.cmd index --rebuild --root <PROJECT_ROOT>`.
 - If auto-watch is already active, `watch --once` may return an already-fresh no-op. That is expected.
 - If runtime tool loading is unavailable, use the CLI wrapper immediately instead of probing further.
 - Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.

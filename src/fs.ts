@@ -398,11 +398,13 @@ Current language coverage:
 - Mandatory first step:
   - run \`symballist status\`
 - Use the \`changeAwareness\` block from \`status\` when you want a cheap answer to what changed since the last index or, in git repos, since \`HEAD\`.
+- Use the \`indexCompatibility\` block from \`status\` to see whether extractor/storage behavior changed and a full rebuild is required.
 - Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
 - Use the \`embeddings\` block from \`status\` when you want to know whether hybrid retrieval is configured and available for the active model.
 - If the index is stale, refresh it before relying on results:
   - \`symballist watch --once\`
   - or \`symballist index\`
+- If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\`.
 - If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.
 - Use lookup when you want the common one-shot best-match flow:
   - \`symballist lookup "<text>"\`
@@ -446,6 +448,7 @@ Current language coverage:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Run \`symballist status\` before trusting older results.
+- If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\` before relying on unchanged indexed files.
 - If \`indexFreshness.stale\` is true, run \`symballist index\`.
 - Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing, run \`symballist watch --once\`.
@@ -489,8 +492,9 @@ Current language coverage:
 - Shell-specific CLI fallbacks:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Mandatory first step: use \`symballist_status\` first to inspect freshness, change awareness, graph awareness, and embeddings state.
+- Mandatory first step: use \`symballist_status\` first to inspect freshness, change awareness, index compatibility, graph awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` before relying on retrieval output.
+- If \`indexCompatibility.requiresRebuild\` is true, run the CLI fallback \`symballist index --rebuild\`.
 - If runtime tool loading is unavailable, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
@@ -524,8 +528,9 @@ Current language coverage:
 - Shell-specific CLI fallbacks:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Mandatory first step: start with \`symballist_status\` to check freshness, graph awareness, and embeddings state.
+- Mandatory first step: start with \`symballist_status\` to check freshness, index compatibility, graph awareness, and embeddings state.
 - Use \`symballist_refresh\` when the repo is stale.
+- If \`indexCompatibility.requiresRebuild\` is true, run the CLI fallback \`symballist index --rebuild\`.
 - If runtime tool loading is unavailable, use the repo-local CLI wrapper immediately instead of probing further.
 - Use \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
@@ -561,8 +566,9 @@ Current language coverage:
 - CLI fallback entrypoints:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Mandatory first step: use \`symballist_status\` first or run \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
+- Mandatory first step: use \`symballist_status\` first or run \`symballist status\` to inspect freshness, index compatibility, graph awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` or run \`symballist watch --once\`.
+- If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\`.
 - If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.
 - If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
@@ -598,8 +604,9 @@ Current language coverage:
 - CLI fallback entrypoints:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Mandatory first step: start with \`symballist_status\` or \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
+- Mandatory first step: start with \`symballist_status\` or \`symballist status\` to inspect freshness, index compatibility, graph awareness, and embeddings state.
 - Refresh stale indexes with \`symballist_refresh\` or \`symballist watch --once\`.
+- If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\`.
 - If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.
 - If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
@@ -627,7 +634,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
     tools: [
       {
         name: "symballist_status",
-        description: "Inspect index freshness, change awareness, graph awareness, and embeddings state for the repo.",
+        description: "Inspect index freshness, change awareness, index compatibility, graph awareness, and embeddings state for the repo.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -725,8 +732,9 @@ Recommended use:
 
 - load the generated tool definitions into your agent runtime if it supports repo-local tools
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
-- start with \`symballist_status\` to inspect graph awareness as well as freshness and embeddings state
+- start with \`symballist_status\` to inspect freshness, index compatibility, graph awareness, and embeddings state
 - if the repo is stale, use \`symballist_refresh\` or the equivalent \`watch --once\` CLI path before retrieval
+- if \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\` so unchanged files are fully reindexed under the current extractor/storage format
 - if auto-watch is already active, a manual \`watch --once\` refresh can legitimately return already-fresh without doing more work
 - expect \`symballist_query\`, \`symballist_lookup\`, and \`symballist_show\` to expose graph diagnostics in addition to retrieval output
 - consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows

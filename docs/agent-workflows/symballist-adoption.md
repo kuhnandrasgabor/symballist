@@ -94,8 +94,9 @@ Typical agent flow:
 
 1. Run `status`.
 2. If `indexFreshness.stale` is `true`, run `watch --once` or `index`.
-3. If auto-watch is already active, `watch --once` may return an already-fresh no-op. That is expected.
-4. Use `lookup` when you want the one-shot best-match flow: one selected result, symbol context, and alternatives in one response.
+3. If `indexCompatibility.requiresRebuild` is `true`, run `index --rebuild` before trusting unchanged indexed files.
+4. If auto-watch is already active, `watch --once` may return an already-fresh no-op. That is expected.
+5. Use `lookup` when you want the one-shot best-match flow: one selected result, symbol context, and alternatives in one response.
 5. Use `query` when you want ranked candidate exploration and plan to inspect multiple hits more manually.
 6. Use `show` when you already know the symbol id or exact name and want direct inspection.
 7. If `bodyPresentation.fullerBodyAvailable` is true, rerun `lookup` or `show` with `--full` to expand the complete stored body.
@@ -124,6 +125,7 @@ Useful query refinements:
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
 - use the `changeAwareness` block from `status` when you want a cheap answer to "what changed since the last index?" or, in git repos, "what changed since HEAD?"
+- use the `indexCompatibility` block from `status` when you want to know whether extractor/storage behavior changed enough to require `index --rebuild`
 - use the `graphAwareness.likelyRoots` block from `status` when you want a cheap answer to "what probably acts as a startup or entrypoint root in this repo?"
 - use the `graphAwareness.possibleOrphans` block from `status` when you want a bounded list of cleanup candidates that currently have no known inbound references and are not root-like
 - use `watch --once` when you want a safe repo-local auto-refresh sweep without leaving a long-running process behind

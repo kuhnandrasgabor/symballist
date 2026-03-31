@@ -22,8 +22,10 @@ import type {
 } from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_INDEX_FORMAT_VERSION = 2;
 
 const SYMBOL_CHANGE_SUMMARY_KEY = "latest_symbol_change_summary";
+const INDEX_FORMAT_VERSION_KEY = "index_format_version";
 const MAX_SYMBOL_CHANGE_SAMPLES = 20;
 export const CURRENT_EMBEDDING_PROVIDER = "ollama";
 
@@ -40,6 +42,13 @@ export type StatusSummary = {
   fallbackSymbols: number;
   languages: string[];
   schemaVersion: number;
+  indexFormatVersion: number;
+};
+
+export type IndexCompatibility = {
+  currentIndexFormatVersion: number;
+  indexedIndexFormatVersion: number | null;
+  requiresRebuild: boolean;
 };
 
 export type EmbeddingSummary = {
@@ -324,6 +333,12 @@ function migrate(db: Database): void {
   if (schemaVersion < CURRENT_SCHEMA_VERSION) {
     clearIndexData(db);
     setSchemaVersion(db, CURRENT_SCHEMA_VERSION);
+    setIndexFormatVersion(db, CURRENT_INDEX_FORMAT_VERSION);
+    return;
+  }
+
+  if (getIndexFormatVersion(db) === null) {
+    setIndexFormatVersion(db, 0);
   }
 }
 
@@ -347,6 +362,43 @@ function setSchemaVersion(db: Database, version: number): void {
     VALUES ('schema_version', ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(String(version));
+}
+
+function getIndexFormatVersion(db: Database): number | null {
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(INDEX_FORMAT_VERSION_KEY) as { value?: string } | null;
+  if (!row?.value) {
+    return null;
+  }
+  const parsed = Number(row.value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function setIndexFormatVersion(db: Database, version: number): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(INDEX_FORMAT_VERSION_KEY, String(version));
+}
+
+export function getIndexCompatibility(db: Database): IndexCompatibility {
+  const indexedIndexFormatVersion = getIndexFormatVersion(db);
+  return {
+    currentIndexFormatVersion: CURRENT_INDEX_FORMAT_VERSION,
+    indexedIndexFormatVersion,
+    requiresRebuild: indexedIndexFormatVersion !== CURRENT_INDEX_FORMAT_VERSION
+  };
+}
+
+export function rebuildStoredIndex(db: Database): void {
+  clearIndexData(db);
+  resetLatestSymbolChangeSummary(db);
+  setSchemaVersion(db, CURRENT_SCHEMA_VERSION);
+  setIndexFormatVersion(db, CURRENT_INDEX_FORMAT_VERSION);
+}
+
+export function markCurrentIndexFormat(db: Database): void {
+  setIndexFormatVersion(db, CURRENT_INDEX_FORMAT_VERSION);
 }
 
 function defaultSymbolChangeSummary(): StoredSymbolChangeSummary {
@@ -1741,7 +1793,8 @@ export function getStatusSummary(db: Database): StatusSummary {
     indexedSymbols: counts.indexedSymbols,
     fallbackSymbols: counts.fallbackSymbols,
     languages: languageRows.map((row) => row.language),
-    schemaVersion: getSchemaVersion(db)
+    schemaVersion: getSchemaVersion(db),
+    indexFormatVersion: getIndexFormatVersion(db) ?? 0
   };
 }
 
