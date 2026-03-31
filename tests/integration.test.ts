@@ -1770,6 +1770,21 @@ describe("symballist vertical slice", () => {
     await runInit(root);
     await runIndex(root, { progress: false });
 
+    const statusOutput = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const statusPayload = JSON.parse(statusOutput) as {
+      graphAwareness: {
+        possibleOrphans: Array<{
+          path: string;
+          name: string;
+          reasons: string[];
+        }>;
+      };
+    };
+
+    expect(statusPayload.graphAwareness.possibleOrphans.some((entry) => normalizeRepoPath(entry.path) === "orphan.py" && entry.name === "unused_helper")).toBeTrue();
+
     const lookupOutput = await captureConsoleLog(async () => {
       await runLookup(root, "unused_helper", 5);
     });
@@ -1779,6 +1794,8 @@ describe("symballist vertical slice", () => {
           knownInboundReferences: number;
           disconnectedFromIndexedGraph: boolean;
           rootLike: boolean;
+          possibleOrphanCandidate: boolean;
+          possibleOrphanReasons: string[];
           notes: string[];
         };
       } | null;
@@ -1787,6 +1804,8 @@ describe("symballist vertical slice", () => {
     expect(lookupPayload.symbol?.graphDiagnostics.knownInboundReferences).toBe(0);
     expect(lookupPayload.symbol?.graphDiagnostics.disconnectedFromIndexedGraph).toBeTrue();
     expect(lookupPayload.symbol?.graphDiagnostics.rootLike).toBeFalse();
+    expect(lookupPayload.symbol?.graphDiagnostics.possibleOrphanCandidate).toBeTrue();
+    expect(lookupPayload.symbol?.graphDiagnostics.possibleOrphanReasons).toContain("no known inbound references");
     expect(lookupPayload.symbol?.graphDiagnostics.notes.some((note) => note.includes("No known inbound"))).toBeTrue();
 
     const showOutput = await captureConsoleLog(async () => {
@@ -1797,6 +1816,7 @@ describe("symballist vertical slice", () => {
         graphDiagnostics: {
           inboundReferencesFromTestsOnly: boolean;
           knownInboundReferences: number;
+          possibleOrphanCandidate: boolean;
           notes: string[];
         };
       };
@@ -1804,6 +1824,7 @@ describe("symballist vertical slice", () => {
 
     expect(showPayload.symbol.graphDiagnostics.knownInboundReferences).toBe(1);
     expect(showPayload.symbol.graphDiagnostics.inboundReferencesFromTestsOnly).toBeTrue();
+    expect(showPayload.symbol.graphDiagnostics.possibleOrphanCandidate).toBeFalse();
     expect(showPayload.symbol.graphDiagnostics.notes.some((note) => note.includes("only from test paths"))).toBeTrue();
 
     const queryOutput = await captureConsoleLog(async () => {
@@ -1819,6 +1840,7 @@ describe("symballist vertical slice", () => {
         graphDiagnostics?: {
           rootLike: boolean;
           rootReasons: string[];
+          possibleOrphanCandidate: boolean;
         };
       }>;
     };
@@ -1826,6 +1848,7 @@ describe("symballist vertical slice", () => {
     const mainResult = queryPayload.results.find((result) => normalizeRepoPath(result.path) === "main.py" && result.name === "main");
     expect(queryPayload.resultSemantics.graphDiagnostics).toContain("not dead-code claims");
     expect(mainResult?.graphDiagnostics?.rootLike).toBeTrue();
+    expect(mainResult?.graphDiagnostics?.possibleOrphanCandidate).toBeFalse();
     expect((mainResult?.graphDiagnostics?.rootReasons.length ?? 0)).toBeGreaterThan(0);
   });
 

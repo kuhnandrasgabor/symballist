@@ -152,6 +152,15 @@ export type GraphRootCandidate = {
   reasons: string[];
 };
 
+export type PossibleOrphanCandidate = {
+  id: number;
+  path: string;
+  language: SymbolRecord["language"];
+  kind: string;
+  name: string;
+  reasons: string[];
+};
+
 type RootHeuristicInput = {
   path: string;
   language: SymbolRecord["language"];
@@ -1788,6 +1797,20 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
   });
   const rootLike = rootReasons.length > 0;
   const disconnectedFromIndexedGraph = knownInboundReferences === 0 && knownOutboundReferences === 0 && !rootLike;
+  const possibleOrphanReasons: string[] = [];
+  if (knownInboundReferences === 0) {
+    possibleOrphanReasons.push("no known inbound references");
+  }
+  if (!rootLike) {
+    possibleOrphanReasons.push("not classified as a likely root");
+  }
+  if (sameFileConnectivityOnly) {
+    possibleOrphanReasons.push("connectivity stays within the same file");
+  }
+  if (disconnectedFromIndexedGraph) {
+    possibleOrphanReasons.push("disconnected from the indexed graph");
+  }
+  const possibleOrphanCandidate = knownInboundReferences === 0 && !rootLike;
 
   const notes: string[] = [];
   if (knownInboundReferences === 0) {
@@ -1813,9 +1836,59 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
     sameFileConnectivityOnly,
     disconnectedFromIndexedGraph,
     rootLike,
+    possibleOrphanCandidate,
+    possibleOrphanReasons,
     rootReasons,
     notes
   };
+}
+
+export function getPossibleOrphanCandidates(db: Database, limit = 12): PossibleOrphanCandidate[] {
+  const rows = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      fallback
+    FROM symbols
+    WHERE kind NOT IN ('import', 'file')
+    ORDER BY path, start_line, id
+  `).all() as Array<{
+    id: number;
+    path: string;
+    language: SymbolRecord["language"];
+    kind: string;
+    name: string;
+    fallback: number;
+  }>;
+
+  return rows
+    .filter((row) => !Boolean(row.fallback))
+    .filter((row) => row.language !== "markdown")
+    .filter((row) => !isTestPath(row.path))
+    .filter((row) => isDefinitionLikeKind(row.kind))
+    .map((row) => ({
+      row,
+      diagnostics: buildGraphDiagnostics(db, row)
+    }))
+    .filter((entry) => entry.diagnostics.possibleOrphanCandidate)
+    .sort((left, right) => {
+      if (left.diagnostics.knownOutboundReferences !== right.diagnostics.knownOutboundReferences) {
+        return left.diagnostics.knownOutboundReferences - right.diagnostics.knownOutboundReferences;
+      }
+      return left.row.path.localeCompare(right.row.path);
+    })
+    .slice(0, limit)
+    .map((entry) => ({
+      id: entry.row.id,
+      path: entry.row.path,
+      language: entry.row.language,
+      kind: entry.row.kind,
+      name: entry.row.name,
+      reasons: entry.diagnostics.possibleOrphanReasons
+    }));
 }
 
 export function getEmbeddingSummary(

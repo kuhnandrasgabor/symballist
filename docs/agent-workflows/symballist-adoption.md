@@ -108,6 +108,7 @@ Useful query refinements:
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
 - use the `changeAwareness` block from `status` when you want a cheap answer to "what changed since the last index?" or, in git repos, "what changed since HEAD?"
 - use the `graphAwareness.likelyRoots` block from `status` when you want a cheap answer to "what probably acts as a startup or entrypoint root in this repo?"
+- use the `graphAwareness.possibleOrphans` block from `status` when you want a bounded list of cleanup candidates that currently have no known inbound references and are not root-like
 - use `watch --once` when you want a safe repo-local auto-refresh sweep without leaving a long-running process behind
 - use `watch --interval-ms 2000` or similar only when you explicitly want a foreground polling loop while you work
 - enable embeddings only if you already have a local Ollama endpoint and want better concept/fuzzy retrieval; lexical retrieval remains the default safety net

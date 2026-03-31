@@ -95,7 +95,7 @@ export async function runShow(
     ...(options.compact === true ? {} : {
       trustSemantics: {
         trustLevel: "extraction trust only; show resolves a symbol directly and does not recompute query-time retrieval trust",
-        graphDiagnostics: "graphDiagnostics describe what the current index knows structurally about this symbol. They are bounded by indexed relations and are not dead-code claims."
+        graphDiagnostics: "graphDiagnostics describe what the current index knows structurally about this symbol, including possible-orphan candidacy where relevant. They are bounded by indexed relations and are not dead-code claims."
       }
     }),
     symbol: {

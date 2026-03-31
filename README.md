@@ -217,7 +217,7 @@ Important behavior:
 - `changeAwareness`
   - file-level change summaries since index and, when available, since `git HEAD`
 - `graphAwareness`
-  - bounded likely-root hints for obvious startup or entrypoint files such as `main.py`, `scripts/...`, or extensionless startup scripts
+  - bounded likely-root hints plus advisory possible-orphan candidates derived from the indexed graph; these are meant for navigation and cleanup review, not dead-code claims
 - `shellGuidance`
   - the best local wrapper to use for the current shell plus shell-specific alternatives
 - `retrieval.mode`
@@ -237,7 +237,7 @@ Important behavior:
 - `graphSignals`
   - one-hop graph-aware reranking hints such as `same_file_cluster`, `imports_candidate`, `imported_by_candidate`, `uses_candidate`, `used_by_candidate`, and `root_candidate`
 - `graphDiagnostics`
-  - index-bounded structural diagnostics on returned symbols/results, such as no known inbound references, test-only inbound references, same-file-only connectivity, disconnected-from-indexed-graph, and root-like status
+  - index-bounded structural diagnostics on returned symbols/results, such as no known inbound references, test-only inbound references, same-file-only connectivity, disconnected-from-indexed-graph, root-like status, and possible-orphan candidacy
 
 If you want a cheaper response for agent consumers, use `--compact` to keep the retrieval payload while omitting the repeated legend / semantics blocks.
 

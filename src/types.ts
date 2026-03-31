@@ -125,6 +125,8 @@ export type GraphDiagnostics = {
   sameFileConnectivityOnly: boolean;
   disconnectedFromIndexedGraph: boolean;
   rootLike: boolean;
+  possibleOrphanCandidate: boolean;
+  possibleOrphanReasons: string[];
   rootReasons: string[];
   notes: string[];
 };
