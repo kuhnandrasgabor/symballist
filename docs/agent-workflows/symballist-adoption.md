@@ -96,7 +96,7 @@ Typical agent flow:
 9. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
 10. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
 11. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
-12. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import structure contributed to reranking.
+12. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import/usage structure or root-awareness contributed to reranking.
 13. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
 14. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
 
@@ -106,6 +106,7 @@ Useful query refinements:
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
 - use the `changeAwareness` block from `status` when you want a cheap answer to "what changed since the last index?" or, in git repos, "what changed since HEAD?"
+- use the `graphAwareness.likelyRoots` block from `status` when you want a cheap answer to "what probably acts as a startup or entrypoint root in this repo?"
 - use `watch --once` when you want a safe repo-local auto-refresh sweep without leaving a long-running process behind
 - use `watch --interval-ms 2000` or similar only when you explicitly want a foreground polling loop while you work
 - enable embeddings only if you already have a local Ollama endpoint and want better concept/fuzzy retrieval; lexical retrieval remains the default safety net
