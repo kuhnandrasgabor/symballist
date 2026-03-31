@@ -753,7 +753,12 @@ describe("symballist vertical slice", () => {
       retrieval: {
         mode: string;
       };
-      results: Array<{ name: string }>;
+      results: Array<{
+        name: string;
+        path: string;
+        file: { path: string; language: string };
+        location: { path: string; startLine: number };
+      }>;
     };
 
     const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
@@ -761,8 +766,18 @@ describe("symballist vertical slice", () => {
     })) as {
       resultSemantics?: unknown;
       trustSemantics?: unknown;
-      selectedResult: { name: string } | null;
-      symbol: { name: string } | null;
+      selectedResult: {
+        name: string;
+        path: string;
+        file: { path: string; language: string };
+        location: { path: string; startLine: number };
+      } | null;
+      symbol: {
+        name: string;
+        path: string;
+        file: { path: string; language: string };
+        location: { path: string; startLine: number };
+      } | null;
     };
 
     const showPayload = JSON.parse(await captureConsoleLog(async () => {
@@ -776,11 +791,16 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.resultSemantics).toBeUndefined();
     expect(queryPayload.retrieval.mode).toBe("lexical");
     expect(queryPayload.results[0]?.name).toBe("greet");
+    expect(normalizeRepoPath(queryPayload.results[0]?.file.path)).toBe(normalizeRepoPath(queryPayload.results[0]?.path));
+    expect(normalizeRepoPath(queryPayload.results[0]?.location.path)).toBe(normalizeRepoPath(queryPayload.results[0]?.path));
+    expect(queryPayload.results[0]?.location.startLine).toBeGreaterThan(0);
 
     expect(lookupPayload.resultSemantics).toBeUndefined();
     expect(lookupPayload.trustSemantics).toBeUndefined();
     expect(lookupPayload.selectedResult?.name).toBe("greet");
     expect(lookupPayload.symbol?.name).toBe("greet");
+    expect(normalizeRepoPath(lookupPayload.selectedResult?.file.path)).toBe(normalizeRepoPath(lookupPayload.selectedResult?.path));
+    expect(normalizeRepoPath(lookupPayload.symbol?.location.path)).toBe(normalizeRepoPath(lookupPayload.symbol?.path));
 
     expect(showPayload.trustSemantics).toBeUndefined();
     expect(showPayload.symbol.name).toBe("greet");
@@ -1658,6 +1678,8 @@ describe("symballist vertical slice", () => {
         results: Array<{
           name: string;
           matchReason: string;
+          confidence: string;
+          retrievalTrustLevel: string;
           semanticSimilarity: number | null;
           retrievalChannels: string[];
           hybridContribution: string;
@@ -1678,6 +1700,8 @@ describe("symballist vertical slice", () => {
       expect(output.retrieval.hybrid?.topSemanticCandidate?.resultRank).toBe(1);
       expect(output.results[0]?.name).toBe("MeaningStore");
       expect(output.results[0]?.matchReason).toBe("semantic_similarity");
+      expect(["exact", "strong"]).toContain(output.results[0]?.confidence ?? "");
+      expect(output.results[0]?.retrievalTrustLevel).toBe("high");
       expect(output.results[0]?.semanticSimilarity).toBeGreaterThan(0.8);
       expect(output.results[0]?.retrievalChannels).toContain("semantic");
       expect(["semantic_only", "semantic_assisted"]).toContain(output.results[0]?.hybridContribution ?? "");
@@ -1765,6 +1789,10 @@ describe("symballist vertical slice", () => {
         results: Array<{
           name: string;
           path: string;
+          file: { path: string; language: string };
+          location: { path: string; startLine: number };
+          confidence: string;
+          retrievalTrustLevel: string;
           retrievalChannels: string[];
           hybridContribution: string;
           semanticSimilarity: number | null;
@@ -1777,6 +1805,10 @@ describe("symballist vertical slice", () => {
       expect(output.retrieval.hybrid?.topResultHasSemanticSignal).toBeTrue();
       expect(output.results[0]?.name).toBe("MemoryStore");
       expect(normalizeRepoPath(output.results[0]?.path)).toBe("src/memory_store.py");
+      expect(normalizeRepoPath(output.results[0]?.file.path)).toBe("src/memory_store.py");
+      expect(normalizeRepoPath(output.results[0]?.location.path)).toBe("src/memory_store.py");
+      expect(["exact", "strong"]).toContain(output.results[0]?.confidence ?? "");
+      expect(output.results[0]?.retrievalTrustLevel).toBe("high");
       expect(output.results[0]?.retrievalChannels).toContain("semantic");
       expect(["semantic_only", "semantic_assisted"]).toContain(output.results[0]?.hybridContribution ?? "");
       expect(output.results[0]?.semanticSimilarity).toBeGreaterThan(0.8);

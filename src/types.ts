@@ -19,6 +19,19 @@ export type RetrievalChannel = "lexical" | "concept_path" | "semantic";
 export type HybridContribution = "lexical_only" | "semantic_only" | "semantic_assisted";
 export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_by_candidate";
 
+export type FileReference = {
+  path: string;
+  language: SupportedLanguage;
+};
+
+export type SymbolLocation = {
+  path: string;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+};
+
 export type SymbolRecord = {
   path: string;
   language: SupportedLanguage;
@@ -37,6 +50,8 @@ export type SymbolRecord = {
 export type QueryResult = {
   id: number;
   path: string;
+  file: FileReference;
+  location: SymbolLocation;
   language: SupportedLanguage;
   kind: string;
   name: string;
@@ -81,6 +96,8 @@ export type SearchDiagnostics = {
 export type SymbolDetails = {
   id: number;
   path: string;
+  file: FileReference;
+  location: SymbolLocation;
   language: SupportedLanguage;
   kind: string;
   name: string;

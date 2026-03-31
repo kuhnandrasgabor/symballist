@@ -77,7 +77,7 @@ type SearchRow = {
   conceptRank: number | null;
   semanticRank: number | null;
 };
-type SymbolDetailsRow = Omit<SymbolDetails, "fallback"> & { fallback: number };
+type SymbolDetailsRow = Omit<SymbolDetails, "fallback" | "file" | "location" | "extraction" | "trustLevel"> & { fallback: number };
 type RelationRow = {
   kind: RelationDetails["kind"];
   targetPath: string | null;
@@ -140,9 +140,9 @@ const DOC_ORIENTED_QUERY_TERMS = new Set([
   "workflow"
 ]);
 
-const SEMANTIC_EXACT_THRESHOLD = 0.92;
-const SEMANTIC_STRONG_THRESHOLD = 0.82;
-const SEMANTIC_RELATED_THRESHOLD = 0.68;
+const SEMANTIC_EXACT_THRESHOLD = 0.9;
+const SEMANTIC_STRONG_THRESHOLD = 0.75;
+const SEMANTIC_RELATED_THRESHOLD = 0.6;
 
 export async function openDatabase(root: string): Promise<Database> {
   const path = appPath(root, DB_FILE);
@@ -352,6 +352,29 @@ function getQueryTrustDetails(extraction: ExtractionDetails, confidence: ResultC
 
   return {
     retrievalTrustLevel: extraction.extraction === "parsed" ? "medium" : "low"
+  };
+}
+
+function buildFileReference(path: string, language: SymbolRecord["language"]): QueryResult["file"] {
+  return {
+    path,
+    language
+  };
+}
+
+function buildLocation(
+  path: string,
+  startLine: number,
+  startColumn: number,
+  endLine: number,
+  endColumn: number
+): QueryResult["location"] {
+  return {
+    path,
+    startLine,
+    startColumn,
+    endLine,
+    endColumn
   };
 }
 
@@ -958,6 +981,8 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
       return {
         id: row.id,
         path: row.path,
+        file: buildFileReference(row.path, row.language),
+        location: buildLocation(row.path, row.startLine, row.startColumn, row.endLine, row.endColumn),
         language: row.language,
         kind: row.kind,
         name: row.name,
@@ -1358,6 +1383,8 @@ export function getSymbolById(db: Database, id: number): SymbolDetails | null {
   const extraction = getExtractionDetails(details);
   return {
     ...details,
+    file: buildFileReference(details.path, details.language),
+    location: buildLocation(details.path, details.startLine, details.startColumn, details.endLine, details.endColumn),
     extraction: extraction.extraction,
     trustLevel: extraction.trustLevel,
     fallback: Boolean(details.fallback)
