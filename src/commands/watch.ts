@@ -1,5 +1,5 @@
 import { runIndex, type IndexStats } from "./index.ts";
-import { getIndexedFiles, openDatabase } from "../db.ts";
+import { getIndexCompatibility, getIndexedFiles, openDatabase } from "../db.ts";
 import { detectIndexFreshness, type IndexFreshness } from "../freshness.ts";
 
 const DEFAULT_WATCH_INTERVAL_MS = 2000;
@@ -26,14 +26,17 @@ export type RunWatchOptions = {
 async function inspectWatchState(root: string): Promise<{
   indexedFileCount: number;
   freshness: IndexFreshness;
+  requiresRebuild: boolean;
 }> {
   const db = await openDatabase(root);
   const indexedFiles = getIndexedFiles(db);
+  const indexCompatibility = getIndexCompatibility(db);
   db.close();
 
   return {
     indexedFileCount: indexedFiles.length,
-    freshness: await detectIndexFreshness(root, indexedFiles)
+    freshness: await detectIndexFreshness(root, indexedFiles),
+    requiresRebuild: indexCompatibility.requiresRebuild
   };
 }
 
@@ -62,15 +65,16 @@ export async function runWatch(root: string, options: RunWatchOptions = {}): Pro
 
   for (let cycle = 1; cycle <= cycleLimit; cycle += 1) {
     const before = await inspectWatchState(root);
-    const shouldIndex = before.indexedFileCount === 0 || before.freshness.stale;
+    const shouldIndex = before.indexedFileCount === 0 || before.freshness.stale || before.requiresRebuild;
 
     let stats: IndexStats | null = null;
     let reason: WatchEvent["reason"] = "already_fresh";
     if (shouldIndex) {
-      reason = before.indexedFileCount === 0 ? "initial_index" : "stale_index";
+      reason = before.indexedFileCount === 0 ? "initial_index" : before.requiresRebuild ? "stale_index" : "stale_index";
       stats = await runIndex(root, {
         progress,
-        emitStats: false
+        emitStats: false,
+        rebuild: before.requiresRebuild
       });
     }
 

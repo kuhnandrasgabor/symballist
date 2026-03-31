@@ -142,7 +142,8 @@ For agents, the default contract should be:
 
 1. Run `symballist status`.
 2. If `indexFreshness.stale` is `true`, run `symballist watch --once` or `symballist index`.
-3. Otherwise proceed with `lookup`, `query`, or `show`.
+3. If `indexCompatibility.requiresRebuild` is `true`, run `symballist index --rebuild`.
+4. Otherwise proceed with `lookup`, `query`, or `show`.
 
 If auto-watch is already keeping the repo fresh, `watch --once` may return an already-fresh no-op. That is expected, not a failure.
 
@@ -165,6 +166,8 @@ symballist watch --once
   - supports `--setup-type cli|tool|hybrid`
 - `symballist index`
   - performs a full incremental-aware index pass
+- `symballist index --rebuild`
+  - forces a full rebuild when extractor/storage behavior changed or `status` reports `indexCompatibility.requiresRebuild`
 - `symballist watch --once`
   - does a one-shot freshness sweep and reindex if needed
 - `symballist watch --interval-ms 2000`
@@ -245,6 +248,8 @@ Important behavior:
   - whether the indexed repo is stale relative to the filesystem
 - `changeAwareness`
   - file-level change summaries since index and, when available, since `git HEAD`
+- `indexCompatibility`
+  - reports whether the stored index content matches the current extractor/storage format; if `requiresRebuild` is `true`, run `symballist index --rebuild`
 - `graphAwareness`
   - bounded likely-root hints plus advisory possible-orphan candidates derived from the indexed graph; these are meant for navigation and cleanup review, not dead-code claims
 - `shellGuidance`
@@ -293,6 +298,8 @@ They are disabled by default after `init`. Enable them by editing `.symballist/c
 ```
 
 When testing language support in a repo that does not naturally contain that language, prefer creating a temporary isolated fixture under `tmp/` or another scratch directory, index it, validate the behavior, and then remove it cleanly.
+
+When a new `symballist` version changes extractor/storage semantics, incremental refresh is not enough for old unchanged files. In that case, `status` will report `indexCompatibility.requiresRebuild: true`; run `symballist index --rebuild` to refresh the stored index content.
 
 Because `.symballist/` is gitignored, config changes here will not appear in `git diff`.
 

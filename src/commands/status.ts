@@ -1,5 +1,5 @@
 import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "../config.ts";
-import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, openDatabase } from "../db.ts";
+import { CURRENT_INDEX_FORMAT_VERSION, CURRENT_SCHEMA_VERSION, getIndexCompatibility, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, openDatabase } from "../db.ts";
 import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig } from "../fs.ts";
@@ -20,6 +20,7 @@ export async function runStatus(root: string): Promise<void> {
   let indexedSymbols = 0;
   let fallbackSymbols = 0;
   let indexedSchemaVersion: number | null = null;
+  let indexedIndexFormatVersion: number | null = null;
   let languages = config?.languages ?? defaultLanguages();
   let freshness = {
     stale: false,
@@ -83,10 +84,16 @@ export async function runStatus(root: string): Promise<void> {
     matchedEmbeddings: 0,
     reason: config?.embeddings?.enabled ? "no_indexed_embeddings_for_active_model" : "disabled"
   };
+  let indexCompatibility = {
+    currentIndexFormatVersion: CURRENT_INDEX_FORMAT_VERSION,
+    indexedIndexFormatVersion: null as number | null,
+    requiresRebuild: false
+  };
 
   if (dbExists) {
     const db = await openDatabase(root);
     const summary = getStatusSummary(db);
+    indexCompatibility = getIndexCompatibility(db);
     const indexedRows = getIndexedFiles(db);
     const symbolChanges = getLatestSymbolChangeSummary(db);
     graphAwareness = {
@@ -99,6 +106,7 @@ export async function runStatus(root: string): Promise<void> {
     indexedSymbols = summary.indexedSymbols;
     fallbackSymbols = summary.fallbackSymbols;
     indexedSchemaVersion = summary.schemaVersion;
+    indexedIndexFormatVersion = summary.indexFormatVersion;
     if (summary.languages.length > 0) {
       languages = summary.languages;
     }
@@ -128,6 +136,9 @@ export async function runStatus(root: string): Promise<void> {
     supportedLanguages: languages,
     currentSchemaVersion: CURRENT_SCHEMA_VERSION,
     indexedSchemaVersion,
+    currentIndexFormatVersion: CURRENT_INDEX_FORMAT_VERSION,
+    indexedIndexFormatVersion,
+    indexCompatibility,
     indexedFiles: indexedFileCount,
     indexedSymbols,
     fallbackSymbols,

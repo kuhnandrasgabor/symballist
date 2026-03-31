@@ -1,4 +1,4 @@
-import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexedFiles, openDatabase, replaceFileIndex, resetLatestSymbolChangeSummary } from "../db.ts";
+import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexCompatibility, getIndexedFiles, markCurrentIndexFormat, openDatabase, rebuildStoredIndex, replaceFileIndex, resetLatestSymbolChangeSummary } from "../db.ts";
 import { getActiveEmbeddingsConfig, updateEmbeddingsForSymbols } from "../embeddings.ts";
 import { fileMetadata, listSourceFiles, readConfig, readText } from "../fs.ts";
 import { extractSymbols } from "../indexer/index.ts";
@@ -16,6 +16,7 @@ export type IndexStats = {
 type RunIndexOptions = {
   progress?: boolean;
   emitStats?: boolean;
+  rebuild?: boolean;
 };
 
 type ProgressState = {
@@ -74,10 +75,18 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   const config = await readConfig(root);
   const embeddings = getActiveEmbeddingsConfig(config);
   const db = await openDatabase(root);
-  resetLatestSymbolChangeSummary(db);
+  const indexCompatibility = getIndexCompatibility(db);
+  const shouldRebuild = options.rebuild === true || indexCompatibility.requiresRebuild;
+  if (shouldRebuild) {
+    rebuildStoredIndex(db);
+  } else {
+    resetLatestSymbolChangeSummary(db);
+  }
   const files = await listSourceFiles(root);
   const currentPaths = new Set(files.map((file) => file.relativePath));
-  const existingFiles = new Map(getIndexedFiles(db).map((file) => [file.path, file]));
+  const existingFiles = shouldRebuild
+    ? new Map<string, ReturnType<typeof getIndexedFiles>[number]>()
+    : new Map(getIndexedFiles(db).map((file) => [file.path, file]));
 
   const stats: IndexStats = {
     discoveredFiles: files.length,
@@ -159,6 +168,8 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
       stats.removedFiles += 1;
     }
   }
+
+  markCurrentIndexFormat(db);
 
   db.close();
 

@@ -9,7 +9,7 @@ import { runQuery } from "../src/commands/query.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runWatch } from "../src/commands/watch.ts";
-import { buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { CURRENT_INDEX_FORMAT_VERSION, buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
 import { buildEmbeddingText } from "../src/embeddings.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { readConfig, writeConfig } from "../src/fs.ts";
@@ -703,6 +703,13 @@ describe("symballist vertical slice", () => {
       indexedSymbols: number;
       fallbackSymbols: number;
       indexedSchemaVersion: number | null;
+      currentIndexFormatVersion: number;
+      indexedIndexFormatVersion: number | null;
+      indexCompatibility: {
+        currentIndexFormatVersion: number;
+        indexedIndexFormatVersion: number | null;
+        requiresRebuild: boolean;
+      };
       indexFreshness: {
         stale: boolean;
         changedFiles: number;
@@ -754,6 +761,11 @@ describe("symballist vertical slice", () => {
     expect(status.indexedSymbols).toBe(13);
     expect(status.fallbackSymbols).toBe(1);
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
+    expect(status.currentIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
+    expect(status.indexedIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
+    expect(status.indexCompatibility.currentIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
+    expect(status.indexCompatibility.indexedIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
+    expect(status.indexCompatibility.requiresRebuild).toBeFalse();
     expect(status.indexFreshness.stale).toBeFalse();
     expect(status.changeAwareness.sinceIndex.changedFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.newFiles).toBe(0);
@@ -1128,6 +1140,35 @@ describe("symballist vertical slice", () => {
     expect(fullOutput.symbol.body).toContain("field_119");
   });
 
+  test("status reports when stored index content requires a full rebuild", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    db.query("UPDATE metadata SET value = ? WHERE key = 'index_format_version'").run(String(CURRENT_INDEX_FORMAT_VERSION - 1));
+    db.close();
+
+    const output = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(output) as {
+      currentIndexFormatVersion: number;
+      indexedIndexFormatVersion: number | null;
+      indexCompatibility: {
+        currentIndexFormatVersion: number;
+        indexedIndexFormatVersion: number | null;
+        requiresRebuild: boolean;
+      };
+    };
+
+    expect(status.currentIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
+    expect(status.indexedIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION - 1);
+    expect(status.indexCompatibility.currentIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
+    expect(status.indexCompatibility.indexedIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION - 1);
+    expect(status.indexCompatibility.requiresRebuild).toBeTrue();
+  });
+
   test("parsed large code symbols keep full stored bodies so --full materially expands them", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });
@@ -1178,6 +1219,41 @@ describe("symballist vertical slice", () => {
     expect(fullOutput.bodyPresentation.truncated).toBeFalse();
     expect(fullOutput.symbol.body).toContain("method_120");
     expect(fullOutput.symbol.body).toContain("method_233");
+  });
+
+  test("index auto-rebuilds unchanged files when stored index format is outdated", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    const parsedLargeBody = [
+      "class EmbeddingService:",
+      "    \"\"\"Parsed large body for rebuild testing.\"\"\"",
+      ...Array.from({ length: 120 }, (_, index) => `    def method_${index}(self):\n        return ${index}`)
+    ].join("\n");
+
+    await writeFile(join(root, "src", "embedding_service.py"), parsedLargeBody, "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const before = getBestSymbolByName(db, "EmbeddingService");
+    expect(before).toBeDefined();
+    db.query("UPDATE symbols SET body = ? WHERE id = ?").run("class EmbeddingService:\n    pass", before?.id);
+    db.query("UPDATE metadata SET value = ? WHERE key = 'index_format_version'").run(String(CURRENT_INDEX_FORMAT_VERSION - 1));
+    db.close();
+
+    const rebuildStats = await runIndex(root, { progress: false });
+    expect(rebuildStats.indexedFiles).toBeGreaterThan(0);
+    expect(rebuildStats.skippedFiles).toBe(0);
+
+    const rebuiltDb = await openDatabase(root);
+    const after = getBestSymbolByName(rebuiltDb, "EmbeddingService");
+    const storedVersion = rebuiltDb.query("SELECT value FROM metadata WHERE key = 'index_format_version'").get() as { value: string } | null;
+    rebuiltDb.close();
+
+    expect(after).toBeDefined();
+    expect((after?.body.length ?? 0)).toBeGreaterThan("class EmbeddingService:\n    pass".length);
+    expect(after?.body).toContain("method_80");
+    expect(Number(storedVersion?.value ?? 0)).toBe(CURRENT_INDEX_FORMAT_VERSION);
   });
 
   test("query prefers declarations over imports and supports kind filters", async () => {
@@ -2585,6 +2661,10 @@ describe("symballist vertical slice", () => {
     expect(lookupParsed.limit).toBe(3);
     expect(lookupParsed.codeOnly).toBeTrue();
     expect(lookupParsed.showFull).toBeTrue();
+
+    const indexParsed = parseCliArgs(["index", "--rebuild"]);
+    expect(indexParsed.command).toBe("index");
+    expect(indexParsed.rebuildIndex).toBeTrue();
 
     const compactLookupParsed = parseCliArgs(["lookup", "greet", "--compact"]);
     expect(compactLookupParsed.compactOutput).toBeTrue();
