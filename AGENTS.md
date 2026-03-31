@@ -64,7 +64,10 @@ Keep the integration CLI-first, use `status -> index -> query -> show`, and trea
 <!-- SYMBALLIST RETRIEVAL START -->
 ## Symballist Retrieval
 
-Use the generated repo-local `symballist` tool definitions when your agent runtime can load them. Keep the repo-local CLI wrappers as the robust fallback.
+Use the generated repo-local `symballist` tool definitions when your agent runtime has actually loaded them. Keep the repo-local CLI wrappers as the robust fallback.
+
+Current language coverage:
+- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Preferred tool-definition manifest:
   - `.symballist\tools\symballist-tools.json`
@@ -76,13 +79,32 @@ Use the generated repo-local `symballist` tool definitions when your agent runti
   - `symballist_lookup`
   - `symballist_query`
   - `symballist_show`
+- Use the CLI fallback `symballist report` only when `impactTracking.enabled` is true in `.symballist/config.json` and you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
+- The JSON manifest existing on disk does not make `symballist_*` callable by itself.
+- If `symballist` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
-  - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
   - bash / zsh / sh: `./.symballist/bin/symballist`
-- Use `symballist_status` first or run `.symballist\bin\symballist.cmd status --root <REPO_ROOT>`.
-- If the repo is stale, use `symballist_refresh` or run `.symballist\bin\symballist.cmd watch --once --root <REPO_ROOT>`.
-- Prefer `symballist_lookup` for the common `query -> top hit -> show` flow.
-- Use `symballist_query` / `symballist_show` when you want more manual control, or use the equivalent CLI commands if tool loading is unavailable.
+  - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
+- Mandatory first step: use `symballist_status` first or run `symballist status` to inspect freshness, index compatibility, graph awareness, and embeddings state.
+- If the repo is stale, use `symballist_refresh` or run `symballist watch --once`.
+- If `indexCompatibility.requiresRebuild` is true, run `symballist index --rebuild`.
+- If auto-watch is already active, `symballist watch --once` may return an already-fresh no-op. That is expected.
+- If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
+- Prefer `symballist_lookup` when you want one selected best hit with graph diagnostics, context, and alternatives.
+- Use `symballist_query` / `symballist_show` when you want more manual ranked exploration or direct symbol inspection with graph diagnostics, or use the equivalent CLI commands if tool loading is unavailable.
+- Use the CLI fallback `symballist graph --name <symbol>` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
+- Use the CLI fallback `symballist report` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- Query styles by goal:
+  - exact symbol: `symballist_lookup`
+  - fuzzy implementation concept: `symballist_query` with `--code-only --exclude-tests --prefer-implementation`
+  - noisy legacy zones: add repeated `--exclude-path <fragment>` flags such as `--exclude-path _deprecated --exclude-path legacy`
+  - config path: `symballist_lookup`
+  - CSS selector from a real stylesheet: `symballist_lookup`
+  - known id or exact symbol inspection: `symballist_show`
+- Consumers may rely on `path`, `file.path`, and `location.path` being present and equivalent in compact and non-compact flows.
+- If `resultQuality.noStrongMatch` is true on a weak query, treat that as a valid weak-result signal rather than a tool failure.
+- In `symballist_query` and `symballist_lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not absolute confidence.
+- If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass `--root /Users/andras.gaborkuhn/symballist` explicitly.
 - Treat `symballist` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 

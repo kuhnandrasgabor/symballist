@@ -102,14 +102,16 @@ Typical agent flow:
 6. Use `show` when you already know the symbol id or exact name and want direct inspection.
 7. If `bodyPresentation.fullerBodyAvailable` is true, rerun `lookup` or `show` with `--full` to expand the complete stored body.
 8. If the repo owner enabled `impactTracking.enabled`, use `report` only when you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
-8. Verify important conclusions in the underlying file.
-9. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
-10. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
-11. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
-12. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import/usage structure or root-awareness contributed to reranking.
-13. When you need a safer read on whether something merely looks isolated versus truly unused, inspect `graphDiagnostics` on the returned symbol or query results; these are bounded to what the current index can see.
-14. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
-15. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
+9. In `query` and `lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not as absolute confidence values.
+10. In `report`, treat `commandCounts` as intentional usage and background `watch` traffic as separate infrastructure counts.
+11. Verify important conclusions in the underlying file.
+12. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
+13. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
+14. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
+15. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import/usage structure or root-awareness contributed to reranking.
+16. When you need a safer read on whether something merely looks isolated versus truly unused, inspect `graphDiagnostics` on the returned symbol or query results; these are bounded to what the current index can see.
+17. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
+18. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
 
 Useful query refinements:
 
@@ -138,6 +140,8 @@ Useful query refinements:
 - use `watch --interval-ms 2000` or similar only when you explicitly want a foreground polling loop while you work
 - enable embeddings only if you already have a local Ollama endpoint and want better concept/fuzzy retrieval; lexical retrieval remains the default safety net
 - treat `resultQuality.noStrongMatch: true` as an explicit weak-result outcome rather than a tool failure
+- use `score` and `scoreMarginFromTop` only as relative ranking hints within one returned result set
+- in `report`, read `commandCounts` as intentional usage and treat watch refreshes as separate infrastructure traffic
 - downstream consumers may rely on `path`, `file.path`, and `location.path` being present and equivalent in compact and non-compact flows
 - if the repo lacks a language you want to validate, create a temporary isolated fixture under `tmp/` or another scratch directory, index it, validate the behavior, and then remove it
 

@@ -64,17 +64,32 @@ Keep the integration CLI-first, use `status -> index -> query -> show`, and trea
 <!-- SYMBALLIST RETRIEVAL START -->
 ## Symballist Retrieval
 
-Use the generated repo-local `symballist` tool definitions when your runtime can load them, and fall back to the repo-local CLI wrappers when it cannot.
+Use the generated repo-local `symballist` tool definitions when your runtime has actually loaded them, and fall back to the repo-local CLI wrappers when it cannot.
+
+Current language coverage:
+- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Tool-definition manifest: `.symballist\tools\symballist-tools.json`
 - Tooling guide: `.symballist\tools\README.md`
+- The JSON manifest existing on disk does not make `symballist_*` callable by itself.
+- If `symballist` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
-  - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
   - bash / zsh / sh: `./.symballist/bin/symballist`
-- Start with `symballist_status` or `.symballist\bin\symballist.cmd status --root <REPO_ROOT>`.
-- Refresh stale indexes with `symballist_refresh` or `.symballist\bin\symballist.cmd watch --once --root <REPO_ROOT>`.
-- Prefer `symballist_lookup` for the common single-call discovery flow.
-- Use `symballist_query` and `symballist_show` when you need more manual inspection.
+  - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
+- Mandatory first step: start with `symballist_status` or `symballist status` to inspect freshness, index compatibility, graph awareness, and embeddings state.
+- Refresh stale indexes with `symballist_refresh` or `symballist watch --once`.
+- If `indexCompatibility.requiresRebuild` is true, run `symballist index --rebuild`.
+- If `impactTracking.enabled` is true in `.symballist/config.json`, use the CLI fallback `symballist report` when you want the local aggregate usage and impact summary; it does not store raw query text.
+- If auto-watch is already active, `symballist watch --once` may return an already-fresh no-op. That is expected.
+- If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
+- Prefer `symballist_lookup` when you want one selected best hit with graph diagnostics, context, and alternatives.
+- Use `symballist_query` and `symballist_show` when you need ranked exploration or direct symbol inspection with graph diagnostics.
+- Use the CLI fallback `symballist graph --name <symbol>` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
+- Use the CLI fallback `symballist report` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In `report`, treat `commandCounts` as intentional usage and `infrastructureCommandCounts.watch` as background refresh traffic.
+- Weak results may still be valid outcomes; for example `resultQuality.noStrongMatch: true` is not itself a tool failure.
+- In `symballist_query` and `symballist_lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not absolute confidence.
+- If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass `--root /Users/andras.gaborkuhn/symballist` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If `symballist` misses, use normal file search and direct reads.
 

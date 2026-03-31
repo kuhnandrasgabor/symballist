@@ -20,7 +20,9 @@ Current language coverage:
 - Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.
 - Use `symballist_query` and `symballist_show` when you need ranked exploration or direct symbol inspection.
 - Use the CLI fallback `symballist report` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In `report`, treat `commandCounts` as intentional usage and `infrastructureCommandCounts.watch` as background refresh traffic.
 - Treat `resultQuality.noStrongMatch: true` as a valid weak-result signal rather than a tool failure.
+- In `symballist_query` and `symballist_lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not absolute confidence.
 - Verify important conclusions in the source files before making changes.
 - If `symballist` misses, use normal file search and direct reads.
 

@@ -206,6 +206,7 @@ symballist watch --once
   - shows index health, freshness, change awareness, embeddings state, and shell-aware entrypoint guidance
 - `symballist report`
   - shows the opt-in repo-local usage and workflow-impact summary without storing raw query text
+  - separates intentional usage from background `watch` refresh traffic so auto-watch does not inflate the main command counts
 - `symballist query "<text>"`
   - exploration flow: returns ranked candidates plus `fileGroups` when you want to inspect multiple hits without losing track of which files dominate the list
 - `symballist lookup "<text>"`
@@ -220,6 +221,9 @@ symballist watch --once
   - traversal flow: returns grouped graph neighbors such as `imports`, `uses`, `importedBy`, `usedBy`, and `containedIn`
 - `bodyPresentation`
   - `lookup` and `show` summarize oversized bodies by default; check `bodyPresentation.fullerBodyAvailable` and `bodyPresentation.expansionHint` to decide whether `--full` is worth the extra payload
+- `score` and `scoreMarginFromTop`
+  - `query` and `lookup` expose relative 0-1 ranking signals for the returned result set
+  - use them to compare nearby candidates within one response, not as absolute confidence or probability
 - `--compact`
   - trims repeated legend and semantics blocks from `query`, `lookup`, and `show` for cheaper agent consumption
 
@@ -296,6 +300,10 @@ Important behavior:
   - `lexical` or `hybrid`
 - `retrieval.hybrid`
   - semantic candidate counts and top semantic-candidate diagnostics
+- `score`
+  - relative 0-1 ranking signal within the returned result set only
+- `scoreMarginFromTop`
+  - how far a result trails the top hit within that same returned result set
 - `confidence`
   - `exact`, `strong`, `related`, or `fallback`
 - `trustLevel`
@@ -312,6 +320,9 @@ Important behavior:
   - index-bounded structural diagnostics on returned symbols/results, such as no known inbound references, test-only inbound references, same-file-only connectivity, disconnected-from-indexed-graph, root-like status, and possible-orphan candidacy
 - `resultQuality.noStrongMatch`
   - for weak or fuzzy queries, `true` is a valid retrieval outcome rather than a tool failure
+- `impactTracking.summary`
+  - `commandCounts` and `recordedCommands` reflect intentional usage
+  - background auto-refreshes are tracked separately under infrastructure watch counts instead of drowning the main usage totals
 - `path`, `file.path`, and `location.path`
   - downstream consumers may rely on these being present and equivalent in both compact and non-compact flows
 

@@ -28,6 +28,7 @@ Current language coverage:
 - Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.
 - Use `symballist_query` / `symballist_show` when you want more manual ranked exploration or direct symbol inspection, or use the equivalent CLI commands if tool loading is unavailable.
 - Use the CLI fallback `symballist report` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In `report`, treat `commandCounts` as intentional usage and `infrastructureCommandCounts.watch` as background refresh traffic.
 - Query styles by goal:
   - exact symbol: `symballist_lookup`
   - fuzzy implementation concept: `symballist_query` with `--code-only --exclude-tests --prefer-implementation`
@@ -36,6 +37,7 @@ Current language coverage:
   - known id or exact symbol inspection: `symballist_show`
 - Consumers may rely on `path`, `file.path`, and `location.path` being present and equivalent in compact and non-compact flows.
 - Treat `resultQuality.noStrongMatch: true` as a valid weak-result signal rather than a tool failure.
+- In `symballist_query` and `symballist_lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not absolute confidence.
 - Treat `symballist` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 

@@ -432,7 +432,9 @@ Current language coverage:
   - \`symballist graph --name <symbol>\`
   - check grouped \`imports\`, \`uses\`, \`importedBy\`, \`usedBy\`, and \`containedIn\`
 - Use \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - Large bodies summarize by default in \`lookup\` and \`show\`; check \`bodyPresentation.fullerBodyAvailable\` and \`bodyPresentation.expansionHint\` to decide whether \`--full\` is worth the extra payload.
+- In \`query\` and \`lookup\`, use \`score\` and \`scoreMarginFromTop\` only as relative within-result-set ranking hints, not absolute confidence.
 - Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in both compact and non-compact flows.
 - If a weak query reports \`resultQuality.noStrongMatch: true\`, treat that as an explicit weak-result outcome rather than a tool failure.
 - If this repo lacks a language you want to validate, create a temporary isolated fixture under \`tmp/\` or another scratch directory, index it, validate behavior, and remove it afterward.
@@ -470,8 +472,10 @@ Current language coverage:
 - Use \`show\` to inspect a known result id or exact symbol name with spans, relations, and related symbols.
 - Use \`graph\` when you want direct navigation across indexed imports, uses, callers, or containers from a known symbol.
 - Use \`report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - If you already know the symbol, use \`symballist show --name <symbol>\`.
 - If \`bodyPresentation.fullerBodyAvailable\` is true, rerun \`lookup\` or \`show\` with \`--full\` to expand the complete stored body.
+- In \`query\` and \`lookup\`, use \`score\` and \`scoreMarginFromTop\` only as relative within-result-set ranking hints, not absolute confidence.
 - Use \`graphDiagnostics\` on returned results or symbols when you want a bounded structural read on isolation, inbound references, root-like status, or possible-orphan candidacy without overclaiming dead code.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
@@ -514,6 +518,8 @@ Current language coverage:
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
 - Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
+- In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
   - fuzzy implementation concept: \`symballist_query\` with \`codeOnly: true\`, \`excludeTests: true\`, and usually \`preferImplementation: true\`
@@ -522,6 +528,7 @@ Current language coverage:
   - CSS selector from a real stylesheet: \`symballist_lookup\`
   - known id or exact symbol inspection: \`symballist_show\`
 - Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows.
+- In \`symballist_query\` and \`symballist_lookup\`, use \`score\` and \`scoreMarginFromTop\` only as relative within-result-set ranking hints, not absolute confidence.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 
@@ -554,7 +561,9 @@ Current language coverage:
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
 - Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
+- In \`symballist_query\` and \`symballist_lookup\`, use \`score\` and \`scoreMarginFromTop\` only as relative within-result-set ranking hints, not absolute confidence.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
 
@@ -604,6 +613,7 @@ Current language coverage:
   - known id or exact symbol inspection: \`symballist_show\`
 - Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows.
 - If \`resultQuality.noStrongMatch\` is true on a weak query, treat that as a valid weak-result signal rather than a tool failure.
+- In \`symballist_query\` and \`symballist_lookup\`, use \`score\` and \`scoreMarginFromTop\` only as relative within-result-set ranking hints, not absolute confidence.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -637,7 +647,9 @@ Current language coverage:
 - Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
 - Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
+- In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
+- In \`symballist_query\` and \`symballist_lookup\`, use \`score\` and \`scoreMarginFromTop\` only as relative within-result-set ranking hints, not absolute confidence.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -777,6 +789,7 @@ Recommended use:
 - load the generated tool definitions into your agent runtime if it supports repo-local tools
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
 - use \`symballist_report\` only when \`impactTracking.enabled\` is true in \`.symballist/config.json\` and you want the local aggregate usage and impact summary
+- in \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic
 - start with \`symballist_status\` to inspect freshness, index compatibility, graph awareness, and embeddings state
 - if the repo is stale, use \`symballist_refresh\` or the equivalent \`watch --once\` CLI path before retrieval
 - if \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\` so unchanged files are fully reindexed under the current extractor/storage format
@@ -784,6 +797,7 @@ Recommended use:
 - expect \`symballist_query\`, \`symballist_lookup\`, and \`symballist_show\` to expose graph diagnostics in addition to retrieval output
 - consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows
 - treat \`resultQuality.noStrongMatch: true\` as a valid weak-result signal rather than a tool failure
+- treat \`score\` and \`scoreMarginFromTop\` as relative within-result-set ranking hints, not absolute confidence
 - the impact-tracking slice stores aggregate command outcomes only and does not store raw query text
 - if this checkout was linked with \`bun link\`, the plain \`symballist\` command is the simplest manual fallback from the target repo root
 - keep shell-appropriate CLI wrappers as the execution backend and universal fallback
