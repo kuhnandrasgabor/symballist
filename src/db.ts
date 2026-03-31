@@ -981,6 +981,35 @@ function classifyGraphRootCandidate(input: RootHeuristicInput): string[] {
     reasons.add("script or bin path");
   }
 
+  if (
+    input.language === "css"
+    && (
+      normalizedPath.startsWith("static/css/")
+      || normalizedPath.startsWith("styles/")
+      || normalizedPath.includes("/static/css/")
+      || normalizedPath.includes("/styles/")
+      || normalizedPath.includes("/assets/css/")
+    )
+  ) {
+    reasons.add("frontend stylesheet path");
+  }
+
+  if (
+    input.language === "javascript"
+    || input.language === "typescript"
+  ) {
+    if (
+      normalizedPath.startsWith("dashboard_frontend/")
+      || normalizedPath.startsWith("frontend/")
+      || normalizedPath.startsWith("web/")
+      || normalizedPath.includes("/dashboard_frontend/")
+      || normalizedPath.includes("/frontend/")
+      || normalizedPath.includes("/web/")
+    ) {
+      reasons.add("frontend application path");
+    }
+  }
+
   const normalizedNames = input.topLevelNames.map((name) => name.toLowerCase());
   if (normalizedNames.includes("main")) {
     reasons.add("top-level main symbol");
@@ -1810,7 +1839,7 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
   if (disconnectedFromIndexedGraph) {
     possibleOrphanReasons.push("disconnected from the indexed graph");
   }
-  const possibleOrphanCandidate = knownInboundReferences === 0 && !rootLike;
+  const possibleOrphanCandidate = knownInboundReferences === 0 && !rootLike && !sameFileConnectivityOnly;
 
   const notes: string[] = [];
   if (knownInboundReferences === 0) {

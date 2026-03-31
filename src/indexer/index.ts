@@ -30,9 +30,9 @@ export function extractSymbols(path: string, language: SupportedLanguage, source
     case "markdown":
       return extractMarkdownSymbols(path, source);
     case "javascript":
-      return extractJavaScriptSymbols(path, source);
+      return extractJavaScriptSymbols(path, source, context.availablePaths);
     case "typescript":
-      return extractTypeScriptSymbols(path, source);
+      return extractTypeScriptSymbols(path, source, context.availablePaths);
     case "yaml":
       return extractYamlSymbols(path, source);
     case "shell":
