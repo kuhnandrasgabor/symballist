@@ -642,6 +642,87 @@ export function buildFtsQuery(rawQuery: string): string {
   return clauses.size > 1 ? [...clauses].join(" OR ") : [...clauses][0] ?? rawQuery.trim();
 }
 
+function getExactLookupCandidates(
+  db: Database,
+  rawQuery: string,
+  kinds: string[],
+  limit: number
+): SearchRow[] {
+  const trimmedQuery = rawQuery.trim();
+  if (!trimmedQuery) {
+    return [];
+  }
+
+  const kindClause = kinds.length > 0
+    ? ` AND kind IN (${kinds.map(() => "?").join(", ")})`
+    : "";
+
+  const rows = db.query(`
+    SELECT
+      id,
+      path,
+      language,
+      kind,
+      name,
+      signature,
+      doc,
+      body,
+      fallback,
+      start_line AS startLine,
+      start_column AS startColumn,
+      end_line AS endLine,
+      end_column AS endColumn,
+      0.0 AS rawScore,
+      NULL AS semanticSimilarity
+    FROM symbols
+    WHERE (
+      lower(name) = lower(?)
+      OR lower(COALESCE(signature, '')) = lower(?)
+      OR lower(path) = lower(?)
+    )
+    ${kindClause}
+    ORDER BY
+      CASE
+        WHEN lower(name) = lower(?) THEN 0
+        WHEN lower(COALESCE(signature, '')) = lower(?) THEN 1
+        WHEN lower(path) = lower(?) THEN 2
+        ELSE 3
+      END,
+      CASE kind
+        WHEN 'class' THEN 0
+        WHEN 'function' THEN 1
+        WHEN 'selector' THEN 2
+        WHEN 'key' THEN 3
+        WHEN 'stage' THEN 4
+        WHEN 'file' THEN 5
+        ELSE 6
+      END,
+      start_line ASC,
+      id ASC
+    LIMIT ?
+  `).all(
+    trimmedQuery,
+    trimmedQuery,
+    trimmedQuery,
+    ...kinds,
+    trimmedQuery,
+    trimmedQuery,
+    trimmedQuery,
+    limit
+  ) as SearchRow[];
+
+  return rows.map((row) => ({
+    ...row,
+    rawScore: syntheticExactLookupRawScore(row, trimmedQuery),
+    lexicalCandidate: true,
+    conceptCandidate: false,
+    semanticCandidate: false,
+    lexicalRank: null,
+    conceptRank: null,
+    semanticRank: null
+  }));
+}
+
 function getLiteralFallbackCandidates(
   db: Database,
   rawQuery: string,
@@ -738,6 +819,20 @@ function getLiteralFallbackCandidates(
   }));
 }
 
+function syntheticExactLookupRawScore(row: SearchRow, rawQuery: string): number {
+  const loweredRawQuery = rawQuery.toLowerCase();
+  if (row.name.trim().toLowerCase() === loweredRawQuery) {
+    return -7.5;
+  }
+  if ((row.signature ?? "").trim().toLowerCase() === loweredRawQuery) {
+    return -7.0;
+  }
+  if (row.path.trim().toLowerCase() === loweredRawQuery) {
+    return -6.5;
+  }
+  return -6.0;
+}
+
 function syntheticLiteralRawScore(row: SearchRow, rawQuery: string, normalizedQuery: string): number {
   const loweredRawQuery = rawQuery.toLowerCase();
   const loweredName = row.name.toLowerCase();
@@ -772,6 +867,8 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
   const definitionBias = isDefinitionLikeKind(row.kind) ? -1.2 : 0;
   const exactCaseSensitiveName = row.name.trim() === trimmedQuery;
   const exactCaseInsensitiveName = row.name.trim().toLowerCase() === trimmedQuery.toLowerCase();
+  const exactCaseSensitiveSignature = (row.signature ?? "").trim() === trimmedQuery;
+  const exactCaseInsensitiveSignature = (row.signature ?? "").trim().toLowerCase() === trimmedQuery.toLowerCase();
   const normalizedQuery = normalizeLookupValue(rawQuery);
   if (!normalizedQuery) {
     return {
@@ -793,6 +890,20 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
     return {
       adjustment: -5.0 + definitionBias,
       reason: "exact_symbol_name",
+      confidence: "exact"
+    };
+  }
+  if (exactCaseSensitiveSignature) {
+    return {
+      adjustment: -4.9 + definitionBias,
+      reason: row.kind === "import" ? "import_reference" : "signature_text",
+      confidence: "exact"
+    };
+  }
+  if (exactCaseInsensitiveSignature) {
+    return {
+      adjustment: -4.15 + definitionBias,
+      reason: row.kind === "import" ? "import_reference" : "signature_text",
       confidence: "exact"
     };
   }
@@ -2261,10 +2372,11 @@ export function searchSymbolsWithDiagnostics(
   const supplementalRows = shouldExpandConceptCandidates(rawQuery, options)
     ? getConceptPathCandidates(db, rawQuery, kinds, candidateLimit)
     : [];
+  const exactLookupRows = getExactLookupCandidates(db, rawQuery, kinds, Math.max(limit * 2, 10));
   const semanticRows = shouldUseSemanticSearch(options)
     ? getSemanticCandidates(db, options.queryEmbedding ?? [], options.embeddingProvider ?? null, options.embeddingModel ?? null, kinds, candidateLimit)
     : [];
-  const mergedRows = mergeSearchRows(rows, supplementalRows, semanticRows);
+  const mergedRows = mergeSearchRows(rows, exactLookupRows, supplementalRows, semanticRows);
   const candidatePoolLimit = Math.max(limit * 4, 20);
   const rankedPool = rerankResults(mergedRows, candidatePoolLimit, rawQuery, options);
   const rankedResults = applyGraphAwareReranking(db, rankedPool, limit, rawQuery, options);
@@ -2275,7 +2387,7 @@ export function searchSymbolsWithDiagnostics(
       distance: adjustedScore,
       graphDiagnostics: buildGraphDiagnostics(db, result)
     })),
-    diagnostics: buildSearchDiagnostics(rows, supplementalRows, semanticRows, rankedResults)
+    diagnostics: buildSearchDiagnostics(mergeSearchRows(rows, exactLookupRows), supplementalRows, semanticRows, rankedResults)
   };
 }
 
