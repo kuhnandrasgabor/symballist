@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-31 12:23'
+updated_date: '2026-03-31 18:06'
 labels: []
 dependencies: []
 references:
@@ -240,4 +240,6 @@ Remaining feedback from this retest breaks into two areas:
 - fuzzy concept retrieval and graph diagnostics remain shallower in browser-heavy code than in backend/config flows; implementation hits are often retained but not consistently promoted, and many frontend JS/CSS symbols still look disconnected or advisory-orphaned despite correct symbol extraction.
 
 2026-03-31 downstream retest after TASK-058 validated several recent retrieval and UX slices strongly: resultQuality level/reason is landing well, stopword-heavy conceptual queries improved materially, src/ implementation bias is working, and the query/lookup/show split is now clear in practice. One new bug surfaced: bodyPresentation signaling is effectively absent for some large real code symbols because the stored body is already truncated at index time, so --full returns the same short body instead of expanding a summarized one.
+
+Latest downstream validation on a larger real project came back clean for the recent retrieval/navigation slices: query/lookup, show/--full expansion, compact graph output, and impact-tracking transition counts all behaved as expected with no new issues in those areas. New feedback split into four follow-ups: relative score or margin signaling in retrieval output, separating background watch traffic from intentional impact summaries, a likely declarative exact-lookup gap or regression for CSS/YAML, and an optional graph --full deep-read expansion idea.
 <!-- SECTION:NOTES:END -->
