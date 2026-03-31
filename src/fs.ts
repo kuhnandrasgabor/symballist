@@ -94,9 +94,14 @@ export async function writeConfig(root: string, config: SymballistConfig): Promi
 }
 
 function detectSupportedLanguage(name: string): "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | null {
-  const byName = SUPPORTED_FILENAMES.get(name.toLowerCase());
+  const loweredName = name.toLowerCase();
+  const byName = SUPPORTED_FILENAMES.get(loweredName);
   if (byName) {
     return byName;
+  }
+
+  if (loweredName.startsWith("dockerfile.") || loweredName.startsWith("containerfile.")) {
+    return "dockerfile";
   }
 
   return SUPPORTED_EXTENSIONS.get(extname(name).toLowerCase()) ?? null;
