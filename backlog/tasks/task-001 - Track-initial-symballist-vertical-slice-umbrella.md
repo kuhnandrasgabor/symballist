@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-31 06:30'
+updated_date: '2026-03-31 08:42'
 labels: []
 dependencies: []
 references:
@@ -227,4 +227,15 @@ Latest downstream retest after TASK-043 and TASK-048 confirms major practical wi
 Executed the Dockerfile instruction-retrieval follow-up as a focused slice: standalone Dockerfile file records now retain full file content, instruction-level symbols are emitted for generic Dockerfile directives, and instruction-shaped queries receive Dockerfile-aware ranking support. This addresses the remaining real gap from the latest downstream retest: COPY/RUN/FROM-style queries previously drifting toward unrelated Python hits.
 
 Latest downstream Dockerfile retest confirms the main slice is working: instruction-oriented Dockerfile queries now surface Dockerfile results, and `lookup "Dockerfile"` resolves the file correctly. A remaining narrow edge case is Dockerfile dot-suffix names such as `Dockerfile.dashboard`, which are not yet recognized as Dockerfile files.
+
+2026-03-31 downstream retest with a new model on a real repo validated several recent slices strongly:
+- Exact and path-like retrieval is strong across frontend JS, YAML, shell, Dockerfile.*, and CSS examples.
+- resultQuality / noStrongMatch signaling is working as intended for weak or missing queries.
+- path, file.path, and location.path are now present and equivalent across query, lookup, show, and compact flows.
+- JS support is solid for named lookups, and a temporary TS fixture also validated interfaces, enums, types, classes, and methods.
+- symbol-level change awareness behaved meaningfully during a temporary TS add/edit/remove cycle.
+
+Remaining feedback from this retest breaks into two areas:
+- agent invocation guidance in tool-capable setups is still too ambiguous about manifest presence versus runtime callable tools, fallback priority, mandatory status/refresh flow, watch --once no-op semantics under auto-watch, recommended query styles, and the path duplication invariant.
+- fuzzy concept retrieval and graph diagnostics remain shallower in browser-heavy code than in backend/config flows; implementation hits are often retained but not consistently promoted, and many frontend JS/CSS symbols still look disconnected or advisory-orphaned despite correct symbol extraction.
 <!-- SECTION:NOTES:END -->
