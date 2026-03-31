@@ -1,9 +1,10 @@
 ---
 id: TASK-065
 title: Fix impact-tracking transition detection for retrieval follow-up chains
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-31 16:29'
+updated_date: '2026-03-31 16:40'
 labels:
   - bug
   - metrics
@@ -20,7 +21,15 @@ Downstream testing validated the new repo-local impact report overall, but short
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Lookup/show/query/graph follow-up chains register in transitionCounts when they happen within the intended short window
-- [ ] #2 The report remains privacy-safe and does not require raw query text to detect transitions
-- [ ] #3 Integration coverage validates at least one lookup->show, lookup->graph, or weak-result retry transition end to end
+- [x] #1 Lookup/show/query/graph follow-up chains register in transitionCounts when they happen within the intended short window
+- [x] #2 The report remains privacy-safe and does not require raw query text to detect transitions
+- [x] #3 Integration coverage validates at least one lookup->show, lookup->graph, or weak-result retry transition end to end
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed impact-tracking transition detection by storing the last retrieval/navigation flow event separately from generic command history. This keeps lookup/query/show/graph chains detectable even when `status`, `watch`, or `report` calls are interleaved between them.
+
+Added integration coverage for interleaved non-flow commands and verified the privacy boundary stayed intact because the fix still relies only on command/outcome metadata, not raw query text. Verified with `bun test tests/integration.test.ts`.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -34,6 +34,7 @@ const SYMBOL_CHANGE_SUMMARY_KEY = "latest_symbol_change_summary";
 const INDEX_FORMAT_VERSION_KEY = "index_format_version";
 const IMPACT_SUMMARY_KEY = "impact_tracking_summary";
 const IMPACT_LAST_EVENT_KEY = "impact_tracking_last_event";
+const IMPACT_LAST_FLOW_EVENT_KEY = "impact_tracking_last_flow_event";
 const MAX_SYMBOL_CHANGE_SAMPLES = 20;
 const IMPACT_SEQUENCE_WINDOW_MS = 30 * 60 * 1000;
 export const CURRENT_EMBEDDING_PROVIDER = "ollama";
@@ -611,6 +612,35 @@ function writeLastImpactEvent(db: Database, event: ImpactTrackingEvent): void {
   `).run(IMPACT_LAST_EVENT_KEY, JSON.stringify(event));
 }
 
+function readLastImpactFlowEvent(db: Database): ImpactTrackingEvent | null {
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(IMPACT_LAST_FLOW_EVENT_KEY) as { value?: string } | null;
+  if (!row?.value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(row.value) as ImpactTrackingEvent;
+    if (!parsed?.command || !parsed?.timestamp) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastImpactFlowEvent(db: Database, event: ImpactTrackingEvent): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(IMPACT_LAST_FLOW_EVENT_KEY, JSON.stringify(event));
+}
+
+function isFlowTrackingCommand(command: ImpactCommandName): boolean {
+  return command === "lookup" || command === "query" || command === "show" || command === "graph";
+}
+
 function updateTransitionCounts(
   summary: StoredImpactSummary,
   previous: ImpactTrackingEvent | null,
@@ -664,7 +694,9 @@ export function getImpactTrackingSummary(db: Database): ImpactTrackingSummary {
 
 export function recordImpactTrackingEvent(db: Database, event: ImpactTrackingEvent): ImpactTrackingSummary {
   const summary = readStoredImpactSummary(db);
-  const previous = readLastImpactEvent(db);
+  const previous = isFlowTrackingCommand(event.command)
+    ? readLastImpactFlowEvent(db)
+    : readLastImpactEvent(db);
 
   summary.recordedCommands += 1;
   summary.commandCounts[event.command] += 1;
@@ -703,6 +735,9 @@ export function recordImpactTrackingEvent(db: Database, event: ImpactTrackingEve
 
   writeStoredImpactSummary(db, summary);
   writeLastImpactEvent(db, event);
+  if (isFlowTrackingCommand(event.command)) {
+    writeLastImpactFlowEvent(db, event);
+  }
   return summary;
 }
 

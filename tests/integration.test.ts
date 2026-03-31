@@ -2682,6 +2682,56 @@ describe("symballist vertical slice", () => {
     expect(statusPayload.impactTracking.summary?.commandCounts.status).toBe(1);
   });
 
+  test("impact tracking transitions survive interleaved non-flow commands", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    const config = await readConfig(root);
+    await writeConfig(root, {
+      ...(config!),
+      impactTracking: {
+        enabled: true
+      }
+    });
+
+    await runIndex(root, { progress: false });
+
+    await captureConsoleLog(async () => {
+      await runLookup(root, "greet", 5);
+    });
+    await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    await captureConsoleLog(async () => {
+      await runShow(root, "", "greet", { full: true });
+    });
+    await captureConsoleLog(async () => {
+      await runWatch(root, { once: true });
+    });
+    await captureConsoleLog(async () => {
+      await runLookup(root, "greet", 5);
+    });
+    await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    await captureConsoleLog(async () => {
+      await runGraph(root, "", "greet");
+    });
+
+    const reportPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runReport(root);
+    })) as {
+      impactTracking: {
+        summary: {
+          transitionCounts: Record<string, number>;
+        };
+      };
+    };
+
+    expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_show).toBe(1);
+    expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_full_show).toBe(1);
+    expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_graph).toBe(1);
+  });
+
   test("hybrid retrieval can supplement lexical search with optional Ollama embeddings", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });
