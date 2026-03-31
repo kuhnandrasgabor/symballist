@@ -35,8 +35,8 @@ function nodeText(source: string, node: SyntaxNode | null): string {
 }
 
 function sliceBody(source: string, start: number, end: number): string {
-  const preview = source.slice(start, Math.min(end, start + 320)).trim();
-  return preview.length > 0 ? preview : source.slice(0, 320).trim();
+  const body = source.slice(start, end).trim();
+  return body.length > 0 ? body : source.trim();
 }
 
 function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
