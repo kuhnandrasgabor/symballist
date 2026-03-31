@@ -656,6 +656,74 @@ describe("symballist vertical slice", () => {
     expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "notes/runbook")).toBeFalse();
   });
 
+  test("lookup resolves declarative symbols by exact name or signature", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "config"), { recursive: true });
+    await mkdir(join(root, "styles"), { recursive: true });
+    await writeFile(
+      join(root, "config", "docker-compose.yml"),
+      [
+        "services:",
+        "  api:",
+        "    image: symballist:latest"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "Dockerfile"),
+      [
+        "FROM node:20-alpine AS builder",
+        "WORKDIR /app",
+        "COPY package.json ./package.json",
+        "RUN npm ci"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "styles", "site.css"),
+      [
+        ".section-header {",
+        "  font-weight: 700;",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const cssLookup = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, ".section-header", 5);
+    })) as {
+      selectedResult?: { name?: string; kind?: string; path?: string };
+      resultQuality?: { level?: string };
+    };
+    expect(cssLookup.selectedResult?.name).toBe(".section-header");
+    expect(cssLookup.selectedResult?.kind).toBe("selector");
+    expect(normalizeRepoPath(cssLookup.selectedResult?.path)).toBe("styles/site.css");
+    expect(cssLookup.resultQuality?.level).toBe("strong");
+
+    const yamlLookup = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "services.api.image", 5);
+    })) as {
+      selectedResult?: { name?: string; kind?: string; path?: string };
+    };
+    expect(yamlLookup.selectedResult?.name).toBe("services.api.image");
+    expect(yamlLookup.selectedResult?.kind).toBe("key");
+    expect(normalizeRepoPath(yamlLookup.selectedResult?.path)).toBe("config/docker-compose.yml");
+
+    const dockerLookup = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "WORKDIR /app", 5);
+    })) as {
+      selectedResult?: { kind?: string; signature?: string | null; path?: string };
+      resultQuality?: { level?: string };
+    };
+    expect(dockerLookup.selectedResult?.kind).toBe("workdir");
+    expect(dockerLookup.selectedResult?.signature).toBe("WORKDIR /app");
+    expect(normalizeRepoPath(dockerLookup.selectedResult?.path)).toBe("Dockerfile");
+    expect(dockerLookup.resultQuality?.level).toBe("strong");
+  });
+
   test("repeated index runs skip unchanged files", async () => {
     const root = await createFixtureRepo();
     await runInit(root);
