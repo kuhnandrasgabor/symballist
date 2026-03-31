@@ -156,15 +156,17 @@ symballist watch --once
 - `symballist status`
   - shows index health, freshness, change awareness, embeddings state, and shell-aware entrypoint guidance
 - `symballist query "<text>"`
-  - returns ranked candidates
+  - exploration flow: returns ranked candidates when you want to inspect multiple hits
 - `symballist lookup "<text>"`
-  - returns the top hit plus resolved symbol context and alternatives
+  - best-match flow: returns the selected hit plus resolved symbol context and alternatives
 - `symballist show <id>`
-  - resolves a result id into full stored context
+  - inspection flow: resolves a known result id into stored context
 - `symballist show --name <symbol>`
   - resolves an exact symbol name without needing an intermediate id
 - `symballist show --name <symbol> --full`
   - expands large bodies instead of returning the summarized default
+- `bodyPresentation`
+  - `lookup` and `show` summarize oversized bodies by default; check `bodyPresentation.fullerBodyAvailable` and `bodyPresentation.expansionHint` to decide whether `--full` is worth the extra payload
 - `--compact`
   - trims repeated legend and semantics blocks from `query`, `lookup`, and `show` for cheaper agent consumption
 

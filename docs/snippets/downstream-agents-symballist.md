@@ -20,8 +20,8 @@ Current language coverage:
   - bash / zsh / sh: `./.symballist/bin/symballist`
 - Use `symballist_status` first or run `.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>`.
 - If the repo is stale, use `symballist_refresh` or run `.symballist\bin\symballist.cmd watch --once --root <PROJECT_ROOT>`.
-- Prefer `symballist_lookup` for the common `query -> top hit -> show` flow.
-- Use `symballist_query` / `symballist_show` when you want more manual control, or use the equivalent CLI commands if tool loading is unavailable.
+- Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.
+- Use `symballist_query` / `symballist_show` when you want more manual ranked exploration or direct symbol inspection, or use the equivalent CLI commands if tool loading is unavailable.
 - Treat `symballist` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
 

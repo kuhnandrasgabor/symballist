@@ -125,8 +125,10 @@ describe("symballist vertical slice", () => {
     expect(localAgentsSnippet).toContain("symballist status");
     expect(localGuide).toContain("symballist watch --once");
     expect(localGuide).toContain('symballist lookup "<text>"');
+    expect(localGuide).toContain("one-shot best-match flow");
     expect(localGuide).toContain("setup-type hybrid");
     expect(toolManifest).toContain("\"name\": \"symballist_lookup\"");
+    expect(toolManifest).toContain("Best-match flow: resolve one selected hit with symbol context");
     expect(wrapperCmd).toContain('src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");
@@ -899,10 +901,23 @@ describe("symballist vertical slice", () => {
         truncated: boolean;
         totalLines: number;
         shownLines: number;
+        fullerBodyAvailable: boolean;
+        expansionHint: string | null;
       };
       symbol: {
         body: string;
       };
+    };
+
+    const lookupSummaryOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "MemoryStore", 5);
+    })) as {
+      bodyPresentation: {
+        mode: string;
+        truncated: boolean;
+        fullerBodyAvailable: boolean;
+        expansionHint: string | null;
+      } | null;
     };
 
     const fullOutput = JSON.parse(await captureConsoleLog(async () => {
@@ -920,7 +935,12 @@ describe("symballist vertical slice", () => {
     expect(summaryOutput.bodyPresentation.mode).toBe("summary");
     expect(summaryOutput.bodyPresentation.truncated).toBeTrue();
     expect(summaryOutput.bodyPresentation.totalLines).toBeGreaterThan(summaryOutput.bodyPresentation.shownLines);
+    expect(summaryOutput.bodyPresentation.fullerBodyAvailable).toBeTrue();
+    expect(summaryOutput.bodyPresentation.expansionHint).toContain("--full");
     expect(summaryOutput.symbol.body).toContain("[truncated, rerun show with --full");
+    expect(lookupSummaryOutput.bodyPresentation?.mode).toBe("summary");
+    expect(lookupSummaryOutput.bodyPresentation?.fullerBodyAvailable).toBeTrue();
+    expect(lookupSummaryOutput.bodyPresentation?.expansionHint).toContain("--full");
     expect(fullOutput.bodyPresentation.mode).toBe("full");
     expect(fullOutput.bodyPresentation.truncated).toBeFalse();
     expect(fullOutput.symbol.body).toContain("field_119");
@@ -1490,7 +1510,7 @@ describe("symballist vertical slice", () => {
     await runIndex(blankRoot, { progress: false });
 
     const emptyLookupPayload = JSON.parse(await captureConsoleLog(async () => {
-      await runLookup(blankRoot, "zzzzzz no such symbol", 5);
+      await runLookup(blankRoot, "zzzzqqqqxxxxvvvv", 5);
     })) as {
       resultQuality: {
         level: string;
@@ -2162,6 +2182,7 @@ describe("symballist vertical slice", () => {
       await runCli(["query", "--help"]);
     });
     expect(output).toContain('symballist query "<text>"');
+    expect(output).toContain("Exploration flow");
   });
 
   test("lookup help is handled as CLI help instead of lookup text", async () => {
@@ -2175,6 +2196,7 @@ describe("symballist vertical slice", () => {
       await runCli(["lookup", "--help"]);
     });
     expect(output).toContain('symballist lookup "<text>"');
+    expect(output).toContain("Best-match flow");
   });
 
   test("query accepts --top as a limit alias without reaching FTS with raw flag text", async () => {
