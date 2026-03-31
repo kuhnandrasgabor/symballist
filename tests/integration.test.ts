@@ -350,6 +350,106 @@ describe("symballist vertical slice", () => {
     expect(status.supportedLanguages).toContain("typescript");
   });
 
+  test("indexes config and ops languages with useful lightweight symbols", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "config"), { recursive: true });
+    await mkdir(join(root, "scripts"), { recursive: true });
+    await mkdir(join(root, "styles"), { recursive: true });
+    await writeFile(
+      join(root, "config", "pipeline.yaml"),
+      [
+        "services:",
+        "  api:",
+        "    image: app:latest",
+        "jobs:",
+        "  build:",
+        "    steps:",
+        "      - run: bun test"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "scripts", "deploy.sh"),
+      [
+        "#!/usr/bin/env bash",
+        "",
+        "deploy_app() {",
+        "  echo deploy",
+        "}",
+        "",
+        "cleanup() {",
+        "  echo cleanup",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "Dockerfile"),
+      [
+        "FROM node:20 AS builder",
+        "ARG APP_ENV=prod",
+        "RUN bun install",
+        "",
+        "FROM nginx:alpine AS runtime",
+        "ENV PORT=8080"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "styles", "site.css"),
+      [
+        ".search-panel {",
+        "  display: flex;",
+        "}",
+        "",
+        "#app-root,",
+        ".layout-main {",
+        "  color: red;",
+        "}",
+        "",
+        "@media (max-width: 640px) {",
+        "  .search-panel {",
+        "    display: block;",
+        "  }",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    const stats = await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const yamlResults = searchSymbols(db, buildFtsQuery("services.api"), 5, { rawQuery: "services.api" });
+    const shellResults = searchSymbols(db, buildFtsQuery("deploy_app"), 5, { rawQuery: "deploy_app" });
+    const dockerResults = searchSymbols(db, buildFtsQuery("builder"), 5, { rawQuery: "builder" });
+    const cssResults = searchSymbols(db, buildFtsQuery("search-panel"), 5, { rawQuery: "search-panel" });
+    db.close();
+
+    expect(stats.discoveredFiles).toBe(11);
+    expect(yamlResults[0]?.language).toBe("yaml");
+    expect(yamlResults[0]?.kind).toBe("key");
+    expect(shellResults[0]?.language).toBe("shell");
+    expect(shellResults[0]?.kind).toBe("function");
+    expect(dockerResults[0]?.language).toBe("dockerfile");
+    expect(dockerResults[0]?.kind).toBe("stage");
+    expect(cssResults.some((result) => result.language === "css" && result.kind === "selector")).toBeTrue();
+
+    const currentFiles = await listSourceFiles(root);
+    expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "Dockerfile" && file.language === "dockerfile")).toBeTrue();
+
+    const status = JSON.parse(await captureConsoleLog(async () => {
+      await runStatus(root);
+    })) as {
+      supportedLanguages: string[];
+    };
+
+    expect(status.supportedLanguages).toContain("yaml");
+    expect(status.supportedLanguages).toContain("shell");
+    expect(status.supportedLanguages).toContain("dockerfile");
+    expect(status.supportedLanguages).toContain("css");
+  });
+
   test("repeated index runs skip unchanged files", async () => {
     const root = await createFixtureRepo();
     await runInit(root);

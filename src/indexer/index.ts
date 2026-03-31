@@ -1,3 +1,4 @@
+import { extractCssSymbols, extractDockerfileSymbols, extractShellSymbols, extractYamlSymbols } from "./configops.ts";
 import { extractHtmlSymbols } from "./html.ts";
 import { extractJavaScriptSymbols, extractTypeScriptSymbols } from "./javascript.ts";
 import { extractMarkdownSymbols } from "./markdown.ts";
@@ -28,6 +29,14 @@ export function extractSymbols(path: string, language: SupportedLanguage, source
       return extractJavaScriptSymbols(path, source);
     case "typescript":
       return extractTypeScriptSymbols(path, source);
+    case "yaml":
+      return extractYamlSymbols(path, source);
+    case "shell":
+      return extractShellSymbols(path, source);
+    case "dockerfile":
+      return extractDockerfileSymbols(path, source);
+    case "css":
+      return extractCssSymbols(path, source);
     default:
       return [
         {
