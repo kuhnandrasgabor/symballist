@@ -15,7 +15,15 @@ It is designed to stay:
 
 `symballist` currently supports:
 
-- Python, HTML, and Markdown indexing
+- Python
+- HTML
+- Markdown
+- JavaScript
+- TypeScript
+- YAML
+- shell / bash / zsh
+- Dockerfile / Containerfile
+- CSS
 - symbol-first retrieval with file-level fallbacks
 - spans, snippets, and full-symbol lookup
 - stale-index detection and lightweight change awareness
@@ -91,6 +99,12 @@ Available setup types:
   - writes tool-definition assets and slimmer tool-first guidance
 - `cli`
   - skips tool-definition assets and keeps the integration CLI-only
+
+Current language coverage:
+
+- code and app structure: Python, JavaScript, TypeScript, HTML
+- docs: Markdown
+- config and ops: YAML, shell / bash / zsh, Dockerfile / Containerfile, CSS
 
 If you are not using a linked global command, the repo-local wrappers are the portable fallback:
 

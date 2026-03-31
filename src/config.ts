@@ -10,7 +10,7 @@ export const DEFAULT_OLLAMA_EMBED_MODEL = "nomic-embed-text:latest";
 
 export type SetupType = "cli" | "tool" | "hybrid";
 
-export const SUPPORTED_EXTENSIONS = new Map<string, "python" | "html" | "markdown" | "javascript" | "typescript">([
+export const SUPPORTED_EXTENSIONS = new Map<string, "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "css">([
   [".py", "python"],
   [".html", "html"],
   [".htm", "html"],
@@ -21,7 +21,18 @@ export const SUPPORTED_EXTENSIONS = new Map<string, "python" | "html" | "markdow
   [".mjs", "javascript"],
   [".cjs", "javascript"],
   [".ts", "typescript"],
-  [".tsx", "typescript"]
+  [".tsx", "typescript"],
+  [".yaml", "yaml"],
+  [".yml", "yaml"],
+  [".sh", "shell"],
+  [".bash", "shell"],
+  [".zsh", "shell"],
+  [".css", "css"]
+]);
+
+export const SUPPORTED_FILENAMES = new Map<string, "dockerfile">([
+  ["dockerfile", "dockerfile"],
+  ["containerfile", "dockerfile"]
 ]);
 
 export function appPath(root: string, ...segments: string[]): string {
@@ -32,7 +43,7 @@ export type SymballistConfig = {
   version: number;
   root: string;
   setupType: SetupType;
-  languages: Array<"python" | "html" | "markdown" | "javascript" | "typescript">;
+  languages: Array<"python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css">;
   createdAt: string;
   embeddings: {
     enabled: boolean;
@@ -48,7 +59,7 @@ export function defaultConfig(root: string): SymballistConfig {
     version: 3,
     root,
     setupType: "hybrid",
-    languages: ["python", "html", "markdown", "javascript", "typescript"],
+    languages: ["python", "html", "markdown", "javascript", "typescript", "yaml", "shell", "dockerfile", "css"],
     createdAt: new Date().toISOString(),
     embeddings: {
       enabled: false,

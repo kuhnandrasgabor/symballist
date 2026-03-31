@@ -10,6 +10,7 @@ Use it for:
 
 - finding likely code symbols before opening files
 - finding Markdown docs, plans, workflows, and architecture notes
+- navigating common config and ops files such as YAML, shell scripts, Dockerfiles, and CSS
 - resolving a search hit into full context with `show`
 - checking whether the local index is fresh before trusting results
 - optionally improving fuzzy or concept-heavy retrieval with local embeddings
@@ -137,7 +138,7 @@ The snippet files reflect the default `hybrid` posture; `cli` and `tool` setups 
 
 ## Notes
 
-- `symballist` currently works best as a helper for Python, HTML, and Markdown.
+- `symballist` currently supports Python, HTML, Markdown, JavaScript, TypeScript, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS.
 - optional embeddings currently start with Ollama via `.symballist/config.json`.
 - For fast-moving repos, freshness matters as much as ranking quality.
 - Prefer `hybrid` as the default setup. Keep CLI wrappers even when tool definitions are available so the integration stays portable across agent runtimes.

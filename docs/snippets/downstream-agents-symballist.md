@@ -2,6 +2,9 @@
 
 Use the generated repo-local `symballist` tool definitions when your agent runtime can load them. Keep the repo-local CLI wrappers as the robust fallback.
 
+Current language coverage:
+- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+
 - Preferred tool-definition manifest:
   - `.symballist\tools\symballist-tools.json`
 - Tooling guide:

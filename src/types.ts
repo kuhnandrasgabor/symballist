@@ -1,4 +1,4 @@
-export type SupportedLanguage = "python" | "html" | "markdown" | "javascript" | "typescript" | "text";
+export type SupportedLanguage = "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | "text";
 export type ExtractionKind = "parsed" | "recovered" | "fallback";
 export type TrustLevel = "high" | "medium" | "low";
 export type ResultConfidence = "exact" | "strong" | "related" | "fallback";
