@@ -1,7 +1,8 @@
 import Parser from "tree-sitter";
 import Python from "tree-sitter-python";
 import type { SyntaxNode } from "tree-sitter";
-import type { SymbolRecord } from "../types.ts";
+import { dirname, join, normalize } from "node:path";
+import type { RelationDetails, SymbolRecord } from "../types.ts";
 
 const parser = new Parser();
 parser.setLanguage(Python);
@@ -19,6 +20,16 @@ function nodeText(source: string, node: SyntaxNode | null): string {
   }
   return source.slice(node.startIndex, node.endIndex);
 }
+
+type PythonTopLevelSymbol = {
+  node: SyntaxNode;
+  record: SymbolRecord;
+};
+
+type UsageTarget = {
+  targetPath: string;
+  labelPrefix: string;
+};
 
 function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
   callback(node);
@@ -269,7 +280,206 @@ function fallbackRecord(path: string, source: string, reason: string): SymbolRec
   ];
 }
 
-export function extractPythonSymbols(path: string, source: string): SymbolRecord[] {
+function resolvePythonModulePath(moduleName: string, sourcePath: string, availablePaths: Set<string>): string | null {
+  const trimmed = moduleName.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const relativeDots = trimmed.match(/^\.+/)?.[0].length ?? 0;
+  const bareModule = trimmed.slice(relativeDots);
+  const sourceDir = dirname(sourcePath);
+  let baseDir = relativeDots > 0 ? sourceDir : "";
+
+  for (let index = 1; index < relativeDots; index += 1) {
+    baseDir = dirname(baseDir);
+  }
+
+  const moduleSegments = bareModule ? bareModule.split(".").filter(Boolean) : [];
+  const baseCandidate = normalize(join(baseDir, ...moduleSegments));
+  const candidates = [
+    `${baseCandidate}.py`,
+    join(baseCandidate, "__init__.py")
+  ];
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalize(candidate);
+    if (availablePaths.has(normalizedCandidate)) {
+      return normalizedCandidate;
+    }
+  }
+
+  return null;
+}
+
+function parseImportAliases(statement: string, sourcePath: string, availablePaths: Set<string>): Map<string, UsageTarget> {
+  const aliases = new Map<string, UsageTarget>();
+  const normalized = statement.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return aliases;
+  }
+
+  if (normalized.startsWith("import ")) {
+    const parts = normalized.slice("import ".length).split(",").map((part) => part.trim()).filter(Boolean);
+    for (const part of parts) {
+      const aliasMatch = part.match(/^([.\w]+)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$/i);
+      if (!aliasMatch) {
+        continue;
+      }
+      const [, moduleName, explicitAlias] = aliasMatch;
+      const alias = explicitAlias?.trim() || moduleName.split(".").pop() || "";
+      const targetPath = resolvePythonModulePath(moduleName, sourcePath, availablePaths);
+      if (!alias || !targetPath) {
+        continue;
+      }
+      aliases.set(alias, { targetPath, labelPrefix: moduleName });
+    }
+    return aliases;
+  }
+
+  const fromMatch = normalized.match(/^from\s+([.\w]+)\s+import\s+(.+)$/i);
+  if (!fromMatch) {
+    return aliases;
+  }
+
+  const [, moduleName, importedSection] = fromMatch;
+  const importedNames = importedSection
+    .replace(/^\(/, "")
+    .replace(/\)$/, "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  for (const part of importedNames) {
+    const aliasMatch = part.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$/i);
+    if (!aliasMatch) {
+      continue;
+    }
+    const [, importedName, explicitAlias] = aliasMatch;
+    if (importedName === "*") {
+      continue;
+    }
+    const alias = explicitAlias?.trim() || importedName;
+    const targetPath = resolvePythonModulePath(`${moduleName}.${importedName}`, sourcePath, availablePaths)
+      ?? resolvePythonModulePath(moduleName, sourcePath, availablePaths);
+    if (!alias || !targetPath) {
+      continue;
+    }
+    aliases.set(alias, { targetPath, labelPrefix: `${moduleName}.${importedName}` });
+  }
+
+  return aliases;
+}
+
+function rootIdentifierName(node: SyntaxNode): string | null {
+  let current: SyntaxNode | null = node;
+  while (current) {
+    if (current.type === "identifier") {
+      return current.text.trim() || null;
+    }
+    const valueNode = current.childForFieldName("object") ?? current.childForFieldName("value");
+    if (!valueNode || valueNode === current) {
+      return null;
+    }
+    current = valueNode;
+  }
+  return null;
+}
+
+function finalAttributeName(node: SyntaxNode): string | null {
+  if (node.type === "identifier") {
+    return node.text.trim() || null;
+  }
+  if (node.type !== "attribute") {
+    return null;
+  }
+  const attributeNode = node.childForFieldName("attribute");
+  return attributeNode?.text.trim() || null;
+}
+
+function dedupeRelations(relations: RelationDetails[]): RelationDetails[] {
+  const seen = new Set<string>();
+  const deduped: RelationDetails[] = [];
+  for (const relation of relations) {
+    const key = `${relation.kind}\u001f${relation.targetPath ?? ""}\u001f${relation.targetLabel}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(relation);
+  }
+  return deduped;
+}
+
+function walkUsageNodes(node: SyntaxNode, callback: (node: SyntaxNode) => void, skipNested = false): void {
+  callback(node);
+  for (const child of node.namedChildren) {
+    if (skipNested && (child.type === "function_definition" || child.type === "class_definition")) {
+      continue;
+    }
+    walkUsageNodes(child, callback, false);
+  }
+}
+
+function collectPythonUsageRelations(
+  current: PythonTopLevelSymbol,
+  topLevelByName: Map<string, SymbolRecord>,
+  importAliases: Map<string, UsageTarget>
+): RelationDetails[] {
+  if (current.record.kind !== "function" && current.record.kind !== "class") {
+    return [];
+  }
+
+  const relations: RelationDetails[] = [];
+  walkUsageNodes(current.node, (node) => {
+    if (node.type !== "call") {
+      return;
+    }
+
+    const functionNode = node.childForFieldName("function");
+    if (!functionNode) {
+      return;
+    }
+
+    const localName = functionNode.type === "identifier" ? functionNode.text.trim() : null;
+    if (localName && localName !== current.record.name) {
+      const localTarget = topLevelByName.get(localName);
+      if (localTarget) {
+        relations.push({
+          kind: "uses",
+          targetPath: localTarget.path,
+          targetLabel: localTarget.name
+        });
+        return;
+      }
+    }
+
+    const rootName = rootIdentifierName(functionNode);
+    if (!rootName) {
+      return;
+    }
+
+    const importTarget = importAliases.get(rootName);
+    if (!importTarget) {
+      return;
+    }
+
+    const finalName = finalAttributeName(functionNode);
+    const targetLabel = finalName && finalName !== rootName
+      ? `${importTarget.labelPrefix}.${finalName}`
+      : importTarget.labelPrefix;
+
+    relations.push({
+      kind: "uses",
+      targetPath: importTarget.targetPath,
+      targetLabel
+    });
+  }, true);
+
+  return dedupeRelations(relations);
+}
+
+export function extractPythonSymbols(path: string, source: string, availablePaths: Set<string> = new Set()): SymbolRecord[] {
   if (source.length > MAX_TREE_SITTER_SOURCE_CHARS) {
     const recovered = recoverOversizedPythonSymbols(path, source);
     if (recovered.length > 0) {
@@ -282,7 +492,7 @@ export function extractPythonSymbols(path: string, source: string): SymbolRecord
     );
   }
 
-  const symbols: SymbolRecord[] = [];
+  const symbols: PythonTopLevelSymbol[] = [];
   let tree;
   try {
     tree = parser.parse(source);
@@ -294,15 +504,18 @@ export function extractPythonSymbols(path: string, source: string): SymbolRecord
     if (node.type === "import_statement" || node.type === "import_from_statement") {
       const statement = nodeText(source, node).trim();
       symbols.push({
-        path,
-        language: "python",
-        kind: "import",
-        name: statement,
-        signature: statement,
-        body: statement,
-        doc: null,
-        fallback: false,
-        ...nodeSpan(node)
+        node,
+        record: {
+          path,
+          language: "python",
+          kind: "import",
+          name: statement,
+          signature: statement,
+          body: statement,
+          doc: null,
+          fallback: false,
+          ...nodeSpan(node)
+        }
       });
       return;
     }
@@ -316,15 +529,18 @@ export function extractPythonSymbols(path: string, source: string): SymbolRecord
       }
       const signature = `class ${name}${nodeText(source, superclassesNode).trim()}`;
       symbols.push({
-        path,
-        language: "python",
-        kind: "class",
-        name,
-        signature,
-        body: sliceBody(source, node.startIndex, node.endIndex),
-        doc: null,
-        fallback: false,
-        ...nodeSpan(node)
+        node,
+        record: {
+          path,
+          language: "python",
+          kind: "class",
+          name,
+          signature,
+          body: sliceBody(source, node.startIndex, node.endIndex),
+          doc: null,
+          fallback: false,
+          ...nodeSpan(node)
+        }
       });
       return;
     }
@@ -338,21 +554,53 @@ export function extractPythonSymbols(path: string, source: string): SymbolRecord
       }
       const signature = `${name}${nodeText(source, parametersNode).trim()}`;
       symbols.push({
-        path,
-        language: "python",
-        kind: "function",
-        name,
-        signature,
-        body: sliceBody(source, node.startIndex, node.endIndex),
-        doc: null,
-        fallback: false,
-        ...nodeSpan(node)
+        node,
+        record: {
+          path,
+          language: "python",
+          kind: "function",
+          name,
+          signature,
+          body: sliceBody(source, node.startIndex, node.endIndex),
+          doc: null,
+          fallback: false,
+          ...nodeSpan(node)
+        }
       });
     }
   });
 
   if (symbols.length > 0) {
-    return symbols;
+    const topLevelByName = new Map<string, SymbolRecord>();
+    for (const symbol of symbols) {
+      if ((symbol.record.kind === "function" || symbol.record.kind === "class") && !topLevelByName.has(symbol.record.name)) {
+        topLevelByName.set(symbol.record.name, symbol.record);
+      }
+    }
+
+    const importAliases = new Map<string, UsageTarget>();
+    for (const symbol of symbols) {
+      if (symbol.record.kind !== "import") {
+        continue;
+      }
+      for (const [alias, target] of parseImportAliases(symbol.record.name, path, availablePaths)) {
+        importAliases.set(alias, target);
+      }
+    }
+
+    return symbols.map((symbol) => {
+      if (symbol.record.kind === "import") {
+        return symbol.record;
+      }
+
+      const relations = collectPythonUsageRelations(symbol, topLevelByName, importAliases);
+      return relations.length > 0
+        ? {
+            ...symbol.record,
+            relations
+          }
+        : symbol.record;
+    });
   }
 
   return fallbackRecord(path, source, "Fallback record created because no Python symbols were extracted.");

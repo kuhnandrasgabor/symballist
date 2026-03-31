@@ -1210,6 +1210,22 @@ function buildGraphSupportById(
     incoming.set(edge.targetPath, (incoming.get(edge.targetPath) ?? 0) + 1);
   }
 
+  const usageEdges = db.query(`
+    SELECT DISTINCT source_path AS sourcePath, target_path AS targetPath
+    FROM relations
+    WHERE relation_kind = 'uses'
+      AND target_path IS NOT NULL
+      AND source_path IN (${placeholders})
+      AND target_path IN (${placeholders})
+  `).all(...candidatePaths, ...candidatePaths) as Array<{ sourcePath: string; targetPath: string }>;
+
+  const usageOutgoing = new Map<string, number>();
+  const usageIncoming = new Map<string, number>();
+  for (const edge of usageEdges) {
+    usageOutgoing.set(edge.sourcePath, (usageOutgoing.get(edge.sourcePath) ?? 0) + 1);
+    usageIncoming.set(edge.targetPath, (usageIncoming.get(edge.targetPath) ?? 0) + 1);
+  }
+
   const graphEnabled = !options.codeOnly || options.preferImplementation || !isDocOrientedQuery(rawQuery);
 
   for (const candidate of codeCandidates) {
@@ -1236,6 +1252,19 @@ function buildGraphSupportById(
       const incomingWeight = isDefinitionLikeKind(candidate.kind) ? 0.95 : 0.5;
       adjustment -= incomingWeight * Math.min(incomingCount, 2);
       signals.push("imported_by_candidate");
+    }
+
+    const usageOutgoingCount = usageOutgoing.get(candidate.path) ?? 0;
+    if (usageOutgoingCount > 0) {
+      adjustment -= 0.22 * Math.min(usageOutgoingCount, 2);
+      signals.push("uses_candidate");
+    }
+
+    const usageIncomingCount = usageIncoming.get(candidate.path) ?? 0;
+    if (usageIncomingCount > 0) {
+      const usageWeight = isDefinitionLikeKind(candidate.kind) ? 0.7 : 0.35;
+      adjustment -= usageWeight * Math.min(usageIncomingCount, 2);
+      signals.push("used_by_candidate");
     }
 
     if (candidate.kind === "import") {
@@ -1362,6 +1391,9 @@ export function replaceFileIndex(
       for (const relation of extractImportRelations(symbol.name, symbol.path, options.availablePaths ?? new Set())) {
         insertRelation.run(symbolId, symbol.path, relation.kind, relation.targetPath, relation.targetLabel);
       }
+    }
+    for (const relation of symbol.relations ?? []) {
+      insertRelation.run(symbolId, symbol.path, relation.kind, relation.targetPath, relation.targetLabel);
     }
     count += 1;
   }
@@ -1745,7 +1777,7 @@ export function getRelationsForSymbol(db: Database, symbol: SymbolDetails): Rela
 
 export function getRelatedSymbolsForSymbol(db: Database, symbol: SymbolDetails, limit = 5): RelatedSymbol[] {
   const relations = getRelationsForSymbol(db, symbol);
-  const seenSymbolIds = new Set<number>();
+  const seenRelationTargets = new Set<string>();
   const related: RelatedSymbol[] = [];
 
   for (const relation of relations) {
@@ -1753,16 +1785,17 @@ export function getRelatedSymbolsForSymbol(db: Database, symbol: SymbolDetails, 
       break;
     }
 
-    const candidates = relation.kind === "imports"
-      ? getImportedSymbolCandidates(db, relation)
-      : getContainerSymbolCandidates(db, symbol);
+    const candidates = relation.kind === "contained_in"
+      ? getContainerSymbolCandidates(db, symbol)
+      : getTargetSymbolCandidates(db, relation);
 
     for (const candidate of candidates) {
-      if (candidate.id === symbol.id || seenSymbolIds.has(candidate.id)) {
+      const relationKey = `${relation.kind}\u001f${candidate.id}`;
+      if (candidate.id === symbol.id || seenRelationTargets.has(relationKey)) {
         continue;
       }
 
-      seenSymbolIds.add(candidate.id);
+      seenRelationTargets.add(relationKey);
       related.push({ relation, symbol: candidate });
       break;
     }
@@ -2260,7 +2293,7 @@ function resolvePythonModulePath(moduleName: string, sourcePath: string, availab
   return null;
 }
 
-function getImportedSymbolCandidates(db: Database, relation: RelationDetails): SymbolDetails[] {
+function getTargetSymbolCandidates(db: Database, relation: RelationDetails): SymbolDetails[] {
   if (!relation.targetPath) {
     return [];
   }
