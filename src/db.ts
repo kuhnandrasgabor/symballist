@@ -2546,10 +2546,12 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
   const outboundRows = db.query(`
     SELECT DISTINCT target_path AS targetPath
     FROM relations
-    WHERE source_symbol_id = ?
-      AND relation_kind IN ('imports', 'uses')
+    WHERE (
+      (source_symbol_id = ? AND relation_kind IN ('imports', 'uses'))
+      OR (source_path = ? AND relation_kind = 'imports')
+    )
       AND target_path IS NOT NULL
-  `).all(symbol.id) as Array<{ targetPath: string }>;
+  `).all(symbol.id, symbol.path) as Array<{ targetPath: string }>;
 
   const knownInboundReferences = inboundRows.length;
   const knownOutboundReferences = outboundRows.length;

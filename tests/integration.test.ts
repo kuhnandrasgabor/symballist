@@ -505,6 +505,7 @@ describe("symballist vertical slice", () => {
         path: string;
         graphDiagnostics: {
           knownInboundReferences: number;
+          knownOutboundReferences: number;
           disconnectedFromIndexedGraph: boolean;
           possibleOrphanCandidate: boolean;
         };
@@ -530,6 +531,7 @@ describe("symballist vertical slice", () => {
     expect(broaderFrontendQueryPayload.resultQuality.noStrongMatch).toBeFalse();
     expect(queryPayload.results.some((result) => result.graphSignals.includes("imported_by_candidate") || result.graphSignals.includes("used_by_candidate"))).toBeTrue();
     expect(lookupPayload.symbol?.graphDiagnostics.knownInboundReferences).toBeGreaterThan(0);
+    expect(lookupPayload.symbol?.graphDiagnostics.knownOutboundReferences).toBeGreaterThan(0);
     expect(lookupPayload.symbol?.graphDiagnostics.disconnectedFromIndexedGraph).toBeFalse();
     expect(lookupPayload.symbol?.graphDiagnostics.possibleOrphanCandidate).toBeFalse();
     expect(normalizeRepoPath(cssPayload.symbol?.path)).toBe("static/css/dashboard.css");
