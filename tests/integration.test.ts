@@ -128,7 +128,7 @@ describe("symballist vertical slice", () => {
     expect(localGuide).toContain("one-shot best-match flow");
     expect(localGuide).toContain("setup-type hybrid");
     expect(toolManifest).toContain("\"name\": \"symballist_lookup\"");
-    expect(toolManifest).toContain("Best-match flow: resolve one selected hit with symbol context");
+    expect(toolManifest).toContain("Best-match flow: resolve one selected hit with graph diagnostics, symbol context");
     expect(wrapperCmd).toContain('src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
     expect(localGuide).not.toContain("<SYMBALLIST_ROOT>");

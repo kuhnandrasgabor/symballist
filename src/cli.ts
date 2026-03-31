@@ -63,16 +63,16 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist watch [--root PATH] [--interval-ms N] [--once]");
       return;
     case "status":
-      console.log("Usage:\n  symballist status [--root PATH]");
+      console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, embeddings, graph awareness, and shell guidance for the current repo.");
       return;
     case "lookup":
-      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, relations, body presentation, and alternatives.");
+      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives.");
       return;
     case "show":
-      console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
+      console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
       return;
     case "query":
-      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates for manual inspection. Use lookup when you want the best hit already resolved.");
+      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates with graph signals and graph diagnostics for manual inspection. Use lookup when you want the best hit already resolved.");
       return;
     default:
       usage();
