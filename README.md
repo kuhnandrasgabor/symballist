@@ -163,7 +163,7 @@ For agents, the default contract should be:
 1. Run `symballist status`.
 2. If `indexFreshness.stale` is `true`, run `symballist watch --once` or `symballist index`.
 3. If `indexCompatibility.requiresRebuild` is `true`, run `symballist index --rebuild`.
-4. Otherwise proceed with `lookup`, `query`, or `show`.
+4. Otherwise proceed with `lookup`, `query`, `show`, or `graph`.
 
 If auto-watch is already keeping the repo fresh, `watch --once` may return an already-fresh no-op. That is expected, not a failure.
 
@@ -204,6 +204,8 @@ symballist watch --once
   - resolves an exact symbol name without needing an intermediate id
 - `symballist show --name <symbol> --full`
   - expands large bodies instead of returning the summarized default
+- `symballist graph --name <symbol>`
+  - traversal flow: returns grouped graph neighbors such as `imports`, `uses`, `importedBy`, `usedBy`, and `containedIn`
 - `bodyPresentation`
   - `lookup` and `show` summarize oversized bodies by default; check `bodyPresentation.fullerBodyAvailable` and `bodyPresentation.expansionHint` to decide whether `--full` is worth the extra payload
 - `--compact`
@@ -217,6 +219,8 @@ Recommended query styles by goal:
   - `symballist lookup "WorkspaceManager"`
 - fuzzy implementation concept:
   - `symballist query "workspace switching flow" --code-only --exclude-tests --prefer-implementation`
+- graph traversal from a known symbol:
+  - `symballist graph --name "build_message"`
 - config path:
   - `symballist lookup "services.dashboard.build.dockerfile"`
 - CSS selector from a real stylesheet:
