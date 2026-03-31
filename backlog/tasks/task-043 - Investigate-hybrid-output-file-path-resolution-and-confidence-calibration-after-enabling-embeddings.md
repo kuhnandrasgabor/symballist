@@ -3,10 +3,10 @@ id: TASK-043
 title: >-
   Investigate hybrid output file-path resolution and confidence calibration
   after enabling embeddings
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-30 07:43'
-updated_date: '2026-03-31 05:53'
+updated_date: '2026-03-31 06:11'
 labels:
   - bug
 dependencies: []
@@ -21,13 +21,25 @@ Downstream testing with Claude Sonnet after enabling Ollama embeddings found tha
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Hybrid-mode outputs preserve actionable file-path/location information in normal and compact consumption paths
-- [ ] #2 Docs or output semantics clarify whether stale indexes, compact mode, or client rendering can affect displayed path labels
-- [ ] #3 Confidence behavior in hybrid mode is calibrated or explained so strong semantic hits can be distinguished from middling matches
+- [x] #1 Hybrid-mode outputs preserve actionable file-path/location information in normal and compact consumption paths
+- [x] #2 Docs or output semantics clarify whether stale indexes, compact mode, or client rendering can affect displayed path labels
+- [x] #3 Confidence behavior in hybrid mode is calibrated or explained so strong semantic hits can be distinguished from middling matches
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Reproduced again from downstream agent feedback on 2026-03-31: compact/hybrid consumption still shows resolved symbols with null or missing file paths even when symbol resolution itself works. JS named lookups and YAML compose-key lookups succeeded, so the path-display issue appears orthogonal to indexing quality. Feedback also reinforces that confidence/path calibration in compact hybrid output remains the active downstream trust gap.
+
+Added explicit `file` and `location` objects to query results and resolved symbols while preserving the existing top-level `path` field, so compact and non-compact consumers no longer need to infer file metadata from a single field name.
+Extended query and lookup result-semantics text to document that `path` remains canonical and that `file.path` and `location.path` are duplicated specifically for downstream consumers; compact mode preserves those fields.
+Calibrated semantic confidence thresholds downward to more realistic hybrid values so strong semantic matches can surface as `strong` or `exact` instead of bunching into middling results, and added regression coverage for compact path consistency plus high-trust hybrid semantic hits.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Hybrid query and lookup payloads now preserve actionable file-path/location information through explicit `file` and `location` objects in both compact and normal outputs, addressing downstream `file: ?` rendering mismatches.
+Hybrid semantic calibration was loosened to reflect realistic embedding similarity ranges, so retained semantic hits can now surface with stronger confidence and `high` retrieval trust when appropriate.
+Verified with `bun test` on 2026-03-31: 46 pass, 0 fail.
+<!-- SECTION:FINAL_SUMMARY:END -->
