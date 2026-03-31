@@ -81,6 +81,7 @@ export type QueryResult = {
   retrievalChannels: RetrievalChannel[];
   hybridContribution: HybridContribution;
   graphSignals: GraphSignal[];
+  graphDiagnostics?: GraphDiagnostics;
   fallback: boolean;
   startLine: number;
   startColumn: number;
@@ -117,6 +118,17 @@ export type RetrievalQualitySummary = {
   topResultRetrievalTrustLevel: TrustLevel | null;
 };
 
+export type GraphDiagnostics = {
+  knownInboundReferences: number;
+  knownOutboundReferences: number;
+  inboundReferencesFromTestsOnly: boolean;
+  sameFileConnectivityOnly: boolean;
+  disconnectedFromIndexedGraph: boolean;
+  rootLike: boolean;
+  rootReasons: string[];
+  notes: string[];
+};
+
 export type SymbolDetails = {
   id: number;
   path: string;
@@ -128,6 +140,7 @@ export type SymbolDetails = {
   signature: string | null;
   body: string;
   doc: string | null;
+  graphDiagnostics?: GraphDiagnostics;
   extraction: ExtractionKind;
   trustLevel: TrustLevel;
   fallback: boolean;

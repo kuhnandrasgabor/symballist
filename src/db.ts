@@ -4,6 +4,7 @@ import { dirname, join, normalize } from "node:path";
 import { appPath, DB_FILE } from "./config.ts";
 import type {
   ExtractionKind,
+  GraphDiagnostics,
   GraphSignal,
   HybridContribution,
   MatchReason,
@@ -117,6 +118,13 @@ type SearchExecution = {
 type GraphSupport = {
   adjustment: number;
   signals: GraphSignal[];
+};
+
+type GraphDiagnosticContext = {
+  id: number;
+  path: string;
+  language: SymbolRecord["language"];
+  name: string;
 };
 
 type StoredSymbolChangeSummary = {
@@ -1749,6 +1757,67 @@ export function getLikelyGraphRoots(db: Database, limit = 12): GraphRootCandidat
     .slice(0, limit);
 }
 
+function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): GraphDiagnostics {
+  const inboundRows = db.query(`
+    SELECT DISTINCT source_path AS sourcePath
+    FROM relations
+    WHERE relation_kind IN ('imports', 'uses')
+      AND target_path = ?
+  `).all(symbol.path) as Array<{ sourcePath: string }>;
+
+  const outboundRows = db.query(`
+    SELECT DISTINCT target_path AS targetPath
+    FROM relations
+    WHERE source_symbol_id = ?
+      AND relation_kind IN ('imports', 'uses')
+      AND target_path IS NOT NULL
+  `).all(symbol.id) as Array<{ targetPath: string }>;
+
+  const knownInboundReferences = inboundRows.length;
+  const knownOutboundReferences = outboundRows.length;
+  const inboundReferencesFromTestsOnly = knownInboundReferences > 0 && inboundRows.every((row) => isTestPath(row.sourcePath));
+  const allConnectedPaths = [
+    ...inboundRows.map((row) => row.sourcePath),
+    ...outboundRows.map((row) => row.targetPath)
+  ];
+  const sameFileConnectivityOnly = allConnectedPaths.length > 0 && allConnectedPaths.every((path) => path === symbol.path);
+  const rootReasons = classifyGraphRootCandidate({
+    path: symbol.path,
+    language: symbol.language,
+    topLevelNames: [symbol.name]
+  });
+  const rootLike = rootReasons.length > 0;
+  const disconnectedFromIndexedGraph = knownInboundReferences === 0 && knownOutboundReferences === 0 && !rootLike;
+
+  const notes: string[] = [];
+  if (knownInboundReferences === 0) {
+    notes.push("No known inbound references in the indexed graph.");
+  }
+  if (inboundReferencesFromTestsOnly) {
+    notes.push("Known inbound references come only from test paths.");
+  }
+  if (sameFileConnectivityOnly) {
+    notes.push("Known graph connectivity stays within the same file.");
+  }
+  if (disconnectedFromIndexedGraph) {
+    notes.push("No known inbound or outbound references were found in the indexed graph.");
+  }
+  if (rootLike) {
+    notes.push("This symbol or file looks like a startup or entrypoint root based on lightweight heuristics.");
+  }
+
+  return {
+    knownInboundReferences,
+    knownOutboundReferences,
+    inboundReferencesFromTestsOnly,
+    sameFileConnectivityOnly,
+    disconnectedFromIndexedGraph,
+    rootLike,
+    rootReasons,
+    notes
+  };
+}
+
 export function getEmbeddingSummary(
   db: Database,
   provider: "ollama" | null,
@@ -1862,6 +1931,7 @@ export function getSymbolById(db: Database, id: number): SymbolDetails | null {
     ...details,
     file: buildFileReference(details.path, details.language),
     location: buildLocation(details.path, details.startLine, details.startColumn, details.endLine, details.endColumn),
+    graphDiagnostics: buildGraphDiagnostics(db, details),
     extraction: extraction.extraction,
     trustLevel: extraction.trustLevel,
     fallback: Boolean(details.fallback)
@@ -2047,7 +2117,8 @@ export function searchSymbolsWithDiagnostics(
   return {
     results: rankedResults.map(({ adjustedScore, rawScore: _rawScore, ...result }) => ({
       ...result,
-      distance: adjustedScore
+      distance: adjustedScore,
+      graphDiagnostics: buildGraphDiagnostics(db, result)
     })),
     diagnostics: buildSearchDiagnostics(rows, supplementalRows, semanticRows, rankedResults)
   };

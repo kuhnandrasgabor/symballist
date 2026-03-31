@@ -1742,6 +1742,93 @@ describe("symballist vertical slice", () => {
     expect(mainResult?.graphSignals).toContain("root_candidate");
   });
 
+  test("lookup, show, and query expose index-bounded graph diagnostics without dead-code claims", async () => {
+    const root = await mkdtemp(join(tmpdir(), "symballist-"));
+    tempRoots.push(root);
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(
+      join(root, "helpers.py"),
+      'def test_only_helper() -> str:\n    return "ok"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "orphan.py"),
+      'def unused_helper() -> str:\n    return "unused"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "main.py"),
+      'def main() -> str:\n    return "start"\n',
+      "utf8"
+    );
+    await writeFile(
+      join(root, "tests", "test_helpers.py"),
+      'from helpers import test_only_helper\n\n\ndef test_value() -> str:\n    return test_only_helper()\n',
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const lookupOutput = await captureConsoleLog(async () => {
+      await runLookup(root, "unused_helper", 5);
+    });
+    const lookupPayload = JSON.parse(lookupOutput) as {
+      symbol: {
+        graphDiagnostics: {
+          knownInboundReferences: number;
+          disconnectedFromIndexedGraph: boolean;
+          rootLike: boolean;
+          notes: string[];
+        };
+      } | null;
+    };
+
+    expect(lookupPayload.symbol?.graphDiagnostics.knownInboundReferences).toBe(0);
+    expect(lookupPayload.symbol?.graphDiagnostics.disconnectedFromIndexedGraph).toBeTrue();
+    expect(lookupPayload.symbol?.graphDiagnostics.rootLike).toBeFalse();
+    expect(lookupPayload.symbol?.graphDiagnostics.notes.some((note) => note.includes("No known inbound"))).toBeTrue();
+
+    const showOutput = await captureConsoleLog(async () => {
+      await runShow(root, "", "test_only_helper");
+    });
+    const showPayload = JSON.parse(showOutput) as {
+      symbol: {
+        graphDiagnostics: {
+          inboundReferencesFromTestsOnly: boolean;
+          knownInboundReferences: number;
+          notes: string[];
+        };
+      };
+    };
+
+    expect(showPayload.symbol.graphDiagnostics.knownInboundReferences).toBe(1);
+    expect(showPayload.symbol.graphDiagnostics.inboundReferencesFromTestsOnly).toBeTrue();
+    expect(showPayload.symbol.graphDiagnostics.notes.some((note) => note.includes("only from test paths"))).toBeTrue();
+
+    const queryOutput = await captureConsoleLog(async () => {
+      await runQuery(root, "main startup", 5, [], { codeOnly: true });
+    });
+    const queryPayload = JSON.parse(queryOutput) as {
+      resultSemantics: {
+        graphDiagnostics: string;
+      };
+      results: Array<{
+        name: string;
+        path: string;
+        graphDiagnostics?: {
+          rootLike: boolean;
+          rootReasons: string[];
+        };
+      }>;
+    };
+
+    const mainResult = queryPayload.results.find((result) => normalizeRepoPath(result.path) === "main.py" && result.name === "main");
+    expect(queryPayload.resultSemantics.graphDiagnostics).toContain("not dead-code claims");
+    expect(mainResult?.graphDiagnostics?.rootLike).toBeTrue();
+    expect((mainResult?.graphDiagnostics?.rootReasons.length ?? 0)).toBeGreaterThan(0);
+  });
+
   test("status and query report stale indexes after source changes", async () => {
     const root = await createFixtureRepo();
     await runInit(root);
