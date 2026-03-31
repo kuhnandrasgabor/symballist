@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-31 08:42'
+updated_date: '2026-03-31 12:23'
 labels: []
 dependencies: []
 references:
@@ -238,4 +238,6 @@ Latest downstream Dockerfile retest confirms the main slice is working: instruct
 Remaining feedback from this retest breaks into two areas:
 - agent invocation guidance in tool-capable setups is still too ambiguous about manifest presence versus runtime callable tools, fallback priority, mandatory status/refresh flow, watch --once no-op semantics under auto-watch, recommended query styles, and the path duplication invariant.
 - fuzzy concept retrieval and graph diagnostics remain shallower in browser-heavy code than in backend/config flows; implementation hits are often retained but not consistently promoted, and many frontend JS/CSS symbols still look disconnected or advisory-orphaned despite correct symbol extraction.
+
+2026-03-31 downstream retest after TASK-058 validated several recent retrieval and UX slices strongly: resultQuality level/reason is landing well, stopword-heavy conceptual queries improved materially, src/ implementation bias is working, and the query/lookup/show split is now clear in practice. One new bug surfaced: bodyPresentation signaling is effectively absent for some large real code symbols because the stored body is already truncated at index time, so --full returns the same short body instead of expanding a summarized one.
 <!-- SECTION:NOTES:END -->
