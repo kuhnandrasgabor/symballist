@@ -1,5 +1,5 @@
 import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "../config.ts";
-import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getStatusSummary, openDatabase } from "../db.ts";
+import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, openDatabase } from "../db.ts";
 import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig } from "../fs.ts";
@@ -62,6 +62,14 @@ export async function runStatus(root: string): Promise<void> {
       path: string;
       language: string;
       reasons: string[];
+    }>,
+    possibleOrphans: [] as Array<{
+      id: number;
+      path: string;
+      language: string;
+      kind: string;
+      name: string;
+      reasons: string[];
     }>
   };
   let embeddings = {
@@ -82,7 +90,8 @@ export async function runStatus(root: string): Promise<void> {
     const indexedRows = getIndexedFiles(db);
     const symbolChanges = getLatestSymbolChangeSummary(db);
     graphAwareness = {
-      likelyRoots: getLikelyGraphRoots(db)
+      likelyRoots: getLikelyGraphRoots(db),
+      possibleOrphans: getPossibleOrphanCandidates(db)
     };
     embeddings = summarizeEmbeddingSupport(db, config);
     db.close();
