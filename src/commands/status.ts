@@ -1,5 +1,5 @@
 import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "../config.ts";
-import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getStatusSummary, openDatabase } from "../db.ts";
+import { CURRENT_SCHEMA_VERSION, getIndexedFiles, getLatestSymbolChangeSummary, getStatusSummary, openDatabase } from "../db.ts";
 import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig } from "../fs.ts";
@@ -37,6 +37,15 @@ export async function runStatus(root: string): Promise<void> {
       deletedPaths: [] as string[],
       truncated: false
     },
+    symbolChangesSinceIndex: {
+      addedCount: 0,
+      removedCount: 0,
+      changedCount: 0,
+      added: [] as Array<{ path: string; kind: string; name: string }>,
+      removed: [] as Array<{ path: string; kind: string; name: string }>,
+      changed: [] as Array<{ path: string; kind: string; name: string }>,
+      truncated: false
+    },
     sinceGitHead: {
       available: false,
       changedFiles: 0,
@@ -64,6 +73,7 @@ export async function runStatus(root: string): Promise<void> {
     const db = await openDatabase(root);
     const summary = getStatusSummary(db);
     const indexedRows = getIndexedFiles(db);
+    const symbolChanges = getLatestSymbolChangeSummary(db);
     embeddings = summarizeEmbeddingSupport(db, config);
     db.close();
     indexedFileCount = summary.indexedFiles;
@@ -77,6 +87,7 @@ export async function runStatus(root: string): Promise<void> {
     const indexChanges = await detectIndexFileChanges(root, indexedRows);
     changeAwareness = {
       sinceIndex: summarizeFileChanges(indexChanges),
+      symbolChangesSinceIndex: symbolChanges,
       sinceGitHead: await detectGitHeadFileChanges(root, new Set([
         ...indexedRows.map((row) => row.path),
         ...indexChanges.changedPaths,
