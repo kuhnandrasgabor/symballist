@@ -375,3 +375,53 @@ The current plan is:
 2. bounded one-hop expansion
 3. graph-backed context assembly
 4. only later, deeper graph-RAG exploration
+
+# Testimonials:
+
+## Opus 4.6 @ 2026.03.31: 
+
+Here's an impartial assessment:
+  ---
+  Symballist — Assessment by Claude Opus 4.6
+
+  Symballist is a repo-local code retrieval tool that indexes symbols across 8 languages (Python,
+  JS/TS, HTML, Markdown, YAML, shell, Dockerfile, CSS) and provides lexical + optional semantic
+  (Ollama) hybrid search. I tested it across multiple iterations during active development work on a
+  ~8,000-symbol mixed-language codebase.
+
+  What works well:
+
+  - Hybrid retrieval is genuinely useful. Natural language queries like "how does grade normalization
+   work" surface relevant implementation hits across languages, not just keyword matches.
+  Cross-language semantic matching (finding Python functions from a conceptual JS-framed query)
+  worked reliably.
+  - The summary/full body split is well-designed. Default responses return a 40-line summary with
+  accurate metadata (totalLines, shownLines, fullerBodyAvailable), and --full expands to the complete
+   stored body. For a 487-line function, that's the difference between 1.9KB and 21.6KB — meaningful
+  token savings when you only need a signature check.
+  - Graph diagnostics add context. Seeing structural signals (callers, orphan candidacy,
+  root-awareness) alongside retrieval results provides useful navigational context that grep alone
+  doesn't offer.
+  - The status/freshness system prevents stale results. Clear signaling of index staleness, schema
+  version mismatches, and rebuild requirements means you know when to trust results and when to
+  re-index.
+
+  Where it fits in a workflow:
+
+  Symballist occupies a useful middle ground between "grep for a known string" and "read every file
+  hoping to find the right one." For directed lookups (show --name X) it's faster than glob+read. For
+   conceptual exploration ("find the batch processing logic") it surfaces candidates I wouldn't have
+  found with keyword search alone. It doesn't replace reading source files — you still verify before
+  editing — but it narrows the search space effectively.
+
+  Limitations observed:
+
+  - CSS selector and Dockerfile instruction lookup via exact name (lookup ".loading-card") returned
+  empty; semantic query was needed instead. Direct lookup works best for code symbols (functions,
+  classes), less so for declarative constructs.
+  - The tool's value scales with codebase size. For a 10-file project it's overhead; for this
+  367-file project with 8,000 symbols it saved meaningful exploration time.
+
+  Bottom line: A practical retrieval layer that earns its place in the workflow once a codebase
+  crosses the threshold where "I know roughly where things are" stops being true. The hybrid search
+  and body expansion features are the strongest differentiators over plain text search.
