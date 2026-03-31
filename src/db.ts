@@ -357,6 +357,13 @@ function migrate(db: Database): void {
       language,
       content
     );
+
+    CREATE INDEX IF NOT EXISTS idx_relations_target_kind_source
+      ON relations (target_path, relation_kind, source_path);
+    CREATE INDEX IF NOT EXISTS idx_relations_source_symbol_kind_target
+      ON relations (source_symbol_id, relation_kind, target_path);
+    CREATE INDEX IF NOT EXISTS idx_relations_source_path_kind_target
+      ON relations (source_path, relation_kind, target_path);
   `);
 
   ensureColumn(db, "symbols", "start_line", "INTEGER NOT NULL DEFAULT 1");
@@ -2626,14 +2633,61 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
 
 export function getPossibleOrphanCandidates(db: Database, limit = 12): PossibleOrphanCandidate[] {
   const rows = db.query(`
+    WITH inbound AS (
+      SELECT
+        target_path AS path,
+        COUNT(DISTINCT source_path) AS inbound_count,
+        COUNT(DISTINCT CASE WHEN source_path != target_path THEN source_path END) AS inbound_non_same_count
+      FROM relations
+      WHERE relation_kind IN ('imports', 'uses')
+        AND target_path IS NOT NULL
+      GROUP BY target_path
+    ),
+    outbound AS (
+      SELECT
+        symbol_id,
+        COUNT(DISTINCT target_path) AS outbound_count,
+        COUNT(DISTINCT CASE WHEN target_path != source_path THEN target_path END) AS outbound_non_same_count
+      FROM (
+        SELECT
+          source_symbol_id AS symbol_id,
+          source_path,
+          target_path
+        FROM relations
+        WHERE source_symbol_id IS NOT NULL
+          AND relation_kind IN ('imports', 'uses')
+          AND target_path IS NOT NULL
+
+        UNION ALL
+
+        SELECT
+          symbols.id AS symbol_id,
+          relations.source_path,
+          relations.target_path
+        FROM relations
+        JOIN symbols
+          ON symbols.path = relations.source_path
+        WHERE relations.relation_kind = 'imports'
+          AND relations.target_path IS NOT NULL
+      ) outbound_rows
+      GROUP BY symbol_id
+    )
     SELECT
-      id,
-      path,
-      language,
-      kind,
-      name,
-      fallback
+      symbols.id AS id,
+      symbols.path AS path,
+      symbols.language AS language,
+      symbols.kind AS kind,
+      symbols.name AS name,
+      symbols.fallback AS fallback,
+      COALESCE(inbound.inbound_count, 0) AS inboundCount,
+      COALESCE(inbound.inbound_non_same_count, 0) AS inboundNonSameCount,
+      COALESCE(outbound.outbound_count, 0) AS outboundCount,
+      COALESCE(outbound.outbound_non_same_count, 0) AS outboundNonSameCount
     FROM symbols
+    LEFT JOIN inbound
+      ON inbound.path = symbols.path
+    LEFT JOIN outbound
+      ON outbound.symbol_id = symbols.id
     WHERE kind NOT IN ('import', 'file')
     ORDER BY path, start_line, id
   `).all() as Array<{
@@ -2643,6 +2697,10 @@ export function getPossibleOrphanCandidates(db: Database, limit = 12): PossibleO
     kind: string;
     name: string;
     fallback: number;
+    inboundCount: number;
+    inboundNonSameCount: number;
+    outboundCount: number;
+    outboundNonSameCount: number;
   }>;
 
   return rows
@@ -2650,14 +2708,28 @@ export function getPossibleOrphanCandidates(db: Database, limit = 12): PossibleO
     .filter((row) => row.language !== "markdown")
     .filter((row) => !isTestPath(row.path))
     .filter((row) => isDefinitionLikeKind(row.kind))
-    .map((row) => ({
-      row,
-      diagnostics: buildGraphDiagnostics(db, row)
-    }))
-    .filter((entry) => entry.diagnostics.possibleOrphanCandidate)
+    .map((row) => {
+      const rootReasons = classifyGraphRootCandidate({
+        path: row.path,
+        language: row.language,
+        topLevelNames: [row.name]
+      });
+      const rootLike = rootReasons.length > 0;
+      const totalConnections = row.inboundCount + row.outboundCount;
+      const nonSameFileConnections = row.inboundNonSameCount + row.outboundNonSameCount;
+      const sameFileConnectivityOnly = totalConnections > 0 && nonSameFileConnections === 0;
+      const possibleOrphanCandidate = row.inboundCount === 0 && !rootLike && !sameFileConnectivityOnly;
+
+      return {
+        row,
+        possibleOrphanCandidate,
+        outboundCount: row.outboundCount
+      };
+    })
+    .filter((entry) => entry.possibleOrphanCandidate)
     .sort((left, right) => {
-      if (left.diagnostics.knownOutboundReferences !== right.diagnostics.knownOutboundReferences) {
-        return left.diagnostics.knownOutboundReferences - right.diagnostics.knownOutboundReferences;
+      if (left.outboundCount !== right.outboundCount) {
+        return left.outboundCount - right.outboundCount;
       }
       return left.row.path.localeCompare(right.row.path);
     })
@@ -2668,7 +2740,7 @@ export function getPossibleOrphanCandidates(db: Database, limit = 12): PossibleO
       language: entry.row.language,
       kind: entry.row.kind,
       name: entry.row.name,
-      reasons: entry.diagnostics.possibleOrphanReasons
+      reasons: ["no known inbound references", "not classified as a likely root"]
     }));
 }
 
