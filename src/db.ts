@@ -853,7 +853,7 @@ function syntheticLiteralRawScore(row: SearchRow, rawQuery: string, normalizedQu
   return -2.5;
 }
 
-function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
+function computeMatchAnalysis(row: SearchRow, rawQuery: string, options: SearchOptions = {}): MatchAnalysis {
   const trimmedQuery = rawQuery.trim();
   if (!trimmedQuery) {
     return {
@@ -941,15 +941,33 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string): MatchAnalysis {
 
   const queryLower = trimmedQuery.toLowerCase();
   const queryTerms = tokenizeLookupTerms(trimmedQuery);
+  const matchTerms = conceptualTerms(trimmedQuery);
+  const requiredTerms = matchTerms.length > 0 ? matchTerms : queryTerms;
   const signatureLower = (row.signature ?? "").toLowerCase();
   const docLower = (row.doc ?? "").toLowerCase();
   const bodyLower = row.body.toLowerCase();
   const normalizedSignature = normalizeLookupValue(row.signature ?? "");
   const normalizedDoc = normalizeLookupValue(row.doc ?? "");
   const normalizedBody = normalizeLookupValue(row.body);
-  const queryTermsPresentInBody = queryTerms.length > 0 && queryTerms.every((term) => bodyLower.includes(term));
-  const queryTermsPresentInSignature = queryTerms.length > 0 && queryTerms.every((term) => signatureLower.includes(term));
-  const queryTermsPresentInDoc = queryTerms.length > 0 && queryTerms.every((term) => docLower.includes(term));
+  const queryTermsPresentInBody = requiredTerms.length > 0 && requiredTerms.every((term) => bodyLower.includes(term));
+  const queryTermsPresentInSignature = requiredTerms.length > 0 && requiredTerms.every((term) => signatureLower.includes(term));
+  const queryTermsPresentInDoc = requiredTerms.length > 0 && requiredTerms.every((term) => docLower.includes(term));
+  const strongImplementationBodyMatch = isStrongImplementationBodyMatch(
+    row,
+    rawQuery,
+    options,
+    queryTermsPresentInBody,
+    queryTermsPresentInSignature,
+    queryTermsPresentInDoc
+  );
+
+  if (strongImplementationBodyMatch) {
+    return {
+      adjustment: -0.95 + definitionBias,
+      reason: row.kind === "heading" ? "heading_text" : "body_text",
+      confidence: "strong"
+    };
+  }
 
   if (normalizedDoc.includes(normalizedQuery) || docLower.includes(queryLower)) {
     return {
@@ -1239,6 +1257,26 @@ function isBroadConceptualCodeQuery(rawQuery: string, options: SearchOptions): b
   return conceptualTerms(rawQuery).length >= 2;
 }
 
+function isStrongImplementationBodyMatch(
+  row: SearchRow,
+  rawQuery: string,
+  options: SearchOptions,
+  queryTermsPresentInBody: boolean,
+  queryTermsPresentInSignature: boolean,
+  queryTermsPresentInDoc: boolean
+): boolean {
+  if (!isBroadConceptualCodeQuery(rawQuery, options)) {
+    return false;
+  }
+  if (!queryTermsPresentInBody || queryTermsPresentInSignature || queryTermsPresentInDoc) {
+    return false;
+  }
+  if (row.language === "markdown" || row.fallback || row.kind === "import" || row.kind === "file") {
+    return false;
+  }
+  return true;
+}
+
 function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
   if (options.docsOnly && !isDocRow(row)) {
     return false;
@@ -1428,7 +1466,7 @@ function rerankResults(rows: SearchRow[], limit: number, rawQuery: string, optio
   return rows
     .filter((row) => rowMatchesIntent(row, options))
     .map((row) => {
-      const match = computeMatchAnalysis(row, rawQuery);
+      const match = computeMatchAnalysis(row, rawQuery, options);
       const extraction = getExtractionDetails(row);
       const queryTrust = getQueryTrustDetails(extraction, match.confidence);
       const baseScore = shouldUseSemanticSearch(options)

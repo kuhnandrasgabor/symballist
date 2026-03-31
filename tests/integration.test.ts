@@ -1966,6 +1966,60 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(preferResults[0]?.path)?.startsWith("src/")).toBeTrue();
   });
 
+  test("implementation-detail queries can promote body-only code matches over doc noise", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(
+      join(root, "docs", "pipeline-progress.md"),
+      "# Pipeline progress\n\nThis note explains where the pipeline poll for progress loop lives.\n",
+      "utf8"
+    );
+    await writeFile(
+      join(root, "src", "runner.py"),
+      [
+        "def execute_job() -> str:",
+        '    """Execute the active run."""',
+        "    # poll for progress until the pipeline completes",
+        "    pipeline_state = 'running'",
+        "    while pipeline_state == 'running':",
+        "        pipeline_state = check_progress()",
+        '    return "done"',
+        "",
+        "def check_progress() -> str:",
+        '    return "complete"'
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const queryPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "where does the pipeline poll for progress", 5);
+    })) as {
+      resultQuality: {
+        level: string;
+        noStrongMatch: boolean;
+      };
+      results: Array<{
+        path: string;
+        language: string;
+        name: string;
+        matchReason: string;
+        confidence: string;
+      }>;
+    };
+
+    expect(queryPayload.resultQuality.level).toBe("strong");
+    expect(queryPayload.resultQuality.noStrongMatch).toBeFalse();
+    expect(normalizeRepoPath(queryPayload.results[0]?.path)).toBe("src/runner.py");
+    expect(queryPayload.results[0]?.language).toBe("python");
+    expect(queryPayload.results[0]?.name).toBe("execute_job");
+    expect(queryPayload.results[0]?.matchReason).toBe("body_text");
+    expect(queryPayload.results[0]?.confidence).toBe("strong");
+  });
+
   test("graph-aware reranking promotes import-connected implementation neighborhoods", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });
