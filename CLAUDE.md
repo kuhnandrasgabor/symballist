@@ -4,13 +4,13 @@
 
 ## BACKLOG WORKFLOW INSTRUCTIONS
 
-This project uses the repo-local Backlog.md setup in `D:\Projects\symballist\backlog`.
+This project uses the repo-local Backlog.md setup in `backlog/`.
 
 **CRITICAL GUIDANCE**
 
 - Prefer the local `backlog` CLI for task, draft, milestone, and document operations in this repo.
 - Run Backlog commands from the repo root so they operate on this repository's local backlog state.
-- If you use MCP for Backlog in this repo, the server must be pinned to this repo with `backlog mcp start --cwd D:\Projects\symballist` or an equivalent `BACKLOG_CWD` setting.
+- If you use MCP for Backlog in this repo, the server must be pinned to this repo with `backlog mcp start --cwd <REPO_ROOT>` or an equivalent `BACKLOG_CWD` setting.
 - Do not rely on a shared auto-detect Backlog MCP server when multiple projects are active.
 - Use MCP workflow resources only for generic Backlog workflow guidance, or when you have verified the MCP server is scoped to this repo's backlog.
 - Treat CLI writes as the source of truth unless repo-scoped MCP is explicitly confirmed.
@@ -24,7 +24,7 @@ Recommended local commands:
 - `backlog draft create ...`
 - `backlog task view <id>`
 - `backlog draft view <id>`
-- `backlog mcp start --cwd D:\Projects\symballist`
+- `backlog mcp start --cwd <REPO_ROOT>`
 - `backlog browser --port 6422 --no-open`
 
 Multi-project safety rules:
@@ -57,7 +57,7 @@ You MUST read the overview guidance to understand the complete workflow. The inf
 
 When another local repo wants to use `symballist` as a retrieval helper, follow the shared adoption workflow:
 
-- [docs/agent-workflows/symballist-adoption.md](/D:/Projects/symballist/docs/agent-workflows/symballist-adoption.md)
+- `docs/agent-workflows/symballist-adoption.md`
 
 Keep the integration CLI-first, use `status -> index -> query -> show`, and treat `symballist` as a read-only helper rather than the sole source of truth.
 
@@ -71,8 +71,8 @@ Use the generated repo-local `symballist` tool definitions when your runtime can
 - CLI fallback entrypoints:
   - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
   - bash / zsh / sh: `./.symballist/bin/symballist`
-- Start with `symballist_status` or `.symballist\bin\symballist.cmd status --root D:\Projects\symballist`.
-- Refresh stale indexes with `symballist_refresh` or `.symballist\bin\symballist.cmd watch --once --root D:\Projects\symballist`.
+- Start with `symballist_status` or `.symballist\bin\symballist.cmd status --root <REPO_ROOT>`.
+- Refresh stale indexes with `symballist_refresh` or `.symballist\bin\symballist.cmd watch --once --root <REPO_ROOT>`.
 - Prefer `symballist_lookup` for the common single-call discovery flow.
 - Use `symballist_query` and `symballist_show` when you need more manual inspection.
 - Verify important conclusions in the source files before making changes.

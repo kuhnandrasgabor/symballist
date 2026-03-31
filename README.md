@@ -2,7 +2,9 @@
 
 ![symballist banner](docs/symballist.jpg)
 
-`symballist` is a local-first retrieval tool for AI agents. It indexes a repository into symbols, docs, search metadata, and lightweight relations so agents can find useful code and project context faster than plain text search alone.
+`symballist` is a local-first retrieval tool for AI agents. It indexes a repository into symbols, docs, search metadata, and lightweight relations so agents can find useful code and project context without burning repeated model tokens on raw repo navigation.
+
+It is built for agentic workflows where the real cost is not just search quality, but the repeated loop of grepping, opening files, re-reading context, and paying for that navigation over and over.
 
 It is designed to stay:
 
@@ -10,6 +12,21 @@ It is designed to stay:
 - CLI-reliable
 - agent-friendly
 - explicit about freshness and fallbacks
+
+## Who It Is For
+
+Use `symballist` if you want:
+
+- a mostly local retrieval layer for Codex, Claude Desktop, and similar agent workflows
+- fewer repo-navigation tool calls and smaller retrieval payloads
+- explicit freshness and rebuild behavior instead of hidden background state
+- a CLI-first tool that still works when richer runtime integrations are unavailable
+
+`symballist` is probably not for you if:
+
+- plain `rg` plus direct file reads are already enough
+- you want a hosted memory product or remote service
+- you want fully automatic, invisible indexing with no local operational loop
 
 ## What It Can Do Today
 
@@ -77,10 +94,13 @@ bun run src/cli.ts --help
 If you already ran `bun link` from this checkout, the simplest way to try `symballist` on another local project is from that target repo root:
 
 ```powershell
-symballist init --setup-type hybrid
+symballist init
 symballist index
+symballist watch
 symballist lookup "your query here"
 ```
+
+That is the core idea in practice: install `symballist`, run `init`, build the index once, keep `watch` running while you are working and want it to update, and stop it when you are done.
 
 After `init`, the target repo gets:
 
