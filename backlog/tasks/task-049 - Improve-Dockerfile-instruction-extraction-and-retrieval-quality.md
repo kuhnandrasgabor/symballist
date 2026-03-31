@@ -4,7 +4,7 @@ title: Improve Dockerfile instruction extraction and retrieval quality
 status: Done
 assignee: []
 created_date: '2026-03-31 06:23'
-updated_date: '2026-03-31 06:23'
+updated_date: '2026-03-31 06:30'
 labels:
   - feature
 dependencies: []
@@ -31,6 +31,8 @@ Added a full-body standalone Dockerfile file record so file-level retrieval can 
 Added instruction-level Dockerfile symbols for generic instruction lines such as FROM, RUN, COPY, and WORKDIR, while preserving existing stage and ARG/ENV extraction.
 Added a Dockerfile-specific query bias for instruction-oriented queries so real Dockerfile rows are not drowned out by unrelated code hits when terms like COPY, RUN, FROM, requirements, pip, image, or mkdir appear together.
 Expanded integration coverage to assert direct Dockerfile lookup, stage retrieval, and instruction-oriented query retrieval, with scope limited to actual Dockerfile content.
+
+Downstream retest on a real repo validated the fix: instruction-oriented queries like `COPY requirements pip install` and `FROM python base image RUN mkdir` now surface `docker/Dockerfile` run/file hits instead of unrelated Python code. `lookup "Dockerfile"` also now resolves correctly to the Dockerfile file record. The earlier confusion around `selectedResult` was clarified: `query` does not auto-select, while `lookup` does.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
