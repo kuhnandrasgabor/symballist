@@ -352,6 +352,120 @@ describe("symballist vertical slice", () => {
     expect(status.supportedLanguages).toContain("typescript");
   });
 
+  test("frontend JS and CSS participate in graph relations and diagnostics for fuzzy implementation queries", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "dashboard_frontend", "core"), { recursive: true });
+    await mkdir(join(root, "static", "css"), { recursive: true });
+    await writeFile(
+      join(root, "dashboard_frontend", "core", "workspace.js"),
+      [
+        'import "../styles.js";',
+        "",
+        "export function switchWorkspace() {",
+        "  return renderWorkspacePanel();",
+        "}",
+        "",
+        "export function renderWorkspacePanel() {",
+        '  return "workspace switching flow";',
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "dashboard_frontend", "styles.js"),
+      [
+        'import "../static/css/dashboard.css";',
+        "",
+        "export function installDashboardStyles() {",
+        "  return true;",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "dashboard_frontend", "core", "coordinator.js"),
+      [
+        'import { switchWorkspace } from "./workspace.js";',
+        "",
+        "export class DashboardCoordinator {",
+        "  runWorkspaceFlow() {",
+        "    return switchWorkspace();",
+        "  }",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "static", "css", "dashboard.css"),
+      [
+        ".loading-card {",
+        "  display: block;",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const queryPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "workspace switching flow", 5, [], {
+        codeOnly: true,
+        excludeTests: true,
+        preferImplementation: true
+      });
+    })) as {
+      resultQuality: {
+        noStrongMatch: boolean;
+      };
+      results: Array<{
+        path: string;
+        graphSignals: string[];
+        graphDiagnostics?: {
+          disconnectedFromIndexedGraph: boolean;
+          possibleOrphanCandidate: boolean;
+        };
+      }>;
+    };
+
+    const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "switchWorkspace", 5, [], {});
+    })) as {
+      symbol?: {
+        path: string;
+        graphDiagnostics: {
+          knownInboundReferences: number;
+          disconnectedFromIndexedGraph: boolean;
+          possibleOrphanCandidate: boolean;
+        };
+      };
+    };
+
+    const cssPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, ".loading-card", 5, [], {});
+    })) as {
+      symbol?: {
+        path: string;
+        graphDiagnostics: {
+          knownInboundReferences: number;
+          rootLike: boolean;
+          possibleOrphanCandidate: boolean;
+        };
+      };
+    };
+
+    expect(normalizeRepoPath(queryPayload.results[0]?.path)).toBe("dashboard_frontend/core/workspace.js");
+    expect(queryPayload.resultQuality.noStrongMatch).toBeFalse();
+    expect(queryPayload.results.some((result) => result.graphSignals.includes("imported_by_candidate") || result.graphSignals.includes("used_by_candidate"))).toBeTrue();
+    expect(lookupPayload.symbol?.graphDiagnostics.knownInboundReferences).toBeGreaterThan(0);
+    expect(lookupPayload.symbol?.graphDiagnostics.disconnectedFromIndexedGraph).toBeFalse();
+    expect(lookupPayload.symbol?.graphDiagnostics.possibleOrphanCandidate).toBeFalse();
+    expect(normalizeRepoPath(cssPayload.symbol?.path)).toBe("static/css/dashboard.css");
+    expect(cssPayload.symbol?.graphDiagnostics.knownInboundReferences).toBeGreaterThan(0);
+    expect(cssPayload.symbol?.graphDiagnostics.rootLike).toBeTrue();
+    expect(cssPayload.symbol?.graphDiagnostics.possibleOrphanCandidate).toBeFalse();
+  });
+
   test("indexes config and ops languages with useful lightweight symbols", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "config"), { recursive: true });
