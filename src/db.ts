@@ -762,6 +762,42 @@ function isDocOrientedQuery(rawQuery: string): boolean {
   return terms.some((term) => DOC_ORIENTED_QUERY_TERMS.has(term));
 }
 
+function isDockerfileInstructionQuery(rawQuery: string): boolean {
+  const terms = tokenizeLookupTerms(rawQuery);
+  if (terms.length === 0) {
+    return false;
+  }
+
+  const dockerTerms = new Set([
+    "dockerfile",
+    "docker",
+    "from",
+    "run",
+    "copy",
+    "add",
+    "cmd",
+    "entrypoint",
+    "workdir",
+    "expose",
+    "volume",
+    "user",
+    "python",
+    "pip",
+    "requirements",
+    "base",
+    "image",
+    "mkdir"
+  ]);
+
+  let matches = 0;
+  for (const term of terms) {
+    if (dockerTerms.has(term)) {
+      matches += 1;
+    }
+  }
+  return matches >= 2;
+}
+
 function isTestPath(path: string): boolean {
   const normalizedPath = path.toLowerCase().replace(/\\/g, "/");
   return normalizedPath.startsWith("tests/") || normalizedPath.includes("/test");
@@ -810,6 +846,7 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
   const preferImplementation = isImplementationFocusedIntent(options, rawQuery);
   const docsOnly = options.docsOnly === true;
+  const dockerfileInstructionQuery = isDockerfileInstructionQuery(rawQuery);
 
   if (docsOnly) {
     if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
@@ -874,6 +911,9 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
   }
   if (normalizedPath.includes("/test") || normalizedPath.startsWith("tests/")) {
     return preferImplementation ? 1.8 : 0.75;
+  }
+  if (row.language === "dockerfile" && dockerfileInstructionQuery) {
+    return row.kind === "file" ? -2.0 : -1.4;
   }
 
   return 0;
