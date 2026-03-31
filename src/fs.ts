@@ -398,6 +398,7 @@ Current language coverage:
 - Check freshness first:
   - \`symballist status\`
 - Use the \`changeAwareness\` block from \`status\` when you want a cheap answer to what changed since the last index or, in git repos, since \`HEAD\`.
+- Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
 - Use the \`embeddings\` block from \`status\` when you want to know whether hybrid retrieval is configured and available for the active model.
 - If the index is stale, refresh it before relying on results:
   - \`symballist index\`
@@ -405,6 +406,7 @@ Current language coverage:
   - \`symballist watch --once\`
 - Use lookup when you want the common one-shot best-match flow:
   - \`symballist lookup "<text>"\`
+- Use \`graphDiagnostics\` on returned results or symbols when you want a bounded structural read on isolation, inbound references, root-like status, or possible-orphan candidacy without overclaiming dead code.
 - Use query when you want ranked candidate exploration and plan to inspect multiple hits:
   - \`symballist query "<text>"\`
   - Add \`--code-only --exclude-tests\` for implementation-heavy results.
@@ -437,6 +439,7 @@ Current language coverage:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Run \`symballist status\` before trusting older results.
 - If \`indexFreshness.stale\` is true, run \`symballist index\`.
+- Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing, run \`symballist watch --once\`.
 - Use \`symballist lookup "<text>"\` when you want one selected best hit with context and alternatives.
 - Use \`query\` when you want ranked candidate exploration across code or docs.
@@ -446,6 +449,7 @@ Current language coverage:
 - Use \`show\` to inspect a known result id or exact symbol name with spans, relations, and related symbols.
 - If you already know the symbol, use \`symballist show --name <symbol>\`.
 - If \`bodyPresentation.fullerBodyAvailable\` is true, rerun \`lookup\` or \`show\` with \`--full\` to expand the complete stored body.
+- Use \`graphDiagnostics\` on returned results or symbols when you want a bounded structural read on isolation, inbound references, root-like status, or possible-orphan candidacy without overclaiming dead code.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -476,11 +480,11 @@ Current language coverage:
 - Shell-specific CLI fallbacks:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Use \`symballist_status\` first to inspect freshness, change awareness, and embeddings state.
+- Use \`symballist_status\` first to inspect freshness, change awareness, graph awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` before relying on retrieval output.
-- Prefer \`symballist_lookup\` when you want one selected best hit with context and alternatives.
-- Use \`symballist_query\` when you want ranked candidate exploration across multiple hits.
-- Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection.
+- Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
+- Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
+- Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - If the runtime cannot load the generated tool definitions, fall back to \`.symballist\\bin\\symballist.cmd\`.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -503,11 +507,11 @@ Current language coverage:
 - Shell-specific CLI fallbacks:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Start with \`symballist_status\` to check freshness and embeddings state.
+- Start with \`symballist_status\` to check freshness, graph awareness, and embeddings state.
 - Use \`symballist_refresh\` when the repo is stale.
-- Use \`symballist_lookup\` when you want one selected best hit with context and alternatives.
-- Use \`symballist_query\` when you want ranked candidate exploration across multiple hits.
-- Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection.
+- Use \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
+- Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
+- Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - If the runtime cannot load the generated tool definitions, fall back to \`.symballist\\bin\\symballist.cmd\`.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -538,10 +542,10 @@ Current language coverage:
 - CLI fallback entrypoints:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Use \`symballist_status\` first or run \`symballist status\`.
+- Use \`symballist_status\` first or run \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` or run \`symballist watch --once\`.
-- Prefer \`symballist_lookup\` when you want one selected best hit with context and alternatives.
-- Use \`symballist_query\` / \`symballist_show\` when you want more manual ranked exploration or direct symbol inspection, or use the equivalent CLI commands if tool loading is unavailable.
+- Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
+- Use \`symballist_query\` / \`symballist_show\` when you want more manual ranked exploration or direct symbol inspection with graph diagnostics, or use the equivalent CLI commands if tool loading is unavailable.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -564,10 +568,10 @@ Current language coverage:
 - CLI fallback entrypoints:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
-- Start with \`symballist_status\` or \`symballist status\`.
+- Start with \`symballist_status\` or \`symballist status\` to inspect freshness, graph awareness, and embeddings state.
 - Refresh stale indexes with \`symballist_refresh\` or \`symballist watch --once\`.
-- Prefer \`symballist_lookup\` when you want one selected best hit with context and alternatives.
-- Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection.
+- Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
+- Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection with graph diagnostics.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -590,7 +594,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
     tools: [
       {
         name: "symballist_status",
-        description: "Inspect index freshness, change awareness, and embeddings state for the repo.",
+        description: "Inspect index freshness, change awareness, graph awareness, and embeddings state for the repo.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -610,7 +614,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
       },
       {
         name: "symballist_query",
-        description: "Exploration flow: return ranked retrieval candidates for code or docs so the caller can inspect multiple hits.",
+        description: "Exploration flow: return ranked retrieval candidates for code or docs with graph signals and graph diagnostics so the caller can inspect multiple hits.",
         inputSchema: {
           type: "object",
           properties: {
@@ -632,7 +636,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
       },
       {
         name: "symballist_lookup",
-        description: "Best-match flow: resolve one selected hit with symbol context, body presentation, relations, and alternatives.",
+        description: "Best-match flow: resolve one selected hit with graph diagnostics, symbol context, body presentation, relations, and alternatives.",
         inputSchema: {
           type: "object",
           properties: {
@@ -655,7 +659,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
       },
       {
         name: "symballist_show",
-        description: "Inspection flow: resolve a known result id or exact symbol name; large bodies summarize unless --full.",
+        description: "Inspection flow: resolve a known result id or exact symbol name with graph diagnostics; large bodies summarize unless --full.",
         inputSchema: {
           type: "object",
           properties: {
@@ -682,6 +686,8 @@ Recommended use:
 
 - load the generated tool definitions into your agent runtime if it supports repo-local tools
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
+- use \`symballist_status\` to inspect graph awareness as well as freshness and embeddings state
+- expect \`symballist_query\`, \`symballist_lookup\`, and \`symballist_show\` to expose graph diagnostics in addition to retrieval output
 - if this checkout was linked with \`bun link\`, the plain \`symballist\` command is the simplest manual fallback from the target repo root
 - keep shell-appropriate CLI wrappers as the execution backend and universal fallback
   - bash / zsh / sh: \`./.symballist/bin/symballist\`

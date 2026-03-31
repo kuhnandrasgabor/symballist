@@ -29,8 +29,9 @@ It is designed to stay:
 - stale-index detection and lightweight change awareness
 - automatic foreground watch-based refresh
 - optional Ollama embeddings with hybrid lexical + semantic retrieval
-- one-hop graph-aware reranking using containment/import neighborhoods
-- lightweight follow-up context through relations and related symbols
+- one-hop graph-aware reranking using containment, import, usage, and root hints
+- lightweight follow-up context through relations, related symbols, and graph diagnostics
+- bounded graph awareness for likely roots and advisory possible-orphan candidates
 - repo-local downstream agent bootstrap during `init`
 - configurable downstream setup modes for CLI, tool, or hybrid integration
 
@@ -198,7 +199,7 @@ The current retrieval stack is:
 2. optional semantic retrieval through local embeddings
 3. hybrid fusion
 4. one-hop graph-aware reranking
-5. bounded follow-up context through relations and related symbols
+5. bounded follow-up context through relations, related symbols, and graph diagnostics
 
 Important behavior:
 
