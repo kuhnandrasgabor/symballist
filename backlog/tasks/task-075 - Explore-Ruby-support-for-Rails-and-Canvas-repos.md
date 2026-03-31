@@ -1,9 +1,10 @@
 ---
-id: DRAFT-021
+id: TASK-075
 title: Explore Ruby support for Rails and Canvas repos
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-30 11:33'
+updated_date: '2026-03-31 19:49'
 labels:
   - idea
 dependencies: []
@@ -27,3 +28,9 @@ Ruby is the highest-value remaining language expansion because it would make sym
   - Best near-term leverage because Canvas is Ruby-based and this would immediately help colleague adoption.
 - Recommended next action
   - Promote Ruby separately when you want the next language-expansion execution slice.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Added first-slice Ruby support: .rb discovery, tree-sitter-ruby parser wiring, extracted classes/modules/methods/constants, lightweight require/require_relative import relations, and conservative call/use relations. Updated README and generated instruction surfaces to include Ruby in supported language coverage, and added integration coverage for Ruby indexing and relations.
+<!-- SECTION:NOTES:END -->

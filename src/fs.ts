@@ -93,7 +93,7 @@ export async function writeConfig(root: string, config: SymballistConfig): Promi
   await writeFile(appPath(root, CONFIG_FILE), JSON.stringify(config, null, 2), { flag: "w" });
 }
 
-function detectSupportedLanguage(name: string): "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | null {
+function detectSupportedLanguage(name: string): "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | null {
   const loweredName = name.toLowerCase();
   const byName = SUPPORTED_FILENAMES.get(loweredName);
   if (byName) {
@@ -163,7 +163,7 @@ function looksLikeShellScript(source: string): boolean {
   return score >= 2;
 }
 
-async function detectSupportedLanguageForPath(absolutePath: string, name: string): Promise<"python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | null> {
+async function detectSupportedLanguageForPath(absolutePath: string, name: string): Promise<"python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | null> {
   const directMatch = detectSupportedLanguage(name);
   if (directMatch) {
     return directMatch;
@@ -184,8 +184,8 @@ async function detectSupportedLanguageForPath(absolutePath: string, name: string
   }
 }
 
-export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }>> {
-  const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }> = [];
+export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }>> {
+  const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }> = [];
 
   async function walk(current: string): Promise<void> {
     let entries;
@@ -393,7 +393,7 @@ function renderCliAgentsSnippet(): string {
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 Current language coverage:
-- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
@@ -453,7 +453,7 @@ function renderCliClaudeSnippet(): string {
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 Current language coverage:
-- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
@@ -493,7 +493,7 @@ function renderToolAgentsSnippet(): string {
 Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo only when your current runtime has actually loaded them.
 
 Current language coverage:
-- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Preferred tool-definition manifest:
   - \`.symballist\\tools\\symballist-tools.json\`
@@ -545,7 +545,7 @@ function renderToolClaudeSnippet(): string {
 Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo only when your current runtime has actually loaded them.
 
 Current language coverage:
-- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
@@ -581,7 +581,7 @@ function renderHybridAgentsSnippet(): string {
 Use the generated repo-local \`symballist\` tool definitions when your agent runtime has actually loaded them. Keep the repo-local CLI wrappers as the robust fallback.
 
 Current language coverage:
-- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Preferred tool-definition manifest:
   - \`.symballist\\tools\\symballist-tools.json\`
@@ -633,7 +633,7 @@ function renderHybridClaudeSnippet(): string {
 Use the generated repo-local \`symballist\` tool definitions when your runtime has actually loaded them, and fall back to the repo-local CLI wrappers when it cannot.
 
 Current language coverage:
-- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`

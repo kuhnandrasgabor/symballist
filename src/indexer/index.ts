@@ -3,6 +3,7 @@ import { extractHtmlSymbols } from "./html.ts";
 import { extractJavaScriptSymbols, extractTypeScriptSymbols } from "./javascript.ts";
 import { extractMarkdownSymbols } from "./markdown.ts";
 import { extractPythonSymbols } from "./python.ts";
+import { extractRubySymbols } from "./ruby.ts";
 import type { SupportedLanguage, SymbolRecord } from "../types.ts";
 
 type ExtractContext = {
@@ -25,6 +26,8 @@ export function extractSymbols(path: string, language: SupportedLanguage, source
   switch (language) {
     case "python":
       return extractPythonSymbols(path, source, context.availablePaths);
+    case "ruby":
+      return extractRubySymbols(path, source, context.availablePaths);
     case "html":
       return extractHtmlSymbols(path, source);
     case "markdown":

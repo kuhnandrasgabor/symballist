@@ -1,0 +1,454 @@
+import { dirname, join, normalize } from "node:path";
+import Parser from "tree-sitter";
+import Ruby from "tree-sitter-ruby";
+import type { SyntaxNode } from "tree-sitter";
+import type { RelationDetails, SymbolRecord } from "../types.ts";
+
+const parser = new Parser();
+parser.setLanguage(Ruby);
+
+const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
+
+type UsageTarget = {
+  targetPath: string;
+  labelPrefix: string;
+};
+
+type RubySymbolNode = {
+  node: SyntaxNode;
+  record: SymbolRecord;
+};
+
+function nodeText(source: string, node: SyntaxNode | null): string {
+  if (!node) {
+    return "";
+  }
+  return source.slice(node.startIndex, node.endIndex);
+}
+
+function sliceBody(source: string, start: number, end: number): string {
+  const body = source.slice(start, end).trim();
+  return body.length > 0 ? body : source.trim();
+}
+
+function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
+  callback(node);
+  for (const child of node.namedChildren) {
+    visit(child, callback);
+  }
+}
+
+function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
+  const lines = source.split(/\r?\n/);
+  const endLine = Math.max(lines.length, 1);
+  const endColumn = (lines.at(-1)?.length ?? 0) + 1;
+  return {
+    startLine: 1,
+    startColumn: 1,
+    endLine,
+    endColumn
+  };
+}
+
+function nodeSpan(node: SyntaxNode): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
+  return {
+    startLine: node.startPosition.row + 1,
+    startColumn: node.startPosition.column + 1,
+    endLine: node.endPosition.row + 1,
+    endColumn: node.endPosition.column + 1
+  };
+}
+
+function fallbackRecord(path: string, source: string, reason: string): SymbolRecord[] {
+  return [
+    {
+      path,
+      language: "ruby",
+      kind: "file",
+      name: path,
+      signature: null,
+      body: source.slice(0, 500).trim(),
+      doc: reason,
+      fallback: true,
+      ...fullFileSpan(source)
+    }
+  ];
+}
+
+function identifierText(source: string, node: SyntaxNode | null): string {
+  return nodeText(source, node).trim();
+}
+
+function enclosingNamespace(source: string, node: SyntaxNode): string[] {
+  const names: string[] = [];
+  let current: SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type === "class" || current.type === "module") {
+      const nameNode = current.childForFieldName("name") ?? current.namedChildren.find((child) => child.type === "constant") ?? null;
+      const name = identifierText(source, nameNode);
+      if (name) {
+        names.unshift(name);
+      }
+    }
+    current = current.parent;
+  }
+  return names;
+}
+
+function findSymbolContainerName(source: string, node: SyntaxNode): string | null {
+  const namespace = enclosingNamespace(source, node);
+  return namespace.length > 0 ? namespace.join("::") : null;
+}
+
+function resolveRubyRequirePath(specifier: string, sourcePath: string, availablePaths: Set<string>, relativeOnly: boolean): string | null {
+  const trimmed = specifier.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const base = relativeOnly
+    ? normalize(join(dirname(sourcePath), trimmed))
+    : normalize(trimmed);
+  const candidates = base.endsWith(".rb")
+    ? [base]
+    : [`${base}.rb`, join(base, "init.rb")];
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalize(candidate);
+    if (availablePaths.has(normalizedCandidate)) {
+      return normalizedCandidate;
+    }
+  }
+
+  return null;
+}
+
+function extractRequireRelations(statement: string, sourcePath: string, availablePaths: Set<string>): RelationDetails[] {
+  const normalized = statement.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  const requireMatch = normalized.match(/^require\s+["']([^"']+)["']$/);
+  if (requireMatch?.[1]) {
+    const targetPath = resolveRubyRequirePath(requireMatch[1], sourcePath, availablePaths, false);
+    return [{
+      kind: "imports",
+      targetPath,
+      targetLabel: requireMatch[1]
+    }];
+  }
+
+  const requireRelativeMatch = normalized.match(/^require_relative\s+["']([^"']+)["']$/);
+  if (requireRelativeMatch?.[1]) {
+    const targetPath = resolveRubyRequirePath(requireRelativeMatch[1], sourcePath, availablePaths, true);
+    return [{
+      kind: "imports",
+      targetPath,
+      targetLabel: requireRelativeMatch[1]
+    }];
+  }
+
+  return [];
+}
+
+function parseRequireAliases(statement: string, sourcePath: string, availablePaths: Set<string>): Map<string, UsageTarget> {
+  const aliases = new Map<string, UsageTarget>();
+  const normalized = statement.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+
+  const requireMatch = normalized.match(/^require\s+["']([^"']+)["']$/);
+  if (requireMatch?.[1]) {
+    const targetPath = resolveRubyRequirePath(requireMatch[1], sourcePath, availablePaths, false);
+    if (targetPath) {
+      const lastSegment = requireMatch[1].split("/").at(-1) ?? requireMatch[1];
+      const constantAlias = lastSegment
+        .split("_")
+        .filter(Boolean)
+        .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+        .join("");
+      if (constantAlias) {
+        aliases.set(constantAlias, {
+          targetPath,
+          labelPrefix: requireMatch[1]
+        });
+      }
+    }
+  }
+
+  const requireRelativeMatch = normalized.match(/^require_relative\s+["']([^"']+)["']$/);
+  if (requireRelativeMatch?.[1]) {
+    const targetPath = resolveRubyRequirePath(requireRelativeMatch[1], sourcePath, availablePaths, true);
+    if (targetPath) {
+      const lastSegment = requireRelativeMatch[1].split("/").at(-1) ?? requireRelativeMatch[1];
+      const constantAlias = lastSegment
+        .replace(/^\.\//, "")
+        .split("_")
+        .filter(Boolean)
+        .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+        .join("");
+      if (constantAlias) {
+        aliases.set(constantAlias, {
+          targetPath,
+          labelPrefix: requireRelativeMatch[1]
+        });
+      }
+    }
+  }
+
+  return aliases;
+}
+
+function topLevelRequireStatements(source: string, root: SyntaxNode): SyntaxNode[] {
+  return root.namedChildren.filter((child) => child.type === "call");
+}
+
+function extractMethodSymbol(path: string, source: string, node: SyntaxNode, singleton: boolean): SymbolRecord | null {
+  const nameNode = node.childForFieldName("name") ?? node.namedChildren.find((child) => child.type === "identifier") ?? null;
+  const name = identifierText(source, nameNode);
+  if (!name) {
+    return null;
+  }
+
+  const parametersNode = node.namedChildren.find((child) => child.type === "method_parameters") ?? null;
+  const container = findSymbolContainerName(source, node);
+  const prefix = singleton
+    ? container
+      ? `${container}.`
+      : "self."
+    : container
+      ? `${container}#`
+      : "";
+
+  return {
+    path,
+    language: "ruby",
+    kind: "method",
+    name,
+    signature: `${prefix}${name}${nodeText(source, parametersNode).trim()}`,
+    body: sliceBody(source, node.startIndex, node.endIndex),
+    doc: null,
+    fallback: false,
+    ...nodeSpan(node)
+  };
+}
+
+function extractClassOrModuleSymbol(path: string, source: string, node: SyntaxNode, kind: "class" | "module"): SymbolRecord | null {
+  const nameNode = node.childForFieldName("name") ?? node.namedChildren.find((child) => child.type === "constant") ?? null;
+  const name = identifierText(source, nameNode);
+  if (!name) {
+    return null;
+  }
+
+  const namespace = enclosingNamespace(source, node.parent ?? node);
+  const qualifiedName = namespace.length > 0 ? `${namespace.join("::")}::${name}` : name;
+
+  return {
+    path,
+    language: "ruby",
+    kind,
+    name,
+    signature: `${kind} ${qualifiedName}`,
+    body: sliceBody(source, node.startIndex, node.endIndex),
+    doc: null,
+    fallback: false,
+    ...nodeSpan(node)
+  };
+}
+
+function extractConstantSymbol(path: string, source: string, node: SyntaxNode): SymbolRecord | null {
+  if (node.type !== "assignment") {
+    return null;
+  }
+
+  const constantNode = node.namedChildren.find((child) => child.type === "constant") ?? null;
+  const name = identifierText(source, constantNode);
+  if (!name) {
+    return null;
+  }
+
+  const container = findSymbolContainerName(source, node);
+  return {
+    path,
+    language: "ruby",
+    kind: "constant",
+    name,
+    signature: container ? `${container}::${name}` : name,
+    body: sliceBody(source, node.startIndex, node.endIndex),
+    doc: null,
+    fallback: false,
+    ...nodeSpan(node)
+  };
+}
+
+function extractUsesForSymbol(
+  source: string,
+  owner: RubySymbolNode,
+  aliases: Map<string, UsageTarget>,
+  localSymbols: Map<string, SymbolRecord>
+): RelationDetails[] {
+  const relations: RelationDetails[] = [];
+  const seen = new Set<string>();
+
+  visit(owner.node, (node) => {
+    if (node.type !== "call") {
+      return;
+    }
+
+    const receiverNode = node.childForFieldName("receiver");
+    const methodNode = node.childForFieldName("method");
+    const receiver = identifierText(source, receiverNode);
+    const method = identifierText(source, methodNode);
+
+    if (receiver && aliases.has(receiver) && method) {
+      const target = aliases.get(receiver)!;
+      const key = `${target.targetPath}::${target.labelPrefix}.${method}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      relations.push({
+        kind: "uses",
+        targetPath: target.targetPath,
+        targetLabel: `${target.labelPrefix}.${method}`
+      });
+      return;
+    }
+
+    if (receiver && localSymbols.has(receiver)) {
+      const target = localSymbols.get(receiver)!;
+      const key = `${target.path}::${target.name}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      relations.push({
+        kind: "uses",
+        targetPath: target.path,
+        targetLabel: target.signature ?? target.name
+      });
+      return;
+    }
+
+    if (!receiver && method && localSymbols.has(method)) {
+      const target = localSymbols.get(method)!;
+      const key = `${target.path}::${target.name}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      relations.push({
+        kind: "uses",
+        targetPath: target.path,
+        targetLabel: target.signature ?? target.name
+      });
+    }
+  });
+
+  return relations;
+}
+
+export function extractRubySymbols(path: string, source: string, availablePaths: Set<string> = new Set()): SymbolRecord[] {
+  if (source.length > MAX_TREE_SITTER_SOURCE_CHARS) {
+    return fallbackRecord(
+      path,
+      source,
+      `Fallback record created because Ruby source exceeded the safe tree-sitter size limit (${MAX_TREE_SITTER_SOURCE_CHARS} chars) on this runtime.`
+    );
+  }
+
+  const tree = parser.parse(source);
+  const root = tree.rootNode;
+  const symbols: SymbolRecord[] = [];
+  const symbolNodes: RubySymbolNode[] = [];
+
+  const requireStatements = topLevelRequireStatements(source, root);
+  const aliases = new Map<string, UsageTarget>();
+  for (const statementNode of requireStatements) {
+    const statement = nodeText(source, statementNode).trim();
+    const importRecord: SymbolRecord = {
+      path,
+      language: "ruby",
+      kind: "import",
+      name: statement,
+      signature: statement,
+      body: statement,
+      doc: null,
+      fallback: false,
+      relations: extractRequireRelations(statement, path, availablePaths),
+      ...nodeSpan(statementNode)
+    };
+    symbols.push(importRecord);
+    for (const [alias, target] of parseRequireAliases(statement, path, availablePaths)) {
+      aliases.set(alias, target);
+    }
+  }
+
+  visit(root, (node) => {
+    if (node.parent !== root && node.parent?.type !== "body_statement" && node.parent?.parent !== root) {
+      return;
+    }
+
+    if (node.type === "class") {
+      const record = extractClassOrModuleSymbol(path, source, node, "class");
+      if (record) {
+        symbols.push(record);
+        symbolNodes.push({ node, record });
+      }
+      return;
+    }
+
+    if (node.type === "module") {
+      const record = extractClassOrModuleSymbol(path, source, node, "module");
+      if (record) {
+        symbols.push(record);
+        symbolNodes.push({ node, record });
+      }
+      return;
+    }
+
+    if (node.type === "method") {
+      const record = extractMethodSymbol(path, source, node, false);
+      if (record) {
+        symbols.push(record);
+        symbolNodes.push({ node, record });
+      }
+      return;
+    }
+
+    if (node.type === "singleton_method") {
+      const record = extractMethodSymbol(path, source, node, true);
+      if (record) {
+        symbols.push(record);
+        symbolNodes.push({ node, record });
+      }
+      return;
+    }
+
+    if (node.type === "assignment") {
+      const record = extractConstantSymbol(path, source, node);
+      if (record) {
+        symbols.push(record);
+        symbolNodes.push({ node, record });
+      }
+    }
+  });
+
+  const localSymbols = new Map<string, SymbolRecord>();
+  for (const symbol of symbols) {
+    if (symbol.kind === "class" || symbol.kind === "module" || symbol.kind === "method" || symbol.kind === "constant") {
+      localSymbols.set(symbol.name, symbol);
+    }
+  }
+
+  for (const owner of symbolNodes) {
+    const importRelations = owner.record.kind === "import"
+      ? owner.record.relations ?? []
+      : [];
+    owner.record.relations = [
+      ...(owner.record.relations ?? importRelations),
+      ...extractUsesForSymbol(source, owner, aliases, localSymbols)
+    ];
+  }
+
+  if (symbols.length > 0) {
+    return symbols;
+  }
+
+  return fallbackRecord(path, source, "Fallback record created because no Ruby symbols were extracted.");
+}

@@ -33,6 +33,7 @@ Use `symballist` if you want:
 `symballist` currently supports:
 
 - Python
+- Ruby
 - HTML
 - Markdown
 - JavaScript
@@ -75,7 +76,7 @@ bun pm untrusted
 If you trust those packages, run:
 
 ```powershell
-bun pm trust tree-sitter tree-sitter-html tree-sitter-python
+bun pm trust tree-sitter tree-sitter-html tree-sitter-javascript tree-sitter-python tree-sitter-ruby tree-sitter-typescript
 ```
 
 If you want a globally callable command while developing locally:
@@ -131,7 +132,7 @@ Available setup types:
 
 Current language coverage:
 
-- code and app structure: Python, JavaScript, TypeScript, HTML
+- code and app structure: Python, Ruby, JavaScript, TypeScript, HTML
 - docs: Markdown
 - config and ops: YAML, shell / bash / zsh, Dockerfile / Containerfile, CSS
 - optional local impact tracking: enable `impactTracking.enabled` in `.symballist/config.json`, then use `symballist report`
@@ -434,8 +435,8 @@ Here's an impartial assessment:
   ---
   Symballist — Assessment by Claude Opus 4.6
 
-  Symballist is a repo-local code retrieval tool that indexes symbols across 8 languages (Python,
-  JS/TS, HTML, Markdown, YAML, shell, Dockerfile, CSS) and provides lexical + optional semantic
+  Symballist is a repo-local code retrieval tool that indexes symbols across 9 languages (Python,
+  Ruby, JS/TS, HTML, Markdown, YAML, shell, Dockerfile, CSS) and provides lexical + optional semantic
   (Ollama) hybrid search. I tested it across multiple iterations during active development work on a
   ~8,000-symbol mixed-language codebase.
 

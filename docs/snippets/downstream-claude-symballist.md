@@ -3,7 +3,7 @@
 Use the generated repo-local `symballist` tool definitions when your runtime has actually loaded them, and fall back to the repo-local CLI wrappers when it cannot.
 
 Current language coverage:
-- Python, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
 
 - Tool-definition manifest: `.symballist\tools\symballist-tools.json`
 - Tooling guide: `.symballist\tools\README.md`

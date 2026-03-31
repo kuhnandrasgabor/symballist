@@ -407,6 +407,66 @@ describe("symballist vertical slice", () => {
     expect(pyResults[0]?.confidence).toBe("strong");
   });
 
+  test("indexes Ruby symbols and lightweight require or usage relations", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "canvas"), { recursive: true });
+    await writeFile(
+      join(root, "canvas", "helpers.rb"),
+      [
+        "module Helpers",
+        "  def self.normalize(user)",
+        "    user.to_s.strip",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "canvas", "enrollment_service.rb"),
+      [
+        "require_relative \"./helpers\"",
+        "",
+        "module Canvas",
+        "  class EnrollmentService",
+        "    STATUS = \"active\"",
+        "",
+        "    def call(user)",
+        "      Helpers.normalize(user)",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const classResults = searchSymbols(db, buildFtsQuery("EnrollmentService"), 5, { rawQuery: "EnrollmentService" });
+    const constantResults = searchSymbols(db, buildFtsQuery("STATUS"), 5, { rawQuery: "STATUS" });
+    const methodResults = searchSymbols(db, buildFtsQuery("call"), 5, { rawQuery: "call" });
+    const shown = getBestSymbolByName(db, "call");
+    const relationsFromDb = shown ? getRelationsForSymbol(db, shown) : [];
+    db.close();
+
+    expect(classResults[0]?.language).toBe("ruby");
+    expect(normalizeRepoPath(classResults[0]?.path)).toBe("canvas/enrollment_service.rb");
+    expect(classResults[0]?.kind).toBe("class");
+    expect(classResults[0]?.signature).toContain("Canvas::EnrollmentService");
+    expect(constantResults.some((result) => result.language === "ruby" && result.kind === "constant")).toBeTrue();
+    expect(methodResults.some((result) => result.language === "ruby" && result.kind === "method")).toBeTrue();
+    expect(relationsFromDb.some((relation) => relation.kind === "uses" && relation.targetLabel === "./helpers.normalize" && normalizeRepoPath(relation.targetPath) === "canvas/helpers.rb")).toBeTrue();
+
+    const status = JSON.parse(await captureConsoleLog(async () => {
+      await runStatus(root);
+    })) as {
+      supportedLanguages: string[];
+    };
+
+    expect(status.supportedLanguages).toContain("ruby");
+  });
+
   test("frontend JS and CSS participate in graph relations and diagnostics for fuzzy implementation queries", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "dashboard_frontend", "core"), { recursive: true });
