@@ -790,6 +790,42 @@ function normalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function unwrapQuotedLookupValue(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length < 2) {
+    return trimmed;
+  }
+
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  if ((first === "\"" && last === "\"")
+    || (first === "'" && last === "'")
+    || (first === "`" && last === "`")) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
+function lookupLiteralVariants(rawValue: string): string[] {
+  const variants = new Set<string>();
+  const trimmed = rawValue.trim();
+  const unwrapped = unwrapQuotedLookupValue(rawValue);
+
+  if (trimmed) {
+    variants.add(trimmed);
+  }
+  if (unwrapped) {
+    variants.add(unwrapped);
+  }
+
+  return [...variants];
+}
+
+function normalizedLookupSql(column: string): string {
+  return `replace(replace(replace(replace(replace(replace(lower(${column}), '\\\\', ''), '/', ''), '-', ''), ' ', ''), '.', ''), ':', '')`;
+}
+
 function extractFtsTerms(value: string): string[] {
   return value.match(/[A-Za-z0-9_]+/g) ?? [];
 }
@@ -1033,14 +1069,28 @@ function getExactLookupCandidates(
   kinds: string[],
   limit: number
 ): SearchRow[] {
-  const trimmedQuery = rawQuery.trim();
-  if (!trimmedQuery) {
+  const variants = lookupLiteralVariants(rawQuery);
+  if (variants.length === 0) {
     return [];
   }
+  const normalizedVariants = [...new Set(variants.map((variant) => normalizeLookupValue(variant)).filter(Boolean))];
 
   const kindClause = kinds.length > 0
     ? ` AND kind IN (${kinds.map(() => "?").join(", ")})`
     : "";
+  const exactPlaceholders = variants.map(() => "?").join(", ");
+  const normalizedPlaceholders = normalizedVariants.map(() => "?").join(", ");
+  const exactNameClause = `lower(name) IN (${exactPlaceholders})`;
+  const exactSignatureClause = `lower(COALESCE(signature, '')) IN (${exactPlaceholders})`;
+  const exactPathClause = `lower(path) IN (${exactPlaceholders})`;
+  const normalizedClause = normalizedVariants.length > 0
+    ? `
+      OR ${normalizedLookupSql("name")} IN (${normalizedPlaceholders})
+      OR ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedPlaceholders})
+      OR ${normalizedLookupSql("path")} IN (${normalizedPlaceholders})
+    `
+    : "";
+  const exactValues = variants.map((variant) => variant.toLowerCase());
 
   const rows = db.query(`
     SELECT
@@ -1061,17 +1111,21 @@ function getExactLookupCandidates(
       NULL AS semanticSimilarity
     FROM symbols
     WHERE (
-      lower(name) = lower(?)
-      OR lower(COALESCE(signature, '')) = lower(?)
-      OR lower(path) = lower(?)
+      ${exactNameClause}
+      OR ${exactSignatureClause}
+      OR ${exactPathClause}
+      ${normalizedClause}
     )
     ${kindClause}
     ORDER BY
       CASE
-        WHEN lower(name) = lower(?) THEN 0
-        WHEN lower(COALESCE(signature, '')) = lower(?) THEN 1
-        WHEN lower(path) = lower(?) THEN 2
-        ELSE 3
+        WHEN ${exactNameClause} THEN 0
+        WHEN ${exactSignatureClause} THEN 1
+        WHEN ${exactPathClause} THEN 2
+        ${normalizedVariants.length > 0 ? `WHEN ${normalizedLookupSql("name")} IN (${normalizedPlaceholders}) THEN 3
+        WHEN ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedPlaceholders}) THEN 4
+        WHEN ${normalizedLookupSql("path")} IN (${normalizedPlaceholders}) THEN 5` : ""}
+        ELSE 6
       END,
       CASE kind
         WHEN 'class' THEN 0
@@ -1086,19 +1140,25 @@ function getExactLookupCandidates(
       id ASC
     LIMIT ?
   `).all(
-    trimmedQuery,
-    trimmedQuery,
-    trimmedQuery,
+    ...exactValues,
+    ...exactValues,
+    ...exactValues,
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
     ...kinds,
-    trimmedQuery,
-    trimmedQuery,
-    trimmedQuery,
+    ...exactValues,
+    ...exactValues,
+    ...exactValues,
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
     limit
   ) as SearchRow[];
 
   return rows.map((row) => ({
     ...row,
-    rawScore: syntheticExactLookupRawScore(row, trimmedQuery),
+    rawScore: syntheticExactLookupRawScore(row, variants[0] ?? rawQuery.trim()),
     lexicalCandidate: true,
     conceptCandidate: false,
     semanticCandidate: false,
@@ -2721,15 +2781,22 @@ export function getSymbolById(db: Database, id: number): SymbolDetails | null {
 }
 
 export function getBestSymbolByName(db: Database, rawName: string, options: SymbolLookupOptions = {}): SymbolDetails | null {
-  const normalizedName = rawName.trim();
-  if (!normalizedName) {
+  const variants = lookupLiteralVariants(rawName);
+  if (variants.length === 0) {
     return null;
   }
+  const normalizedName = variants[0]!;
+  const normalizedVariants = [...new Set(variants.map((variant) => normalizeLookupValue(variant)).filter(Boolean))];
 
   const kinds = [...new Set((options.kinds ?? []).map((kind) => kind.trim()).filter(Boolean))];
   const whereKindClause = kinds.length > 0
     ? ` AND kind IN (${kinds.map(() => "?").join(", ")})`
     : "";
+  const exactPlaceholders = variants.map(() => "?").join(", ");
+  const normalizedClause = normalizedVariants.length > 0
+    ? ` OR ${normalizedLookupSql("name")} IN (${normalizedVariants.map(() => "?").join(", ")})`
+    : "";
+  const exactValues = variants.map((variant) => variant.toLowerCase());
 
   const rows = db.query(`
     SELECT
@@ -2748,10 +2815,14 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
       end_column AS endColumn,
       0.0 AS rawScore
     FROM symbols
-    WHERE lower(name) = lower(?)
+    WHERE (lower(name) IN (${exactPlaceholders})${normalizedClause})
     ${whereKindClause}
     LIMIT 50
-  `).all(normalizedName, ...kinds) as SearchRow[];
+  `).all(
+    ...exactValues,
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...kinds
+  ) as SearchRow[];
 
   const rankedRows = rows.map((row, index) => ({
     ...row,

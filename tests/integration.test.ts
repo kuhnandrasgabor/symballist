@@ -796,6 +796,55 @@ describe("symballist vertical slice", () => {
     expect(dockerLookup.resultQuality?.level).toBe("strong");
   });
 
+  test("lookup tolerates quoted declarative symbol names for css selectors and yaml keys", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "config"), { recursive: true });
+    await mkdir(join(root, "styles"), { recursive: true });
+    await writeFile(
+      join(root, "config", "docker-compose.yml"),
+      [
+        "services:",
+        "  api:",
+        "    image: symballist:latest"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "styles", "site.css"),
+      [
+        ".loading-card {",
+        "  opacity: 1;",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const quotedCssLookup = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "\".loading-card\"", 5);
+    })) as {
+      selectedResult?: { name?: string; kind?: string; path?: string };
+      resultQuality?: { level?: string };
+    };
+    expect(quotedCssLookup.selectedResult?.name).toBe(".loading-card");
+    expect(quotedCssLookup.selectedResult?.kind).toBe("selector");
+    expect(normalizeRepoPath(quotedCssLookup.selectedResult?.path)).toBe("styles/site.css");
+    expect(quotedCssLookup.resultQuality?.level).toBe("strong");
+
+    const quotedYamlLookup = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "'services.api.image'", 5);
+    })) as {
+      selectedResult?: { name?: string; kind?: string; path?: string };
+      resultQuality?: { level?: string };
+    };
+    expect(quotedYamlLookup.selectedResult?.name).toBe("services.api.image");
+    expect(quotedYamlLookup.selectedResult?.kind).toBe("key");
+    expect(normalizeRepoPath(quotedYamlLookup.selectedResult?.path)).toBe("config/docker-compose.yml");
+    expect(quotedYamlLookup.resultQuality?.level).toBe("strong");
+  });
+
   test("repeated index runs skip unchanged files", async () => {
     const root = await createFixtureRepo();
     await runInit(root);
