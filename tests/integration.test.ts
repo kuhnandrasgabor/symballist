@@ -1128,6 +1128,58 @@ describe("symballist vertical slice", () => {
     expect(fullOutput.symbol.body).toContain("field_119");
   });
 
+  test("parsed large code symbols keep full stored bodies so --full materially expands them", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    const parsedLargeBody = [
+      "class EmbeddingService:",
+      "    \"\"\"Parsed large body for full-storage testing.\"\"\"",
+      ...Array.from({ length: 234 }, (_, index) => `    def method_${index}(self):\n        return ${index}`)
+    ].join("\n");
+
+    await writeFile(join(root, "src", "embedding_service.py"), parsedLargeBody, "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const summaryOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "EmbeddingService");
+    })) as {
+      symbol: {
+        body: string;
+        extraction: string;
+      };
+      bodyPresentation: {
+        mode: string;
+        truncated: boolean;
+        fullerBodyAvailable: boolean;
+      };
+    };
+
+    const fullOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "EmbeddingService", { full: true });
+    })) as {
+      symbol: {
+        body: string;
+        extraction: string;
+      };
+      bodyPresentation: {
+        mode: string;
+        truncated: boolean;
+      };
+    };
+
+    expect(summaryOutput.symbol.extraction).toBe("parsed");
+    expect(summaryOutput.bodyPresentation.mode).toBe("summary");
+    expect(summaryOutput.bodyPresentation.truncated).toBeTrue();
+    expect(summaryOutput.bodyPresentation.fullerBodyAvailable).toBeTrue();
+    expect(summaryOutput.symbol.body.length).toBeLessThan(fullOutput.symbol.body.length);
+    expect(fullOutput.symbol.extraction).toBe("parsed");
+    expect(fullOutput.bodyPresentation.mode).toBe("full");
+    expect(fullOutput.bodyPresentation.truncated).toBeFalse();
+    expect(fullOutput.symbol.body).toContain("method_120");
+    expect(fullOutput.symbol.body).toContain("method_233");
+  });
+
   test("query prefers declarations over imports and supports kind filters", async () => {
     const root = await createFixtureRepo();
     await writeFile(

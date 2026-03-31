@@ -10,8 +10,8 @@ const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 const PYTHON_IDENTIFIER = "[A-Za-z_][A-Za-z0-9_]*";
 
 function sliceBody(source: string, start: number, end: number): string {
-  const preview = source.slice(start, Math.min(end, start + 320)).trim();
-  return preview.length > 0 ? preview : source.slice(0, 320).trim();
+  const body = source.slice(start, end).trim();
+  return body.length > 0 ? body : source.trim();
 }
 
 function nodeText(source: string, node: SyntaxNode | null): string {
