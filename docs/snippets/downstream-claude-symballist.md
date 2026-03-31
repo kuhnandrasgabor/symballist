@@ -12,8 +12,8 @@ Current language coverage:
   - bash / zsh / sh: `./.symballist/bin/symballist`
 - Start with `symballist_status` or `.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>`.
 - Refresh stale indexes with `symballist_refresh` or `.symballist\bin\symballist.cmd watch --once --root <PROJECT_ROOT>`.
-- Prefer `symballist_lookup` for the common single-call discovery flow.
-- Use `symballist_query` and `symballist_show` when you need more manual inspection.
+- Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.
+- Use `symballist_query` and `symballist_show` when you need ranked exploration or direct symbol inspection.
 - Verify important conclusions in the source files before making changes.
 - If `symballist` misses, use normal file search and direct reads.
 

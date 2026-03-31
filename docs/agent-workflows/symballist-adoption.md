@@ -88,16 +88,17 @@ Typical agent flow:
 1. Run `status`.
 2. If `indexFreshness.stale` is `true`, run `index`.
 3. If you want a single command to sweep for stale files and reuse incremental indexing, run `watch --once`.
-4. Use `lookup` when you want the common `query -> best hit -> show` flow in one response.
-5. Use `query` and `show` separately when you want to inspect multiple candidates more manually.
-6. If the symbol body is large, rerun `show` with `--full` to expand it.
-7. Verify important conclusions in the underlying file.
-8. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
-9. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
-10. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
-11. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import structure contributed to reranking.
-12. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
-13. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
+4. Use `lookup` when you want the one-shot best-match flow: one selected result, symbol context, and alternatives in one response.
+5. Use `query` when you want ranked candidate exploration and plan to inspect multiple hits more manually.
+6. Use `show` when you already know the symbol id or exact name and want direct inspection.
+7. If `bodyPresentation.fullerBodyAvailable` is true, rerun `lookup` or `show` with `--full` to expand the complete stored body.
+8. Verify important conclusions in the underlying file.
+9. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
+10. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
+11. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
+12. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import structure contributed to reranking.
+13. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
+14. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
 
 Useful query refinements:
 

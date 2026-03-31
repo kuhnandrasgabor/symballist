@@ -398,17 +398,18 @@ Current language coverage:
   - \`symballist index\`
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing:
   - \`symballist watch --once\`
-- Use lookup for the common \`query -> top hit -> show\` flow:
+- Use lookup when you want the common one-shot best-match flow:
   - \`symballist lookup "<text>"\`
-- Use query for discovery:
+- Use query when you want ranked candidate exploration and plan to inspect multiple hits:
   - \`symballist query "<text>"\`
   - Add \`--code-only --exclude-tests\` for implementation-heavy results.
   - Add \`--prefer-implementation\` when broad code queries still lean toward wiring or references.
   - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
-- Use show for full context and related symbols:
+- Use show when you already know the id or exact symbol name and want direct inspection:
   - \`symballist show <id>\`
   - \`symballist show --name <symbol>\`
   - \`symballist show --name <symbol> --full\`
+- Large bodies summarize by default in \`lookup\` and \`show\`; check \`bodyPresentation.fullerBodyAvailable\` and \`bodyPresentation.expansionHint\` to decide whether \`--full\` is worth the extra payload.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -432,14 +433,14 @@ Current language coverage:
 - Run \`symballist status\` before trusting older results.
 - If \`indexFreshness.stale\` is true, run \`symballist index\`.
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing, run \`symballist watch --once\`.
-- Use \`symballist lookup "<text>"\` for the common \`query -> top hit -> show\` flow.
-- Use \`query\` to discover relevant code or docs.
+- Use \`symballist lookup "<text>"\` when you want one selected best hit with context and alternatives.
+- Use \`query\` when you want ranked candidate exploration across code or docs.
 - Add \`--code-only --exclude-tests\` for implementation-heavy results.
 - Add \`--prefer-implementation\` when broad code queries still lean toward wiring or references.
 - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
-- Use \`show\` to inspect a result with full body, spans, relations, and related symbols.
+- Use \`show\` to inspect a known result id or exact symbol name with spans, relations, and related symbols.
 - If you already know the symbol, use \`symballist show --name <symbol>\`.
-- If the symbol body is large, use \`symballist show --name <symbol> --full\`.
+- If \`bodyPresentation.fullerBodyAvailable\` is true, rerun \`lookup\` or \`show\` with \`--full\` to expand the complete stored body.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -472,9 +473,9 @@ Current language coverage:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Use \`symballist_status\` first to inspect freshness, change awareness, and embeddings state.
 - If the repo is stale, use \`symballist_refresh\` before relying on retrieval output.
-- Prefer \`symballist_lookup\` for the common \`query -> top hit -> show\` flow.
-- Use \`symballist_query\` when you want to inspect multiple ranked candidates manually.
-- Use \`symballist_show\` when you already know the symbol id or exact name.
+- Prefer \`symballist_lookup\` when you want one selected best hit with context and alternatives.
+- Use \`symballist_query\` when you want ranked candidate exploration across multiple hits.
+- Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection.
 - If the runtime cannot load the generated tool definitions, fall back to \`.symballist\\bin\\symballist.cmd\`.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -499,9 +500,9 @@ Current language coverage:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Start with \`symballist_status\` to check freshness and embeddings state.
 - Use \`symballist_refresh\` when the repo is stale.
-- Use \`symballist_lookup\` for the common single-call discovery flow.
-- Use \`symballist_query\` when you want to inspect multiple candidates.
-- Use \`symballist_show\` when you already know the symbol id or exact name.
+- Use \`symballist_lookup\` when you want one selected best hit with context and alternatives.
+- Use \`symballist_query\` when you want ranked candidate exploration across multiple hits.
+- Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection.
 - If the runtime cannot load the generated tool definitions, fall back to \`.symballist\\bin\\symballist.cmd\`.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -534,8 +535,8 @@ Current language coverage:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Use \`symballist_status\` first or run \`symballist status\`.
 - If the repo is stale, use \`symballist_refresh\` or run \`symballist watch --once\`.
-- Prefer \`symballist_lookup\` for the common \`query -> top hit -> show\` flow.
-- Use \`symballist_query\` / \`symballist_show\` when you want more manual control, or use the equivalent CLI commands if tool loading is unavailable.
+- Prefer \`symballist_lookup\` when you want one selected best hit with context and alternatives.
+- Use \`symballist_query\` / \`symballist_show\` when you want more manual ranked exploration or direct symbol inspection, or use the equivalent CLI commands if tool loading is unavailable.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Treat \`symballist\` as a helper, not the sole source of truth.
 - If results are weak or stale, fall back to normal file reads or search.
@@ -560,8 +561,8 @@ Current language coverage:
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Start with \`symballist_status\` or \`symballist status\`.
 - Refresh stale indexes with \`symballist_refresh\` or \`symballist watch --once\`.
-- Prefer \`symballist_lookup\` for the common single-call discovery flow.
-- Use \`symballist_query\` and \`symballist_show\` when you need more manual inspection.
+- Prefer \`symballist_lookup\` when you want one selected best hit with context and alternatives.
+- Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -604,7 +605,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
       },
       {
         name: "symballist_query",
-        description: "Return ranked retrieval candidates for code or docs.",
+        description: "Exploration flow: return ranked retrieval candidates for code or docs so the caller can inspect multiple hits.",
         inputSchema: {
           type: "object",
           properties: {
@@ -626,7 +627,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
       },
       {
         name: "symballist_lookup",
-        description: "Run the common query-to-best-hit flow and return the resolved symbol plus alternatives.",
+        description: "Best-match flow: resolve one selected hit with symbol context, body presentation, relations, and alternatives.",
         inputSchema: {
           type: "object",
           properties: {
@@ -649,7 +650,7 @@ function renderToolManifest(root: string, setupType: SetupType): string {
       },
       {
         name: "symballist_show",
-        description: "Resolve a result id or exact symbol name into full stored context.",
+        description: "Inspection flow: resolve a known result id or exact symbol name; large bodies summarize unless --full.",
         inputSchema: {
           type: "object",
           properties: {

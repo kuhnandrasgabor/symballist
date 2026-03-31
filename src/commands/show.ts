@@ -11,6 +11,8 @@ export type ShowBodyPresentation = {
   shownLines: number;
   totalChars: number;
   shownChars: number;
+  fullerBodyAvailable: boolean;
+  expansionHint: string | null;
 };
 
 export function summarizeBody(body: string, full: boolean): { body: string; presentation: ShowBodyPresentation } {
@@ -27,7 +29,9 @@ export function summarizeBody(body: string, full: boolean): { body: string; pres
         totalLines,
         shownLines: totalLines,
         totalChars,
-        shownChars: totalChars
+        shownChars: totalChars,
+        fullerBodyAvailable: false,
+        expansionHint: null
       }
     };
   }
@@ -47,7 +51,9 @@ export function summarizeBody(body: string, full: boolean): { body: string; pres
       totalLines,
       shownLines: Math.min(limitedLines.length, DEFAULT_SHOW_MAX_LINES),
       totalChars,
-      shownChars: summarizedBody.length
+      shownChars: summarizedBody.length,
+      fullerBodyAvailable: true,
+      expansionHint: "Body summarized by default; rerun the same command with --full to return the complete stored body."
     }
   };
 }
