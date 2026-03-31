@@ -450,6 +450,50 @@ describe("symballist vertical slice", () => {
     expect(status.supportedLanguages).toContain("css");
   });
 
+  test("indexes extensionless shell scripts without pulling in arbitrary extensionless text files", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "scripts"), { recursive: true });
+    await mkdir(join(root, "notes"), { recursive: true });
+    await writeFile(
+      join(root, "scripts", "startup"),
+      [
+        "#!/usr/bin/env bash",
+        "set -eu",
+        "",
+        "start_stack() {",
+        "  export APP_ENV=dev",
+        "  exec bun run serve",
+        "}"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "notes", "runbook"),
+      [
+        "startup checklist",
+        "verify logs",
+        "call team if needed"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    const stats = await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const shellResults = searchSymbols(db, buildFtsQuery("start_stack"), 5, { rawQuery: "start_stack" });
+    db.close();
+
+    expect(stats.discoveredFiles).toBe(8);
+    expect(shellResults[0]?.language).toBe("shell");
+    expect(shellResults[0]?.kind).toBe("function");
+    expect(shellResults[0]?.path).toBe("scripts/startup");
+
+    const currentFiles = await listSourceFiles(root);
+    expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "scripts/startup" && file.language === "shell")).toBeTrue();
+    expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "notes/runbook")).toBeFalse();
+  });
+
   test("repeated index runs skip unchanged files", async () => {
     const root = await createFixtureRepo();
     await runInit(root);

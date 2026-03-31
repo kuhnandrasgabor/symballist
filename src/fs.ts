@@ -102,6 +102,83 @@ function detectSupportedLanguage(name: string): "python" | "html" | "markdown" |
   return SUPPORTED_EXTENSIONS.get(extname(name).toLowerCase()) ?? null;
 }
 
+function hasShellShebang(firstLine: string): boolean {
+  return /^#!\s*(?:\/usr\/bin\/env\s+(?:-S\s+)?(?:ba|z)?sh\b|\/bin\/(?:ba|z)?sh\b|\/usr\/bin\/(?:ba|z)?sh\b)/.test(firstLine.trim());
+}
+
+function looksLikeShellScript(source: string): boolean {
+  if (source.includes("\u0000")) {
+    return false;
+  }
+
+  const lines = source.split(/\r?\n/);
+  if (lines.length === 0) {
+    return false;
+  }
+
+  const firstLine = lines[0]?.trim() ?? "";
+  if (hasShellShebang(firstLine)) {
+    return true;
+  }
+
+  const interestingLines = lines
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 12);
+
+  if (interestingLines.length === 0) {
+    return false;
+  }
+
+  let score = 0;
+  for (const line of interestingLines) {
+    if (line.startsWith("#")) {
+      continue;
+    }
+    if (/^(?:set -[A-Za-z]+|set -o [A-Za-z-]+)$/.test(line)) {
+      score += 1;
+    }
+    if (/^(?:function\s+)?[A-Za-z_][A-Za-z0-9_]*\s*(?:\(\))?\s*\{/.test(line)) {
+      score += 2;
+    }
+    if (/^(?:if|then|elif|else|fi|for|do|done|case|esac|while|until|select|in)\b/.test(line)) {
+      score += 1;
+    }
+    if (/^(?:export\s+[A-Za-z_][A-Za-z0-9_]*=|[A-Za-z_][A-Za-z0-9_]*=)/.test(line)) {
+      score += 1;
+    }
+    if (/^(?:exec|source|\.)\s+/.test(line)) {
+      score += 1;
+    }
+    if (line.includes("$(") || line.includes("${")) {
+      score += 1;
+    }
+  }
+
+  return score >= 2;
+}
+
+async function detectSupportedLanguageForPath(absolutePath: string, name: string): Promise<"python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | null> {
+  const directMatch = detectSupportedLanguage(name);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  if (extname(name) !== "" || name.startsWith(".")) {
+    return null;
+  }
+
+  try {
+    const source = await readText(absolutePath);
+    return looksLikeShellScript(source) ? "shell" : null;
+  } catch (error) {
+    if (isIgnorableFsError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }>> {
   const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }> = [];
 
@@ -129,7 +206,7 @@ export async function listSourceFiles(root: string): Promise<Array<{ absolutePat
         continue;
       }
 
-      const language = detectSupportedLanguage(entry.name);
+      const language = await detectSupportedLanguageForPath(absolutePath, entry.name);
       if (!language) {
         continue;
       }
