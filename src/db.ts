@@ -778,6 +778,37 @@ function conceptualTerms(value: string): string[] {
   return tokenizeLookupTerms(value).filter((term) => !CONCEPTUAL_STOPWORDS.has(term));
 }
 
+function normalizeConceptTerm(term: string): string {
+  let normalized = term.trim().toLowerCase();
+  if (!normalized) {
+    return normalized;
+  }
+
+  if (normalized.endsWith("ies") && normalized.length > 4) {
+    normalized = `${normalized.slice(0, -3)}y`;
+  } else if (normalized.endsWith("ing") && normalized.length > 5) {
+    normalized = normalized.slice(0, -3);
+  } else if (normalized.endsWith("s") && !normalized.endsWith("ss") && normalized.length > 3) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  return normalized;
+}
+
+function normalizeConceptTerms(terms: string[]): string[] {
+  const normalized = terms
+    .map((term) => normalizeConceptTerm(term))
+    .filter(Boolean);
+  return [...new Set(normalized)];
+}
+
+function countNormalizedConceptMatches(queryTerms: string[], ...candidateTermGroups: string[][]): number {
+  const candidateTerms = new Set(
+    candidateTermGroups.flatMap((group) => normalizeConceptTerms(group))
+  );
+  return normalizeConceptTerms(queryTerms).filter((term) => candidateTerms.has(term)).length;
+}
+
 function splitCamelCase(value: string): string[] {
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -1243,15 +1274,22 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string, options: SearchO
   const queryTerms = tokenizeLookupTerms(trimmedQuery);
   const matchTerms = conceptualTerms(trimmedQuery);
   const requiredTerms = matchTerms.length > 0 ? matchTerms : queryTerms;
+  const normalizedPath = row.path.toLowerCase().replace(/\\/g, "/");
   const signatureLower = (row.signature ?? "").toLowerCase();
   const docLower = (row.doc ?? "").toLowerCase();
   const bodyLower = row.body.toLowerCase();
   const normalizedSignature = normalizeLookupValue(row.signature ?? "");
   const normalizedDoc = normalizeLookupValue(row.doc ?? "");
   const normalizedBody = normalizeLookupValue(row.body);
+  const nameTerms = splitCamelCase(row.name);
+  const signatureTerms = tokenizeLookupTerms(row.signature ?? "");
+  const bodyTerms = tokenizeLookupTerms(row.body);
+  const pathTerms = splitCamelCase(normalizedPath);
   const queryTermsPresentInBody = requiredTerms.length > 0 && requiredTerms.every((term) => bodyLower.includes(term));
   const queryTermsPresentInSignature = requiredTerms.length > 0 && requiredTerms.every((term) => signatureLower.includes(term));
   const queryTermsPresentInDoc = requiredTerms.length > 0 && requiredTerms.every((term) => docLower.includes(term));
+  const matchedImplementationTerms = countNormalizedConceptMatches(requiredTerms, nameTerms, signatureTerms, bodyTerms);
+  const matchedImplementationAndPathTerms = countNormalizedConceptMatches(requiredTerms, nameTerms, signatureTerms, bodyTerms, pathTerms);
   const strongImplementationBodyMatch = isStrongImplementationBodyMatch(
     row,
     rawQuery,
@@ -1265,6 +1303,24 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string, options: SearchO
     return {
       adjustment: -0.95 + definitionBias,
       reason: row.kind === "heading" ? "heading_text" : "body_text",
+      confidence: "strong"
+    };
+  }
+
+  if (
+    isBroadConceptualCodeQuery(rawQuery, options)
+    && matchedImplementationTerms >= 2
+    && matchedImplementationAndPathTerms >= 2
+    && !row.fallback
+    && row.kind !== "import"
+    && row.kind !== "file"
+    && row.language !== "markdown"
+    && isDefinitionLikeKind(row.kind)
+    && (normalizedPath.startsWith("src/") || isFrontendImplementationPath(normalizedPath, row.language))
+  ) {
+    return {
+      adjustment: -0.72 + definitionBias,
+      reason: "body_text",
       confidence: "strong"
     };
   }
@@ -1546,6 +1602,31 @@ function isOperationalDocPath(normalizedPath: string): boolean {
     || normalizedPath.startsWith(".symballist/");
 }
 
+function isFrontendImplementationPath(normalizedPath: string, language: SearchRow["language"]): boolean {
+  if (!["javascript", "typescript", "css", "html"].includes(language)) {
+    return false;
+  }
+
+  return normalizedPath.startsWith("dashboard_frontend/")
+    || normalizedPath.startsWith("frontend/")
+    || normalizedPath.startsWith("web/")
+    || normalizedPath.startsWith("static/css/")
+    || normalizedPath.startsWith("static/js/")
+    || normalizedPath.startsWith("styles/")
+    || normalizedPath.startsWith("assets/css/")
+    || normalizedPath.startsWith("assets/js/")
+    || normalizedPath.startsWith("public/")
+    || normalizedPath.includes("/dashboard_frontend/")
+    || normalizedPath.includes("/frontend/")
+    || normalizedPath.includes("/web/")
+    || normalizedPath.includes("/static/css/")
+    || normalizedPath.includes("/static/js/")
+    || normalizedPath.includes("/styles/")
+    || normalizedPath.includes("/assets/css/")
+    || normalizedPath.includes("/assets/js/")
+    || normalizedPath.includes("/public/");
+}
+
 function isImplementationFocusedIntent(options: SearchOptions, rawQuery?: string): boolean {
   return options.preferImplementation === true && !options.docsOnly && !isDocOrientedQuery(rawQuery ?? options.rawQuery ?? "");
 }
@@ -1665,6 +1746,16 @@ function computePathAdjustment(row: SearchRow, rawQuery: string, options: Search
     let adjustment = preferImplementation ? -2.6 : -1.1;
     if (broadConceptualCodeQuery && isDefinitionLikeKind(row.kind)) {
       adjustment -= 0.9;
+    }
+    return adjustment;
+  }
+  if (isFrontendImplementationPath(normalizedPath, row.language)) {
+    let adjustment = preferImplementation ? -2.15 : -0.85;
+    if (broadConceptualCodeQuery && isDefinitionLikeKind(row.kind)) {
+      adjustment -= 0.8;
+    }
+    if ((row.language === "css" || row.language === "html") && (preferImplementation || broadConceptualCodeQuery)) {
+      adjustment -= 0.2;
     }
     return adjustment;
   }

@@ -432,6 +432,21 @@ describe("symballist vertical slice", () => {
       }>;
     };
 
+    const broaderFrontendQueryPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runQuery(root, "how does the dashboard switch work when changing workspaces", 5, [], {
+        codeOnly: true,
+        excludeTests: true,
+        preferImplementation: true
+      });
+    })) as {
+      resultQuality: {
+        noStrongMatch: boolean;
+      };
+      results: Array<{
+        path: string;
+      }>;
+    };
+
     const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
       await runLookup(root, "switchWorkspace", 5, [], {});
     })) as {
@@ -460,6 +475,8 @@ describe("symballist vertical slice", () => {
 
     expect(normalizeRepoPath(queryPayload.results[0]?.path)).toBe("dashboard_frontend/core/workspace.js");
     expect(queryPayload.resultQuality.noStrongMatch).toBeFalse();
+    expect(normalizeRepoPath(broaderFrontendQueryPayload.results[0]?.path)).toBe("dashboard_frontend/core/workspace.js");
+    expect(broaderFrontendQueryPayload.resultQuality.noStrongMatch).toBeFalse();
     expect(queryPayload.results.some((result) => result.graphSignals.includes("imported_by_candidate") || result.graphSignals.includes("used_by_candidate"))).toBeTrue();
     expect(lookupPayload.symbol?.graphDiagnostics.knownInboundReferences).toBeGreaterThan(0);
     expect(lookupPayload.symbol?.graphDiagnostics.disconnectedFromIndexedGraph).toBeFalse();

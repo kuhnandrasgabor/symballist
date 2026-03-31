@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-03-31 08:41'
-updated_date: '2026-03-31 08:59'
+updated_date: '2026-03-31 17:31'
 labels:
   - feature
 dependencies: []
@@ -30,4 +30,6 @@ Downstream testing shows exact lookup, config/ops retrieval, path payloads, and 
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented a focused frontend-graph slice. JavaScript and TypeScript indexing now emit lightweight import relations and usage relations, including resolution of relative imports to repo-local JS/TS/CSS files. That gives frontend code real graph edges for reranking and diagnostics instead of only symbol extraction. Also expanded root heuristics so common frontend app/resource paths such as dashboard_frontend/, frontend/, web/, static/css/, and styles/ are less likely to be flagged as spurious orphan candidates. Added an integration regression that exercises a fuzzy frontend query plus JS and CSS graph diagnostics end to end.
+
+Added a follow-up frontend retrieval calibration pass. Broad conceptual code queries now treat frontend implementation paths (dashboard_frontend/, frontend/, web/, static/css/, static/js/, styles/, assets/*, public/) more like src/ implementation paths during path-based reranking. Also added lightweight normalized concept-term matching (for cases like workspaces -> workspace) so browser-side implementation symbols can be upgraded from merely related token-overlap hits to strong matches when multiple meaningful concept terms align across the name/signature/body/path. Extended the frontend integration regression to cover a broader natural-language query rather than only the exact phrase case.
 <!-- SECTION:NOTES:END -->
