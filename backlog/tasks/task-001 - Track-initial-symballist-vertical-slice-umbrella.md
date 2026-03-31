@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-31 05:54'
+updated_date: '2026-03-31 06:21'
 labels: []
 dependencies: []
 references:
@@ -221,4 +221,6 @@ External usage feedback from Claude Sonnet during downstream testing:
 - The non-authoritative guidance is landing correctly: use symballist to narrow search, then read the actual file before changing code.
 
 Downstream evaluation on a government-education taxonomy project was positive on named JS lookups and YAML compose-key retrieval. JS methods like runPipeline and classes like PipelineCard resolved correctly, with --code-only helping reduce doc noise. YAML extraction surfaced dotted service keys such as services.dashboard and nested dockerfile/container_name paths cleanly, which is a strong validation of the config/ops rollout.
+
+Latest downstream retest after TASK-043 and TASK-048 confirms major practical wins: file paths now propagate correctly in result payloads, extensionless startup-shell functions are found, and CSS selector queries against real .css files resolve with paths. One apparent Dockerfile miss was a consumer-script issue because `lookup` returns `selectedResult` rather than a `results` array. The remaining real follow-up is instruction-level Dockerfile retrieval quality for COPY/RUN/FROM-style concept queries.
 <!-- SECTION:NOTES:END -->
