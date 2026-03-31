@@ -5,6 +5,10 @@ import { extractMarkdownSymbols } from "./markdown.ts";
 import { extractPythonSymbols } from "./python.ts";
 import type { SupportedLanguage, SymbolRecord } from "../types.ts";
 
+type ExtractContext = {
+  availablePaths?: Set<string>;
+};
+
 function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
   const lines = source.split(/\r?\n/);
   const endLine = Math.max(lines.length, 1);
@@ -17,10 +21,10 @@ function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startCo
   };
 }
 
-export function extractSymbols(path: string, language: SupportedLanguage, source: string): SymbolRecord[] {
+export function extractSymbols(path: string, language: SupportedLanguage, source: string, context: ExtractContext = {}): SymbolRecord[] {
   switch (language) {
     case "python":
-      return extractPythonSymbols(path, source);
+      return extractPythonSymbols(path, source, context.availablePaths);
     case "html":
       return extractHtmlSymbols(path, source);
     case "markdown":

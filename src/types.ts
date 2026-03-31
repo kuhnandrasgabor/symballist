@@ -17,7 +17,7 @@ export type MatchReason =
 
 export type RetrievalChannel = "lexical" | "concept_path" | "semantic";
 export type HybridContribution = "lexical_only" | "semantic_only" | "semantic_assisted";
-export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_by_candidate";
+export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_by_candidate" | "uses_candidate" | "used_by_candidate";
 export type RetrievalQualityLevel = "strong" | "moderate" | "weak" | "none";
 export type RetrievalQualityReason =
   | "top_result_strong"
@@ -39,6 +39,12 @@ export type SymbolLocation = {
   endColumn: number;
 };
 
+export type RelationDetails = {
+  kind: "imports" | "contained_in" | "uses";
+  targetPath: string | null;
+  targetLabel: string;
+};
+
 export type SymbolRecord = {
   path: string;
   language: SupportedLanguage;
@@ -52,6 +58,7 @@ export type SymbolRecord = {
   startColumn: number;
   endLine: number;
   endColumn: number;
+  relations?: RelationDetails[];
 };
 
 export type QueryResult = {
@@ -139,12 +146,6 @@ export type QueryIntentOptions = {
   docsOnly?: boolean;
   excludeTests?: boolean;
   preferImplementation?: boolean;
-};
-
-export type RelationDetails = {
-  kind: "imports" | "contained_in";
-  targetPath: string | null;
-  targetLabel: string;
 };
 
 export type RelatedSymbol = {

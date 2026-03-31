@@ -765,6 +765,47 @@ describe("symballist vertical slice", () => {
     expect(payload.relations.some((relation) => relation.kind === "imports" && relation.targetLabel === "pkg.helpers" && normalizeRepoPath(relation.targetPath) === "pkg/helpers.py")).toBeTrue();
   });
 
+  test("show and related-symbol flows surface lightweight usage relations", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const buildMessage = getBestSymbolByName(db, "build_message");
+    const relationsFromDb = buildMessage ? getRelationsForSymbol(db, buildMessage) : [];
+    const relatedFromDb = buildMessage ? getRelatedSymbolsForSymbol(db, buildMessage) : [];
+    db.close();
+
+    expect(buildMessage).toBeDefined();
+    expect(relationsFromDb.some((relation) => relation.kind === "uses" && relation.targetLabel === "helpers.slugify" && normalizeRepoPath(relation.targetPath) === "helpers.py")).toBeTrue();
+    expect(relatedFromDb.some((entry) => entry.relation.kind === "uses" && entry.symbol.name === "slugify" && normalizeRepoPath(entry.symbol.path) === "helpers.py")).toBeTrue();
+
+    const output = await captureConsoleLog(async () => {
+      await runShow(root, "", "build_message");
+    });
+    const payload = JSON.parse(output) as {
+      relations: Array<{
+        kind: string;
+        targetPath: string | null;
+        targetLabel: string;
+      }>;
+      related: Array<{
+        relation: {
+          kind: string;
+          targetPath: string | null;
+          targetLabel: string;
+        };
+        symbol: {
+          name: string;
+          path: string;
+        };
+      }>;
+    };
+
+    expect(payload.relations.some((relation) => relation.kind === "uses" && relation.targetLabel === "helpers.slugify" && normalizeRepoPath(relation.targetPath) === "helpers.py")).toBeTrue();
+    expect(payload.related.some((entry) => entry.relation.kind === "uses" && entry.symbol.name === "slugify" && normalizeRepoPath(entry.symbol.path) === "helpers.py")).toBeTrue();
+  });
+
   test("show resolves exact symbol names without requiring an intermediate id", async () => {
     const root = await createFixtureRepo();
     await runInit(root);
@@ -1647,6 +1688,7 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(results[0]?.path)).toBe("src/bootstrap.py");
     expect(normalizeRepoPath(results[1]?.path)).toBe("src/store.py");
     expect(results[1]?.graphSignals).toContain("imported_by_candidate");
+    expect(results[1]?.graphSignals).toContain("used_by_candidate");
     expect(results.findIndex((result) => normalizeRepoPath(result.path) === "src/store.py")).toBeLessThan(results.findIndex((result) => normalizeRepoPath(result.path) === "src/notes.py"));
   });
 

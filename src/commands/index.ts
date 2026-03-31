@@ -126,7 +126,7 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
     }
 
     const source = await readText(file.absolutePath);
-    const symbols = extractSymbols(file.relativePath, file.language, source);
+    const symbols = extractSymbols(file.relativePath, file.language, source, { availablePaths: currentPaths });
     stats.indexedSymbols += replaceFileIndex(
       db,
       {
