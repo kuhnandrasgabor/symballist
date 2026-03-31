@@ -52,11 +52,14 @@ export type SymballistConfig = {
     model: string;
     dimensions: number | null;
   };
+  impactTracking: {
+    enabled: boolean;
+  };
 };
 
 export function defaultConfig(root: string): SymballistConfig {
   return {
-    version: 3,
+    version: 4,
     root,
     setupType: "hybrid",
     languages: ["python", "html", "markdown", "javascript", "typescript", "yaml", "shell", "dockerfile", "css"],
@@ -67,6 +70,9 @@ export function defaultConfig(root: string): SymballistConfig {
       baseUrl: DEFAULT_OLLAMA_BASE_URL,
       model: DEFAULT_OLLAMA_EMBED_MODEL,
       dimensions: null
+    },
+    impactTracking: {
+      enabled: false
     }
   };
 }

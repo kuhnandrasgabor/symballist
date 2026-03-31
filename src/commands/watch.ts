@@ -1,6 +1,7 @@
 import { runIndex, type IndexStats } from "./index.ts";
-import { getIndexCompatibility, getIndexedFiles, openDatabase } from "../db.ts";
+import { getIndexCompatibility, getIndexedFiles, openDatabase, recordImpactTrackingEvent } from "../db.ts";
 import { detectIndexFreshness, type IndexFreshness } from "../freshness.ts";
+import { readConfig } from "../fs.ts";
 
 const DEFAULT_WATCH_INTERVAL_MS = 2000;
 
@@ -61,6 +62,7 @@ export async function runWatch(root: string, options: RunWatchOptions = {}): Pro
 
   const cycleLimit = normalizeCycleLimit(options);
   const progress = options.progress ?? false;
+  const config = await readConfig(root);
   const events: WatchEvent[] = [];
 
   for (let cycle = 1; cycle <= cycleLimit; cycle += 1) {
@@ -90,6 +92,18 @@ export async function runWatch(root: string, options: RunWatchOptions = {}): Pro
       stats,
       timestamp: new Date().toISOString()
     };
+
+    if (config?.impactTracking?.enabled) {
+      const db = await openDatabase(root);
+      recordImpactTrackingEvent(db, {
+        command: "watch",
+        timestamp: event.timestamp,
+        payloadChars: JSON.stringify(event).length,
+        compact: false,
+        staleIndex: event.indexFreshnessBefore.stale
+      });
+      db.close();
+    }
 
     console.log(JSON.stringify(event, null, 2));
     events.push(event);

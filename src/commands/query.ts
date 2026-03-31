@@ -1,4 +1,4 @@
-import { buildFtsQuery, getIndexedFiles, openDatabase, searchSymbolsWithDiagnostics } from "../db.ts";
+import { buildFtsQuery, getIndexedFiles, openDatabase, recordImpactTrackingEvent, searchSymbolsWithDiagnostics } from "../db.ts";
 import { embedTexts, getActiveEmbeddingsConfig, summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
@@ -42,7 +42,6 @@ export async function runQuery(
     ...intent
   });
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
-  db.close();
   const resultQuality = summarizeRetrievalQuality(search.results);
 
   const payload = {
@@ -77,5 +76,19 @@ export async function runQuery(
     results: search.results
   };
 
+  if (config?.impactTracking?.enabled) {
+    recordImpactTrackingEvent(db, {
+      command: "query",
+      timestamp: new Date().toISOString(),
+      payloadChars: JSON.stringify(payload).length,
+      compact: options.compact === true,
+      retrievalMode: queryEmbedding ? "hybrid" : "lexical",
+      resultQualityLevel: resultQuality.level,
+      noStrongMatch: resultQuality.noStrongMatch,
+      staleIndex: indexFreshness.stale
+    });
+  }
+
+  db.close();
   console.log(JSON.stringify(payload, null, 2));
 }

@@ -1,4 +1,4 @@
-import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexCompatibility, getIndexedFiles, markCurrentIndexFormat, openDatabase, rebuildStoredIndex, replaceFileIndex, resetLatestSymbolChangeSummary } from "../db.ts";
+import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexCompatibility, getIndexedFiles, markCurrentIndexFormat, openDatabase, rebuildStoredIndex, recordImpactTrackingEvent, replaceFileIndex, resetLatestSymbolChangeSummary } from "../db.ts";
 import { getActiveEmbeddingsConfig, updateEmbeddingsForSymbols } from "../embeddings.ts";
 import { fileMetadata, listSourceFiles, readConfig, readText } from "../fs.ts";
 import { extractSymbols } from "../indexer/index.ts";
@@ -170,6 +170,17 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   }
 
   markCurrentIndexFormat(db);
+
+  if (config?.impactTracking?.enabled) {
+    recordImpactTrackingEvent(db, {
+      command: "index",
+      timestamp: new Date().toISOString(),
+      payloadChars: JSON.stringify(stats).length,
+      compact: false,
+      selectedResult: false,
+      staleIndex: shouldRebuild
+    });
+  }
 
   db.close();
 

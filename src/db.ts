@@ -9,9 +9,13 @@ import type {
   GraphTraversalEntry,
   GraphTraversalKind,
   HybridContribution,
+  ImpactCommandName,
+  ImpactTrackingSummary,
+  ImpactTransitionName,
   MatchReason,
   QueryResult,
   RetrievalChannel,
+  RetrievalQualityLevel,
   RelatedSymbol,
   RelationDetails,
   ResultConfidence,
@@ -28,7 +32,10 @@ export const CURRENT_INDEX_FORMAT_VERSION = 2;
 
 const SYMBOL_CHANGE_SUMMARY_KEY = "latest_symbol_change_summary";
 const INDEX_FORMAT_VERSION_KEY = "index_format_version";
+const IMPACT_SUMMARY_KEY = "impact_tracking_summary";
+const IMPACT_LAST_EVENT_KEY = "impact_tracking_last_event";
 const MAX_SYMBOL_CHANGE_SAMPLES = 20;
+const IMPACT_SEQUENCE_WINDOW_MS = 30 * 60 * 1000;
 export const CURRENT_EMBEDDING_PROVIDER = "ollama";
 
 export type IndexedFileRow = {
@@ -179,6 +186,28 @@ type RootHeuristicInput = {
   path: string;
   language: SymbolRecord["language"];
   topLevelNames: string[];
+};
+
+type StoredImpactSummary = Omit<ImpactTrackingSummary, "lastCommand"> & {
+  lastCommand: {
+    command: ImpactCommandName;
+    timestamp: string;
+  } | null;
+};
+
+type ImpactTrackingEvent = {
+  command: ImpactCommandName;
+  timestamp: string;
+  payloadChars: number;
+  compact: boolean;
+  retrievalMode?: "lexical" | "hybrid";
+  resultQualityLevel?: RetrievalQualityLevel;
+  noStrongMatch?: boolean;
+  selectedResult?: boolean;
+  bodyMode?: "summary" | "full";
+  fullRequested?: boolean;
+  graphEdgesViewed?: number;
+  staleIndex?: boolean;
 };
 
 const KIND_SCORE_ADJUSTMENTS = new Map<string, number>([
@@ -444,6 +473,237 @@ function writeStoredSymbolChangeSummary(db: Database, summary: StoredSymbolChang
     VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(SYMBOL_CHANGE_SUMMARY_KEY, JSON.stringify(summary));
+}
+
+function defaultImpactTrackingSummary(): StoredImpactSummary {
+  return {
+    recordedCommands: 0,
+    commandCounts: {
+      status: 0,
+      index: 0,
+      watch: 0,
+      lookup: 0,
+      query: 0,
+      show: 0,
+      graph: 0,
+      report: 0
+    },
+    retrievalModeCounts: {
+      lexical: 0,
+      hybrid: 0
+    },
+    resultQualityCounts: {
+      strong: 0,
+      moderate: 0,
+      weak: 0,
+      none: 0
+    },
+    bodyModeCounts: {
+      summary: 0,
+      full: 0
+    },
+    transitionCounts: {
+      lookup_to_show: 0,
+      query_to_show: 0,
+      lookup_to_graph: 0,
+      query_to_graph: 0,
+      weak_result_retry: 0,
+      lookup_to_full_show: 0,
+      lookup_to_full_graph: 0
+    },
+    workflowSignals: {
+      oneShotStrongLookups: 0,
+      noStrongMatchCount: 0,
+      fullBodyExpansions: 0,
+      graphFollowUpsAfterRetrieval: 0
+    },
+    payloadCharsReturned: 0,
+    estimatedImpact: {
+      avoidedSearchLoops: 0,
+      avoidedDirectFileReads: 0
+    },
+    lastCommand: null
+  };
+}
+
+function readStoredImpactSummary(db: Database): StoredImpactSummary {
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(IMPACT_SUMMARY_KEY) as { value?: string } | null;
+  if (!row?.value) {
+    return defaultImpactTrackingSummary();
+  }
+
+  try {
+    const parsed = JSON.parse(row.value) as Partial<StoredImpactSummary>;
+    const base = defaultImpactTrackingSummary();
+    return {
+      ...base,
+      ...parsed,
+      commandCounts: {
+        ...base.commandCounts,
+        ...(parsed.commandCounts ?? {})
+      },
+      retrievalModeCounts: {
+        ...base.retrievalModeCounts,
+        ...(parsed.retrievalModeCounts ?? {})
+      },
+      resultQualityCounts: {
+        ...base.resultQualityCounts,
+        ...(parsed.resultQualityCounts ?? {})
+      },
+      bodyModeCounts: {
+        ...base.bodyModeCounts,
+        ...(parsed.bodyModeCounts ?? {})
+      },
+      transitionCounts: {
+        ...base.transitionCounts,
+        ...(parsed.transitionCounts ?? {})
+      },
+      workflowSignals: {
+        ...base.workflowSignals,
+        ...(parsed.workflowSignals ?? {})
+      },
+      estimatedImpact: {
+        ...base.estimatedImpact,
+        ...(parsed.estimatedImpact ?? {})
+      },
+      lastCommand: parsed.lastCommand?.command && parsed.lastCommand?.timestamp
+        ? {
+            command: parsed.lastCommand.command,
+            timestamp: parsed.lastCommand.timestamp
+          }
+        : null
+    };
+  } catch {
+    return defaultImpactTrackingSummary();
+  }
+}
+
+function writeStoredImpactSummary(db: Database, summary: StoredImpactSummary): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(IMPACT_SUMMARY_KEY, JSON.stringify(summary));
+}
+
+function readLastImpactEvent(db: Database): ImpactTrackingEvent | null {
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(IMPACT_LAST_EVENT_KEY) as { value?: string } | null;
+  if (!row?.value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(row.value) as ImpactTrackingEvent;
+    if (!parsed?.command || !parsed?.timestamp) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastImpactEvent(db: Database, event: ImpactTrackingEvent): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(IMPACT_LAST_EVENT_KEY, JSON.stringify(event));
+}
+
+function updateTransitionCounts(
+  summary: StoredImpactSummary,
+  previous: ImpactTrackingEvent | null,
+  current: ImpactTrackingEvent
+): void {
+  if (!previous) {
+    return;
+  }
+
+  const previousTime = Date.parse(previous.timestamp);
+  const currentTime = Date.parse(current.timestamp);
+  if (!Number.isFinite(previousTime) || !Number.isFinite(currentTime) || currentTime < previousTime) {
+    return;
+  }
+  if (currentTime - previousTime > IMPACT_SEQUENCE_WINDOW_MS) {
+    return;
+  }
+
+  if (previous.command === "lookup" && current.command === "show") {
+    summary.transitionCounts.lookup_to_show += 1;
+    if (current.bodyMode === "full" || current.fullRequested === true) {
+      summary.transitionCounts.lookup_to_full_show += 1;
+    }
+  }
+  if (previous.command === "query" && current.command === "show") {
+    summary.transitionCounts.query_to_show += 1;
+  }
+  if (previous.command === "lookup" && current.command === "graph") {
+    summary.transitionCounts.lookup_to_graph += 1;
+    summary.workflowSignals.graphFollowUpsAfterRetrieval += 1;
+    summary.estimatedImpact.avoidedSearchLoops += 1;
+    if (current.graphEdgesViewed && current.graphEdgesViewed > 0) {
+      summary.transitionCounts.lookup_to_full_graph += 1;
+    }
+  }
+  if (previous.command === "query" && current.command === "graph") {
+    summary.transitionCounts.query_to_graph += 1;
+    summary.workflowSignals.graphFollowUpsAfterRetrieval += 1;
+    summary.estimatedImpact.avoidedSearchLoops += 1;
+  }
+  if ((previous.command === "query" || previous.command === "lookup")
+    && (current.command === "query" || current.command === "lookup")
+    && previous.noStrongMatch === true) {
+    summary.transitionCounts.weak_result_retry += 1;
+  }
+}
+
+export function getImpactTrackingSummary(db: Database): ImpactTrackingSummary {
+  return readStoredImpactSummary(db);
+}
+
+export function recordImpactTrackingEvent(db: Database, event: ImpactTrackingEvent): ImpactTrackingSummary {
+  const summary = readStoredImpactSummary(db);
+  const previous = readLastImpactEvent(db);
+
+  summary.recordedCommands += 1;
+  summary.commandCounts[event.command] += 1;
+  summary.payloadCharsReturned += Math.max(0, event.payloadChars);
+
+  if (event.retrievalMode) {
+    summary.retrievalModeCounts[event.retrievalMode] += 1;
+  }
+  if (event.resultQualityLevel) {
+    summary.resultQualityCounts[event.resultQualityLevel] += 1;
+  }
+  if (event.bodyMode) {
+    summary.bodyModeCounts[event.bodyMode] += 1;
+    summary.estimatedImpact.avoidedDirectFileReads += 1;
+    if (event.bodyMode === "full") {
+      summary.workflowSignals.fullBodyExpansions += 1;
+    }
+  }
+  if (event.command === "lookup" && event.resultQualityLevel === "strong" && event.selectedResult) {
+    summary.workflowSignals.oneShotStrongLookups += 1;
+    summary.estimatedImpact.avoidedSearchLoops += 1;
+  }
+  if (event.command === "query" && (event.resultQualityLevel === "strong" || event.resultQualityLevel === "moderate")) {
+    summary.estimatedImpact.avoidedSearchLoops += 1;
+  }
+  if (event.noStrongMatch === true) {
+    summary.workflowSignals.noStrongMatchCount += 1;
+  }
+
+  updateTransitionCounts(summary, previous, event);
+
+  summary.lastCommand = {
+    command: event.command,
+    timestamp: event.timestamp
+  };
+
+  writeStoredImpactSummary(db, summary);
+  writeLastImpactEvent(db, event);
+  return summary;
 }
 
 function clearIndexData(db: Database): void {

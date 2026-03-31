@@ -49,6 +49,7 @@ Use `symballist` if you want:
 - one-hop graph-aware reranking using containment, import, usage, and root hints
 - lightweight follow-up context through relations, related symbols, and graph diagnostics
 - bounded graph awareness for likely roots and advisory possible-orphan candidates
+- opt-in repo-local usage and impact summaries for adopted repos
 - repo-local downstream agent bootstrap during `init`
 - configurable downstream setup modes for CLI, tool, or hybrid integration
 
@@ -133,6 +134,7 @@ Current language coverage:
 - code and app structure: Python, JavaScript, TypeScript, HTML
 - docs: Markdown
 - config and ops: YAML, shell / bash / zsh, Dockerfile / Containerfile, CSS
+- optional local impact tracking: enable `impactTracking.enabled` in `.symballist/config.json`, then use `symballist report`
 
 If you are not using a linked global command, the repo-local wrappers are the portable fallback:
 
@@ -165,6 +167,14 @@ For agents, the default contract should be:
 3. If `indexCompatibility.requiresRebuild` is `true`, run `symballist index --rebuild`.
 4. Otherwise proceed with `lookup`, `query`, `show`, or `graph`.
 
+If the repo owner explicitly enables local impact tracking in `.symballist/config.json`, you can inspect the aggregate usage and workflow-impact summary with:
+
+```powershell
+symballist report
+```
+
+This first slice stores aggregate command outcomes only and does not store raw query text.
+
 If auto-watch is already keeping the repo fresh, `watch --once` may return an already-fresh no-op. That is expected, not a failure.
 
 If you are actively developing and want the index to stay warm, run a foreground watch loop while you work:
@@ -194,6 +204,8 @@ symballist watch --once
   - keeps a foreground polling loop alive
 - `symballist status`
   - shows index health, freshness, change awareness, embeddings state, and shell-aware entrypoint guidance
+- `symballist report`
+  - shows the opt-in repo-local usage and workflow-impact summary without storing raw query text
 - `symballist query "<text>"`
   - exploration flow: returns ranked candidates when you want to inspect multiple hits
 - `symballist lookup "<text>"`

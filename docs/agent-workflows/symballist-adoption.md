@@ -24,6 +24,7 @@ Do not treat it as authoritative yet. Agents should use `symballist` to narrow t
 - prefer explicit `--root <project-root>` targeting
 - rerun `index` when the target repo is stale
 - optionally enable local Ollama embeddings in `.symballist/config.json` when concept queries need more help
+- optionally enable `impactTracking.enabled` in `.symballist/config.json` when you want a local aggregate usage and workflow-impact summary via `symballist report`
 - fall back to normal file reads or search when results are weak or missing
 
 Important distinction:
@@ -100,6 +101,7 @@ Typical agent flow:
 5. Use `query` when you want ranked candidate exploration and plan to inspect multiple hits more manually.
 6. Use `show` when you already know the symbol id or exact name and want direct inspection.
 7. If `bodyPresentation.fullerBodyAvailable` is true, rerun `lookup` or `show` with `--full` to expand the complete stored body.
+8. If the repo owner enabled `impactTracking.enabled`, use `report` only when you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
 8. Verify important conclusions in the underlying file.
 9. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
 10. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.

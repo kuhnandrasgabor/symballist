@@ -5,6 +5,7 @@ import {
   getRelationsForSymbol,
   getSymbolById,
   openDatabase,
+  recordImpactTrackingEvent,
   searchSymbolsWithDiagnostics
 } from "../db.ts";
 import { embedTexts, getActiveEmbeddingsConfig, summarizeEmbeddingSupport } from "../embeddings.ts";
@@ -55,7 +56,6 @@ export async function runLookup(
   const relations = symbol ? getRelationsForSymbol(db, symbol) : [];
   const related = symbol ? getRelatedSymbolsForSymbol(db, symbol) : [];
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
-  db.close();
   const resultQuality = summarizeRetrievalQuality(search.results);
 
   const body = symbol ? summarizeBody(symbol.body, options.full === true) : null;
@@ -104,5 +104,22 @@ export async function runLookup(
     alternatives: search.results.slice(1)
   };
 
+  if (config?.impactTracking?.enabled) {
+    recordImpactTrackingEvent(db, {
+      command: "lookup",
+      timestamp: new Date().toISOString(),
+      payloadChars: JSON.stringify(payload).length,
+      compact: options.compact === true,
+      retrievalMode: queryEmbedding ? "hybrid" : "lexical",
+      resultQualityLevel: resultQuality.level,
+      noStrongMatch: resultQuality.noStrongMatch,
+      selectedResult: selectedResult !== null,
+      bodyMode: body?.presentation.mode,
+      fullRequested: options.full === true,
+      staleIndex: indexFreshness.stale
+    });
+  }
+
+  db.close();
   console.log(JSON.stringify(payload, null, 2));
 }

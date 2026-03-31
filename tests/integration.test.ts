@@ -7,6 +7,7 @@ import { runGraph } from "../src/commands/graph.ts";
 import { runInit } from "../src/commands/init.ts";
 import { runLookup } from "../src/commands/lookup.ts";
 import { runQuery } from "../src/commands/query.ts";
+import { runReport } from "../src/commands/report.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runWatch } from "../src/commands/watch.ts";
@@ -127,8 +128,10 @@ describe("symballist vertical slice", () => {
     expect(localGuide).toContain("symballist watch --once");
     expect(localGuide).toContain('symballist lookup "<text>"');
     expect(localGuide).toContain("one-shot best-match flow");
+    expect(localGuide).toContain("impactTracking.enabled");
     expect(localGuide).toContain("setup-type hybrid");
     expect(toolManifest).toContain("\"name\": \"symballist_lookup\"");
+    expect(toolManifest).toContain("\"name\": \"symballist_report\"");
     expect(toolManifest).toContain("Best-match flow: resolve one selected hit with graph diagnostics, symbol context");
     expect(wrapperCmd).toContain('src\\cli.ts" %*');
     expect(localGuide).not.toContain("<PROJECT_ROOT>");
@@ -2531,6 +2534,100 @@ describe("symballist vertical slice", () => {
     const refreshed = searchSymbols(db, "slugify", 5);
     db.close();
     expect(refreshed.some((result) => result.name === "slugify")).toBeTrue();
+  });
+
+  test("opt-in impact tracking summarizes local workflow outcomes without storing raw query text", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    const config = await readConfig(root);
+    await writeConfig(root, {
+      ...(config!),
+      impactTracking: {
+        enabled: true
+      }
+    });
+
+    await runIndex(root, { progress: false });
+
+    await captureConsoleLog(async () => {
+      await runLookup(root, "greet", 5);
+    });
+    await captureConsoleLog(async () => {
+      await runShow(root, "", "greet");
+    });
+    await captureConsoleLog(async () => {
+      await runLookup(root, "greet", 5);
+    });
+    await captureConsoleLog(async () => {
+      await runGraph(root, "", "greet");
+    });
+    await captureConsoleLog(async () => {
+      await runQuery(root, "zzzzqqqqxxxxvvvv", 5);
+    });
+    await captureConsoleLog(async () => {
+      await runQuery(root, "greet", 5);
+    });
+
+    const reportPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runReport(root);
+    })) as {
+      impactTracking: {
+        enabled: boolean;
+        storesRawQueryText: boolean;
+        summary: {
+          commandCounts: Record<string, number>;
+          resultQualityCounts: Record<string, number>;
+          transitionCounts: Record<string, number>;
+          workflowSignals: {
+            oneShotStrongLookups: number;
+            noStrongMatchCount: number;
+            graphFollowUpsAfterRetrieval: number;
+          };
+          estimatedImpact: {
+            avoidedSearchLoops: number;
+            avoidedDirectFileReads: number;
+          };
+          lastCommand: {
+            command: string;
+          } | null;
+        };
+      };
+    };
+
+    expect(reportPayload.impactTracking.enabled).toBeTrue();
+    expect(reportPayload.impactTracking.storesRawQueryText).toBeFalse();
+    expect(reportPayload.impactTracking.summary.commandCounts.lookup).toBe(2);
+    expect(reportPayload.impactTracking.summary.commandCounts.show).toBe(1);
+    expect(reportPayload.impactTracking.summary.commandCounts.graph).toBe(1);
+    expect(reportPayload.impactTracking.summary.commandCounts.query).toBe(2);
+    expect(reportPayload.impactTracking.summary.commandCounts.report).toBe(1);
+    expect(reportPayload.impactTracking.summary.resultQualityCounts.strong).toBeGreaterThan(0);
+    expect(reportPayload.impactTracking.summary.resultQualityCounts.none).toBeGreaterThan(0);
+    expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_show).toBe(1);
+    expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_graph).toBe(1);
+    expect(reportPayload.impactTracking.summary.transitionCounts.weak_result_retry).toBe(1);
+    expect(reportPayload.impactTracking.summary.workflowSignals.oneShotStrongLookups).toBeGreaterThan(0);
+    expect(reportPayload.impactTracking.summary.workflowSignals.noStrongMatchCount).toBe(1);
+    expect(reportPayload.impactTracking.summary.workflowSignals.graphFollowUpsAfterRetrieval).toBe(1);
+    expect(reportPayload.impactTracking.summary.estimatedImpact.avoidedSearchLoops).toBeGreaterThan(0);
+    expect(reportPayload.impactTracking.summary.estimatedImpact.avoidedDirectFileReads).toBeGreaterThan(0);
+    expect(reportPayload.impactTracking.summary.lastCommand?.command).toBe("report");
+
+    const statusPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runStatus(root);
+    })) as {
+      impactTracking: {
+        enabled: boolean;
+        storesRawQueryText: boolean;
+        summary: {
+          commandCounts: Record<string, number>;
+        } | null;
+      };
+    };
+
+    expect(statusPayload.impactTracking.enabled).toBeTrue();
+    expect(statusPayload.impactTracking.storesRawQueryText).toBeFalse();
+    expect(statusPayload.impactTracking.summary?.commandCounts.status).toBe(1);
   });
 
   test("hybrid retrieval can supplement lexical search with optional Ollama embeddings", async () => {

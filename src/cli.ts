@@ -6,6 +6,7 @@ import { runIndex } from "./commands/index.ts";
 import { runInit } from "./commands/init.ts";
 import { runLookup } from "./commands/lookup.ts";
 import { runQuery } from "./commands/query.ts";
+import { runReport } from "./commands/report.ts";
 import { runShow } from "./commands/show.ts";
 import { runStatus } from "./commands/status.ts";
 import { runWatch } from "./commands/watch.ts";
@@ -41,6 +42,7 @@ Usage:
   symballist index [--root PATH] [--rebuild]
   symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
+  symballist report [--root PATH]
   symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]
   symballist graph <id> [--compact] [--root PATH]
   symballist graph --name <symbol> [--compact] [--root PATH]
@@ -53,6 +55,7 @@ Command intent:
   lookup  best-match-plus-context in one response, with alternatives included
   graph   direct traversal of indexed imports, uses, inbound neighbors, and containers
   show    direct inspection of a known id or symbol name; large bodies summarize unless --full
+  report  opt-in local usage and impact summary for Symballist command flows
 
 Runtime contract:
   repo-local tool-definition JSON on disk does not make symballist_* callable by itself
@@ -74,6 +77,9 @@ function commandUsage(command: string): void {
       return;
     case "status":
       console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, index compatibility, embeddings, graph awareness, and shell guidance for the current repo. This is the mandatory first step before trusting older retrieval output.");
+      return;
+    case "report":
+      console.log("Usage:\n  symballist report [--root PATH]\n\nImpact flow: read the opt-in repo-local Symballist usage and workflow-impact summary. The first slice stores aggregate command outcomes only and does not store raw query text.");
       return;
     case "lookup":
       console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives. Use this for exact symbols, config paths, CSS selectors from real .css files, and other one-shot lookups.");
@@ -349,6 +355,9 @@ export async function runCli(argv: string[]): Promise<void> {
       return;
     case "status":
       await runStatus(parsed.root);
+      return;
+    case "report":
+      await runReport(parsed.root);
       return;
     case "lookup": {
       const query = parsed.positionals.join(" ");

@@ -1,9 +1,10 @@
 ---
-id: DRAFT-009
+id: TASK-064
 title: Explore repo-local usage and impact tracking for Symballist adoption
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-03-29 07:00'
+updated_date: '2026-03-31 15:07'
 labels:
   - idea
   - decision
@@ -17,8 +18,16 @@ dependencies: []
 Explore a local-first way to measure whether Symballist materially improves agent workflow quality and cost in adopted repos. The scope should go beyond raw command telemetry to include workflow patterns, retrieval quality outcomes, fallback behavior, and conservative estimated savings, while staying opt-in, inspectable, and repo-local by default.
 <!-- SECTION:DESCRIPTION:END -->
 
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [x] #1 The draft identifies a smallest credible opt-in measurement slice for Symballist impact, not just generic telemetry.
+- [x] #2 The draft defines which local signals are product-relevant enough to measure workflow quality, trust, and conservative savings.
+- [x] #3 The draft explicitly records privacy boundaries and avoids assuming raw query text collection by default.
+<!-- AC:END -->
+
 ## Implementation Notes
 
+<!-- SECTION:NOTES:BEGIN -->
 Intake summary
 - Expand the original tool-usage idea into a broader impact-measurement draft: not just which Symballist commands ran, but whether Symballist actually changed agent behavior, reduced navigation churn, improved one-shot resolution, and strengthened the product story in real repos.
 - The draft should help answer two linked questions: what narrow local signals are worth collecting, and what honest impact outputs can Symballist show without pretending to measure more than it really knows.
@@ -64,9 +73,12 @@ Open questions
 
 Recommended next action
 - Keep this as a draft, but shift its purpose from narrow usage telemetry to a small, opt-in Symballist impact-evaluation slice. Bias toward a first phase that measures workflow outcomes and retrieval quality with conservative local estimates, then decide later whether deeper event logging is actually necessary.
+<!-- SECTION:NOTES:END -->
 
-## Acceptance Criteria
+## Final Summary
 
-- [ ] The draft identifies a smallest credible opt-in measurement slice for Symballist impact, not just generic telemetry.
-- [ ] The draft defines which local signals are product-relevant enough to measure workflow quality, trust, and conservative savings.
-- [ ] The draft explicitly records privacy boundaries and avoids assuming raw query text collection by default.
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented the first opt-in Symballist impact-tracking slice. Added `impactTracking.enabled` in `.symballist/config.json`, repo-local aggregate summary storage in metadata, command recording across status/index/watch/query/lookup/show/graph, a new `symballist report` command, and status/report surfaces that explicitly avoid raw query text collection.
+
+The shipped summary tracks command families, retrieval modes, resultQuality counts, body summary/full usage, short-window workflow transitions, and conservative avoided-search/avoided-file-read estimates. Docs, generated snippets/tool manifests, and integration coverage were updated to reflect the new local impact-evaluation flow.
+<!-- SECTION:FINAL_SUMMARY:END -->

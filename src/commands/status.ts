@@ -1,5 +1,5 @@
 import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "../config.ts";
-import { CURRENT_INDEX_FORMAT_VERSION, CURRENT_SCHEMA_VERSION, getIndexCompatibility, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, openDatabase } from "../db.ts";
+import { CURRENT_INDEX_FORMAT_VERSION, CURRENT_SCHEMA_VERSION, getImpactTrackingSummary, getIndexCompatibility, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, openDatabase, recordImpactTrackingEvent } from "../db.ts";
 import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig } from "../fs.ts";
@@ -89,6 +89,12 @@ export async function runStatus(root: string): Promise<void> {
     indexedIndexFormatVersion: null as number | null,
     requiresRebuild: false
   };
+  let impactTracking = {
+    enabled: Boolean(config?.impactTracking?.enabled),
+    storesRawQueryText: false,
+    storage: "repo_local_metadata",
+    summary: null as ReturnType<typeof getImpactTrackingSummary> | null
+  };
 
   if (dbExists) {
     const db = await openDatabase(root);
@@ -101,7 +107,6 @@ export async function runStatus(root: string): Promise<void> {
       possibleOrphans: getPossibleOrphanCandidates(db)
     };
     embeddings = summarizeEmbeddingSupport(db, config);
-    db.close();
     indexedFileCount = summary.indexedFiles;
     indexedSymbols = summary.indexedSymbols;
     fallbackSymbols = summary.fallbackSymbols;
@@ -122,6 +127,43 @@ export async function runStatus(root: string): Promise<void> {
         ...indexChanges.deletedPaths
       ]))
     };
+    if (config?.impactTracking?.enabled) {
+      const partialPayload = {
+        root,
+        appDir: appPath(root),
+        configPath,
+        dbPath,
+        initialized: config !== null,
+        appDirExists: await exists(appPath(root)),
+        configExists: config !== null,
+        dbExists,
+        supportedLanguages: languages,
+        currentSchemaVersion: CURRENT_SCHEMA_VERSION,
+        indexedSchemaVersion,
+        currentIndexFormatVersion: CURRENT_INDEX_FORMAT_VERSION,
+        indexedIndexFormatVersion,
+        indexCompatibility,
+        indexedFiles: indexedFileCount,
+        indexedSymbols,
+        fallbackSymbols,
+        setupType: config?.setupType ?? null,
+        shellGuidance,
+        embeddings,
+        indexFreshness: freshness,
+        changeAwareness,
+        graphAwareness
+      };
+      impactTracking.summary = recordImpactTrackingEvent(db, {
+        command: "status",
+        timestamp: new Date().toISOString(),
+        payloadChars: JSON.stringify(partialPayload).length,
+        compact: false,
+        staleIndex: freshness.stale
+      });
+    } else {
+      impactTracking.summary = getImpactTrackingSummary(db);
+    }
+    db.close();
   }
 
   console.log(JSON.stringify({
@@ -147,6 +189,7 @@ export async function runStatus(root: string): Promise<void> {
     embeddings,
     indexFreshness: freshness,
     changeAwareness,
-    graphAwareness
+    graphAwareness,
+    impactTracking
   }, null, 2));
 }

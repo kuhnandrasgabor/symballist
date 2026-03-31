@@ -15,6 +15,7 @@ Current language coverage:
   - `symballist_lookup`
   - `symballist_query`
   - `symballist_show`
+- Use the CLI fallback `symballist report` only when `impactTracking.enabled` is true in `.symballist/config.json` and you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
 - The JSON manifest existing on disk does not make `symballist_*` callable by itself.
 - CLI fallback entrypoints:
   - PowerShell / cmd.exe: `.\.symballist\bin\symballist.cmd`
@@ -26,6 +27,7 @@ Current language coverage:
 - If runtime tool loading is unavailable, use the CLI wrapper immediately instead of probing further.
 - Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.
 - Use `symballist_query` / `symballist_show` when you want more manual ranked exploration or direct symbol inspection, or use the equivalent CLI commands if tool loading is unavailable.
+- Use the CLI fallback `symballist report` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Query styles by goal:
   - exact symbol: `symballist_lookup`
   - fuzzy implementation concept: `symballist_query` with `--code-only --exclude-tests --prefer-implementation`

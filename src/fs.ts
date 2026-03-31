@@ -338,6 +338,10 @@ function mergeConfig(root: string, config: Partial<SymballistConfig> | null | un
     embeddings: {
       ...base.embeddings,
       ...(config?.embeddings ?? {})
+    },
+    impactTracking: {
+      ...base.impactTracking,
+      ...(config?.impactTracking ?? {})
     }
   };
 }
@@ -401,6 +405,7 @@ Current language coverage:
 - Use the \`indexCompatibility\` block from \`status\` to see whether extractor/storage behavior changed and a full rebuild is required.
 - Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
 - Use the \`embeddings\` block from \`status\` when you want to know whether hybrid retrieval is configured and available for the active model.
+- If \`impactTracking.enabled\` is true in \`.symballist/config.json\`, use \`symballist report\` when you want the local aggregate usage and impact summary; it does not store raw query text.
 - If the index is stale, refresh it before relying on results:
   - \`symballist watch --once\`
   - or \`symballist index\`
@@ -426,6 +431,7 @@ Current language coverage:
 - Use graph when you want direct traversal of a known symbol's indexed neighbors:
   - \`symballist graph --name <symbol>\`
   - check grouped \`imports\`, \`uses\`, \`importedBy\`, \`usedBy\`, and \`containedIn\`
+- Use \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Large bodies summarize by default in \`lookup\` and \`show\`; check \`bodyPresentation.fullerBodyAvailable\` and \`bodyPresentation.expansionHint\` to decide whether \`--full\` is worth the extra payload.
 - Consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in both compact and non-compact flows.
 - If a weak query reports \`resultQuality.noStrongMatch: true\`, treat that as an explicit weak-result outcome rather than a tool failure.
@@ -454,6 +460,7 @@ Current language coverage:
 - If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\` before relying on unchanged indexed files.
 - If \`indexFreshness.stale\` is true, run \`symballist index\`.
 - Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
+- If \`impactTracking.enabled\` is true in \`.symballist/config.json\`, use \`symballist report\` when you want the local aggregate usage and impact summary; it does not store raw query text.
 - If you want a one-shot freshness sweep that automatically reuses incremental indexing, run \`symballist watch --once\`.
 - Use \`symballist lookup "<text>"\` when you want one selected best hit with context and alternatives.
 - Use \`query\` when you want ranked candidate exploration across code or docs.
@@ -462,6 +469,7 @@ Current language coverage:
 - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
 - Use \`show\` to inspect a known result id or exact symbol name with spans, relations, and related symbols.
 - Use \`graph\` when you want direct navigation across indexed imports, uses, callers, or containers from a known symbol.
+- Use \`report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - If you already know the symbol, use \`symballist show --name <symbol>\`.
 - If \`bodyPresentation.fullerBodyAvailable\` is true, rerun \`lookup\` or \`show\` with \`--full\` to expand the complete stored body.
 - Use \`graphDiagnostics\` on returned results or symbols when you want a bounded structural read on isolation, inbound references, root-like status, or possible-orphan candidacy without overclaiming dead code.
@@ -491,6 +499,7 @@ Current language coverage:
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
+- Use the CLI fallback \`symballist report\` only when \`impactTracking.enabled\` is true in \`.symballist/config.json\` and you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
 - The manifest file existing on disk does not make \`symballist_*\` directly callable by itself.
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - Shell-specific CLI fallbacks:
@@ -504,6 +513,7 @@ Current language coverage:
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
+- Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
   - fuzzy implementation concept: \`symballist_query\` with \`codeOnly: true\`, \`excludeTests: true\`, and usually \`preferImplementation: true\`
@@ -536,11 +546,13 @@ Current language coverage:
 - Mandatory first step: start with \`symballist_status\` to check freshness, index compatibility, graph awareness, and embeddings state.
 - Use \`symballist_refresh\` when the repo is stale.
 - If \`indexCompatibility.requiresRebuild\` is true, run the CLI fallback \`symballist index --rebuild\`.
+- If \`impactTracking.enabled\` is true in \`.symballist/config.json\`, use the CLI fallback \`symballist report\` when you want the local aggregate usage and impact summary; it does not store raw query text.
 - If runtime tool loading is unavailable, use the repo-local CLI wrapper immediately instead of probing further.
 - Use \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
+- Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
 - Verify important conclusions in the source files before making changes.
 - If \`symballist\` misses, use normal file search and direct reads.
@@ -567,6 +579,7 @@ Current language coverage:
   - \`symballist_lookup\`
   - \`symballist_query\`
   - \`symballist_show\`
+- Use the CLI fallback \`symballist report\` only when \`impactTracking.enabled\` is true in \`.symballist/config.json\` and you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
 - The JSON manifest existing on disk does not make \`symballist_*\` callable by itself.
 - If \`symballist\` is installed globally or linked, the plain CLI command is the simplest manual fallback when working from this repo root.
 - CLI fallback entrypoints:
@@ -580,6 +593,7 @@ Current language coverage:
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` / \`symballist_show\` when you want more manual ranked exploration or direct symbol inspection with graph diagnostics, or use the equivalent CLI commands if tool loading is unavailable.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
+- Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
   - fuzzy implementation concept: \`symballist_query\` with \`--code-only --exclude-tests --prefer-implementation\`
@@ -614,11 +628,13 @@ Current language coverage:
 - Mandatory first step: start with \`symballist_status\` or \`symballist status\` to inspect freshness, index compatibility, graph awareness, and embeddings state.
 - Refresh stale indexes with \`symballist_refresh\` or \`symballist watch --once\`.
 - If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\`.
+- If \`impactTracking.enabled\` is true in \`.symballist/config.json\`, use the CLI fallback \`symballist report\` when you want the local aggregate usage and impact summary; it does not store raw query text.
 - If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.
 - If the tools are not actually available in the runtime, use the repo-local CLI wrapper immediately instead of probing further.
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
+- Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
 - If you are calling symballist from outside this repo root or cannot rely on a linked install, fall back to the repo-local wrappers or pass \`--root <PROJECT_ROOT>\` explicitly.
 - Verify important conclusions in the source files before making changes.
@@ -718,6 +734,16 @@ function renderToolManifest(root: string, setupType: SetupType): string {
           additionalProperties: false
         },
         commandTemplate: [".symballist\\bin\\symballist.cmd", "show", "<id-or-name>"]
+      },
+      {
+        name: "symballist_report",
+        description: "Read the opt-in repo-local Symballist usage and impact summary. This slice stores aggregate command outcomes only and does not store raw query text.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false
+        },
+        commandTemplate: [".symballist\\bin\\symballist.cmd", "report"]
       }
     ]
   }, null, 2);
@@ -740,6 +766,7 @@ Recommended use:
 
 - load the generated tool definitions into your agent runtime if it supports repo-local tools
 - prefer \`symballist_status\`, \`symballist_refresh\`, \`symballist_lookup\`, \`symballist_query\`, and \`symballist_show\`
+- use \`symballist_report\` only when \`impactTracking.enabled\` is true in \`.symballist/config.json\` and you want the local aggregate usage and impact summary
 - start with \`symballist_status\` to inspect freshness, index compatibility, graph awareness, and embeddings state
 - if the repo is stale, use \`symballist_refresh\` or the equivalent \`watch --once\` CLI path before retrieval
 - if \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\` so unchanged files are fully reindexed under the current extractor/storage format
@@ -747,6 +774,7 @@ Recommended use:
 - expect \`symballist_query\`, \`symballist_lookup\`, and \`symballist_show\` to expose graph diagnostics in addition to retrieval output
 - consumers may rely on \`path\`, \`file.path\`, and \`location.path\` being present and equivalent in compact and non-compact flows
 - treat \`resultQuality.noStrongMatch: true\` as a valid weak-result signal rather than a tool failure
+- the impact-tracking slice stores aggregate command outcomes only and does not store raw query text
 - if this checkout was linked with \`bun link\`, the plain \`symballist\` command is the simplest manual fallback from the target repo root
 - keep shell-appropriate CLI wrappers as the execution backend and universal fallback
   - bash / zsh / sh: \`./.symballist/bin/symballist\`

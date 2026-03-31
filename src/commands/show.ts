@@ -1,5 +1,6 @@
-import { getBestSymbolByName, getIndexedFiles, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase } from "../db.ts";
+import { getBestSymbolByName, getIndexedFiles, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, recordImpactTrackingEvent } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
+import { readConfig } from "../fs.ts";
 
 const DEFAULT_SHOW_MAX_LINES = 40;
 const DEFAULT_SHOW_MAX_CHARS = 4000;
@@ -64,6 +65,7 @@ export async function runShow(
   rawName?: string,
   options: { full?: boolean; compact?: boolean } = {}
 ): Promise<void> {
+  const config = await readConfig(root);
   const db = await openDatabase(root);
   let symbol = null;
   if (rawName?.trim()) {
@@ -79,9 +81,9 @@ export async function runShow(
   const relations = symbol ? getRelationsForSymbol(db, symbol) : [];
   const related = symbol ? getRelatedSymbolsForSymbol(db, symbol) : [];
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
-  db.close();
 
   if (!symbol) {
+    db.close();
     if (rawName?.trim()) {
       throw new Error(`No indexed symbol found for name ${rawName}.`);
     }
@@ -107,5 +109,19 @@ export async function runShow(
     related
   };
 
+  if (config?.impactTracking?.enabled) {
+    recordImpactTrackingEvent(db, {
+      command: "show",
+      timestamp: new Date().toISOString(),
+      payloadChars: JSON.stringify(payload).length,
+      compact: options.compact === true,
+      bodyMode: body.presentation.mode,
+      fullRequested: options.full === true,
+      selectedResult: true,
+      staleIndex: indexFreshness.stale
+    });
+  }
+
+  db.close();
   console.log(JSON.stringify(payload, null, 2));
 }

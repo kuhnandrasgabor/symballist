@@ -25,6 +25,15 @@ export type RetrievalQualityReason =
   | "related_but_actionable"
   | "only_weak_matches"
   | "no_results";
+export type ImpactCommandName = "status" | "index" | "watch" | "lookup" | "query" | "show" | "graph" | "report";
+export type ImpactTransitionName =
+  | "lookup_to_show"
+  | "query_to_show"
+  | "lookup_to_graph"
+  | "query_to_graph"
+  | "weak_result_retry"
+  | "lookup_to_full_show"
+  | "lookup_to_full_graph";
 
 export type FileReference = {
   path: string;
@@ -180,4 +189,34 @@ export type QueryIntentOptions = {
 export type RelatedSymbol = {
   relation: RelationDetails;
   symbol: SymbolDetails;
+};
+
+export type ImpactTrackingSummary = {
+  recordedCommands: number;
+  commandCounts: Record<ImpactCommandName, number>;
+  retrievalModeCounts: {
+    lexical: number;
+    hybrid: number;
+  };
+  resultQualityCounts: Record<RetrievalQualityLevel, number>;
+  bodyModeCounts: {
+    summary: number;
+    full: number;
+  };
+  transitionCounts: Record<ImpactTransitionName, number>;
+  workflowSignals: {
+    oneShotStrongLookups: number;
+    noStrongMatchCount: number;
+    fullBodyExpansions: number;
+    graphFollowUpsAfterRetrieval: number;
+  };
+  payloadCharsReturned: number;
+  estimatedImpact: {
+    avoidedSearchLoops: number;
+    avoidedDirectFileReads: number;
+  };
+  lastCommand: {
+    command: ImpactCommandName;
+    timestamp: string;
+  } | null;
 };

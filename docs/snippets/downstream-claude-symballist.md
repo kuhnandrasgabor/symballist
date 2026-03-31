@@ -14,10 +14,12 @@ Current language coverage:
 - Mandatory first step: start with `symballist_status` or `.symballist\bin\symballist.cmd status --root <PROJECT_ROOT>`.
 - Refresh stale indexes with `symballist_refresh` or `.symballist\bin\symballist.cmd watch --once --root <PROJECT_ROOT>`.
 - If `indexCompatibility.requiresRebuild` is true, run `.symballist\bin\symballist.cmd index --rebuild --root <PROJECT_ROOT>`.
+- If `impactTracking.enabled` is true in `.symballist/config.json`, use the CLI fallback `.symballist\bin\symballist.cmd report --root <PROJECT_ROOT>` when you want the local aggregate usage and impact summary; it does not store raw query text.
 - If auto-watch is already active, `watch --once` may return an already-fresh no-op. That is expected.
 - If runtime tool loading is unavailable, use the CLI wrapper immediately instead of probing further.
 - Prefer `symballist_lookup` when you want one selected best hit with context and alternatives.
 - Use `symballist_query` and `symballist_show` when you need ranked exploration or direct symbol inspection.
+- Use the CLI fallback `symballist report` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Treat `resultQuality.noStrongMatch: true` as a valid weak-result signal rather than a tool failure.
 - Verify important conclusions in the source files before making changes.
 - If `symballist` misses, use normal file search and direct reads.

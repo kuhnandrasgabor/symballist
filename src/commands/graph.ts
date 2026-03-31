@@ -4,9 +4,11 @@ import {
   getIndexedFiles,
   getRelationsForSymbol,
   getSymbolById,
-  openDatabase
+  openDatabase,
+  recordImpactTrackingEvent
 } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
+import { readConfig } from "../fs.ts";
 
 export async function runGraph(
   root: string,
@@ -14,6 +16,7 @@ export async function runGraph(
   rawName?: string,
   options: { compact?: boolean } = {}
 ): Promise<void> {
+  const config = await readConfig(root);
   const db = await openDatabase(root);
   let symbol = null;
   if (rawName?.trim()) {
@@ -29,9 +32,9 @@ export async function runGraph(
   const traversals = symbol ? getGraphTraversalForSymbol(db, symbol, 20) : [];
   const relations = symbol ? getRelationsForSymbol(db, symbol) : [];
   const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
-  db.close();
 
   if (!symbol) {
+    db.close();
     if (rawName?.trim()) {
       throw new Error(`No indexed symbol found for name ${rawName}.`);
     }
@@ -58,5 +61,18 @@ export async function runGraph(
     }
   };
 
+  if (config?.impactTracking?.enabled) {
+    recordImpactTrackingEvent(db, {
+      command: "graph",
+      timestamp: new Date().toISOString(),
+      payloadChars: JSON.stringify(payload).length,
+      compact: options.compact === true,
+      selectedResult: true,
+      graphEdgesViewed: traversals.length,
+      staleIndex: indexFreshness.stale
+    });
+  }
+
+  db.close();
   console.log(JSON.stringify(payload, null, 2));
 }
