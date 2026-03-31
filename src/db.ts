@@ -479,6 +479,7 @@ function writeStoredSymbolChangeSummary(db: Database, summary: StoredSymbolChang
 function defaultImpactTrackingSummary(): StoredImpactSummary {
   return {
     recordedCommands: 0,
+    recordedInfrastructureCommands: 0,
     commandCounts: {
       status: 0,
       index: 0,
@@ -488,6 +489,9 @@ function defaultImpactTrackingSummary(): StoredImpactSummary {
       show: 0,
       graph: 0,
       report: 0
+    },
+    infrastructureCommandCounts: {
+      watch: 0
     },
     retrievalModeCounts: {
       lexical: 0,
@@ -523,7 +527,8 @@ function defaultImpactTrackingSummary(): StoredImpactSummary {
       avoidedSearchLoops: 0,
       avoidedDirectFileReads: 0
     },
-    lastCommand: null
+    lastCommand: null,
+    lastInfrastructureCommand: null
   };
 }
 
@@ -542,6 +547,10 @@ function readStoredImpactSummary(db: Database): StoredImpactSummary {
       commandCounts: {
         ...base.commandCounts,
         ...(parsed.commandCounts ?? {})
+      },
+      infrastructureCommandCounts: {
+        ...base.infrastructureCommandCounts,
+        ...(parsed.infrastructureCommandCounts ?? {})
       },
       retrievalModeCounts: {
         ...base.retrievalModeCounts,
@@ -571,6 +580,12 @@ function readStoredImpactSummary(db: Database): StoredImpactSummary {
         ? {
             command: parsed.lastCommand.command,
             timestamp: parsed.lastCommand.timestamp
+          }
+        : null,
+      lastInfrastructureCommand: parsed.lastInfrastructureCommand?.command === "watch" && parsed.lastInfrastructureCommand?.timestamp
+        ? {
+            command: "watch",
+            timestamp: parsed.lastInfrastructureCommand.timestamp
           }
         : null
     };
@@ -697,6 +712,18 @@ export function recordImpactTrackingEvent(db: Database, event: ImpactTrackingEve
   const previous = isFlowTrackingCommand(event.command)
     ? readLastImpactFlowEvent(db)
     : readLastImpactEvent(db);
+
+  if (event.command === "watch") {
+    summary.recordedInfrastructureCommands += 1;
+    summary.infrastructureCommandCounts.watch += 1;
+    summary.lastInfrastructureCommand = {
+      command: "watch",
+      timestamp: event.timestamp
+    };
+    writeStoredImpactSummary(db, summary);
+    writeLastImpactEvent(db, event);
+    return summary;
+  }
 
   summary.recordedCommands += 1;
   summary.commandCounts[event.command] += 1;
@@ -2911,11 +2938,11 @@ export function searchSymbolsWithDiagnostics(
   const rankedResults = applyGraphAwareReranking(db, rankedPool, limit, rawQuery, options);
 
   return {
-    results: rankedResults.map(({ adjustedScore, rawScore: _rawScore, ...result }) => ({
+    results: attachRelativeScores(rankedResults.map(({ adjustedScore, rawScore: _rawScore, ...result }) => ({
       ...result,
       distance: adjustedScore,
       graphDiagnostics: buildGraphDiagnostics(db, result)
-    })),
+    }))),
     diagnostics: buildSearchDiagnostics(mergeSearchRows(rows, exactLookupRows), supplementalRows, semanticRows, rankedResults)
   };
 }
@@ -2956,6 +2983,32 @@ function mergeSearchRows(...rowSets: SearchRow[][]): SearchRow[] {
     ...row,
     semanticSimilarity: row.semanticSimilarity === Number.NEGATIVE_INFINITY ? null : row.semanticSimilarity
   }));
+}
+
+function roundRelativeSignal(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function attachRelativeScores(results: Array<Omit<QueryResult, "score" | "scoreMarginFromTop"> & { distance: number }>): QueryResult[] {
+  if (results.length === 0) {
+    return [];
+  }
+
+  const topDistance = results[0]?.distance ?? 0;
+  const worstDistance = results.reduce((max, result) => Math.max(max, result.distance), topDistance);
+  const spread = worstDistance - topDistance;
+
+  return results.map((result) => {
+    const deltaFromTop = Math.max(0, result.distance - topDistance);
+    const normalizedMargin = spread > 0 ? deltaFromTop / spread : 0;
+    const relativeScore = spread > 0 ? 1 - normalizedMargin : 1;
+
+    return {
+      ...result,
+      score: roundRelativeSignal(Math.min(1, Math.max(0, relativeScore))),
+      scoreMarginFromTop: roundRelativeSignal(Math.min(1, Math.max(0, normalizedMargin)))
+    };
+  });
 }
 
 function getConceptPathCandidates(

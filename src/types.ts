@@ -95,6 +95,8 @@ export type QueryResult = {
   signature: string | null;
   doc: string | null;
   distance: number;
+  score: number | null;
+  scoreMarginFromTop: number | null;
   confidence: ResultConfidence;
   matchReason: MatchReason;
   extraction: ExtractionKind;
@@ -194,7 +196,11 @@ export type RelatedSymbol = {
 
 export type ImpactTrackingSummary = {
   recordedCommands: number;
+  recordedInfrastructureCommands: number;
   commandCounts: Record<ImpactCommandName, number>;
+  infrastructureCommandCounts: {
+    watch: number;
+  };
   retrievalModeCounts: {
     lexical: number;
     hybrid: number;
@@ -218,6 +224,10 @@ export type ImpactTrackingSummary = {
   };
   lastCommand: {
     command: ImpactCommandName;
+    timestamp: string;
+  } | null;
+  lastInfrastructureCommand: {
+    command: "watch";
     timestamp: string;
   } | null;
 };

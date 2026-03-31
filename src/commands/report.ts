@@ -14,7 +14,7 @@ export async function runReport(root: string): Promise<void> {
       storage: "repo_local_metadata",
       summary,
       methodology: {
-        commandCounts: "aggregate counts of Symballist command families only",
+        commandCounts: "aggregate counts of intentional Symballist command families only; background watch refreshes are tracked separately as infrastructure traffic",
         transitions: "short-window follow-up chains such as lookup->show, query->graph, and weak-result retries",
         resultQuality: "derived from existing strong/moderate/weak/none retrieval outcomes rather than raw query capture",
         savings: "conservative estimates of avoided search loops and direct file reads based on successful retrieval and symbol inspection flows"

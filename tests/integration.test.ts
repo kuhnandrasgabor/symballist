@@ -1550,6 +1550,8 @@ describe("symballist vertical slice", () => {
       results: Array<{
         kind: string;
         distance: number;
+        score: number | null;
+        scoreMarginFromTop: number | null;
         confidence: string;
         matchReason: string;
         extraction: string;
@@ -1565,6 +1567,7 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.resultSemantics.confidenceOrder).toEqual(["exact", "strong", "related", "fallback"]);
     expect(queryPayload.resultSemantics.trustLevel).toContain("extraction trust");
     expect(queryPayload.resultSemantics.retrievalTrustLevel).toContain("retrieval trust");
+    expect(queryPayload.resultSemantics.score).toContain("relative 0-1 ranking signal");
     expect(queryPayload.resultQuality.level).toBe("strong");
     expect(queryPayload.resultQuality.reason).toBe("top_result_strong");
     expect(queryPayload.resultQuality.noStrongMatch).toBeFalse();
@@ -1573,6 +1576,10 @@ describe("symballist vertical slice", () => {
     expect(queryPayload.results.length).toBeGreaterThan(0);
     expect(queryPayload.results.every((result) => result.kind === "import")).toBeTrue();
     expect(queryPayload.results.every((result) => typeof result.distance === "number")).toBeTrue();
+    expect(queryPayload.results.every((result) => typeof result.score === "number")).toBeTrue();
+    expect(queryPayload.results.every((result) => typeof result.scoreMarginFromTop === "number")).toBeTrue();
+    expect(queryPayload.results[0]?.score).toBe(1);
+    expect(queryPayload.results[0]?.scoreMarginFromTop).toBe(0);
     expect(queryPayload.results.every((result) => typeof result.confidence === "string")).toBeTrue();
     expect(queryPayload.results.every((result) => typeof result.retrievalTrustLevel === "string")).toBeTrue();
     expect(queryPayload.results.every((result) => ["import_reference", "normalized_symbol_name"].includes(result.matchReason))).toBeTrue();
@@ -2813,7 +2820,10 @@ describe("symballist vertical slice", () => {
         enabled: boolean;
         storesRawQueryText: boolean;
         summary: {
+          recordedCommands: number;
+          recordedInfrastructureCommands: number;
           commandCounts: Record<string, number>;
+          infrastructureCommandCounts: Record<string, number>;
           resultQualityCounts: Record<string, number>;
           transitionCounts: Record<string, number>;
           workflowSignals: {
@@ -2834,7 +2844,11 @@ describe("symballist vertical slice", () => {
 
     expect(reportPayload.impactTracking.enabled).toBeTrue();
     expect(reportPayload.impactTracking.storesRawQueryText).toBeFalse();
+    expect(reportPayload.impactTracking.summary.recordedCommands).toBe(8);
+    expect(reportPayload.impactTracking.summary.recordedInfrastructureCommands).toBe(0);
+    expect(reportPayload.impactTracking.summary.commandCounts.index).toBe(1);
     expect(reportPayload.impactTracking.summary.commandCounts.lookup).toBe(2);
+    expect(reportPayload.impactTracking.summary.infrastructureCommandCounts.watch).toBe(0);
     expect(reportPayload.impactTracking.summary.commandCounts.show).toBe(1);
     expect(reportPayload.impactTracking.summary.commandCounts.graph).toBe(1);
     expect(reportPayload.impactTracking.summary.commandCounts.query).toBe(2);
@@ -2908,11 +2922,20 @@ describe("symballist vertical slice", () => {
     })) as {
       impactTracking: {
         summary: {
+          recordedCommands: number;
+          recordedInfrastructureCommands: number;
+          commandCounts: Record<string, number>;
+          infrastructureCommandCounts: Record<string, number>;
           transitionCounts: Record<string, number>;
         };
       };
     };
 
+    expect(reportPayload.impactTracking.summary.recordedInfrastructureCommands).toBe(1);
+    expect(reportPayload.impactTracking.summary.infrastructureCommandCounts.watch).toBe(1);
+    expect(reportPayload.impactTracking.summary.commandCounts.watch).toBe(0);
+    expect(reportPayload.impactTracking.summary.recordedCommands).toBe(8);
+    expect(reportPayload.impactTracking.summary.commandCounts.index).toBe(1);
     expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_show).toBe(1);
     expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_full_show).toBe(1);
     expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_graph).toBe(1);

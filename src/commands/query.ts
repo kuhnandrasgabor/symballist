@@ -147,6 +147,7 @@ export async function runQuery(
       trustLevels: ["high", "medium", "low"],
       trustLevel: "extraction trust; how confidently the symbol boundaries/body were extracted",
       retrievalTrustLevel: "retrieval trust; how confidently this query matched the result",
+      score: "score is a relative 0-1 ranking signal within the returned result set only; scoreMarginFromTop shows how far each result trails the top hit within that same set. Neither is an absolute probability.",
       locationFields: "path remains the canonical file path; file.path and location.path are duplicated for consumers that expect explicit file/location objects. Compact mode preserves these fields.",
       fileGroups: "fileGroups summarize how the returned symbol hits cluster by file so consumers can see repeated-file concentration without inferring it manually from results.",
       graphDiagnostics: "graphDiagnostics are index-bounded structural signals for each result, such as no known inbound references, test-only inbound references, same-file-only connectivity, disconnected-from-indexed-graph, root-like status, and possible-orphan candidacy. They are not dead-code claims.",
