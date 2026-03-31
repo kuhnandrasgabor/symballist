@@ -687,7 +687,7 @@ function updateTransitionCounts(
     summary.transitionCounts.lookup_to_graph += 1;
     summary.workflowSignals.graphFollowUpsAfterRetrieval += 1;
     summary.estimatedImpact.avoidedSearchLoops += 1;
-    if (current.graphEdgesViewed && current.graphEdgesViewed > 0) {
+    if (current.fullRequested === true) {
       summary.transitionCounts.lookup_to_full_graph += 1;
     }
   }
@@ -2552,6 +2552,15 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
     )
       AND target_path IS NOT NULL
   `).all(symbol.id, symbol.path) as Array<{ targetPath: string }>;
+  const outboundRelationRows = db.query(`
+    SELECT target_path AS targetPath
+    FROM relations
+    WHERE (
+      (source_symbol_id = ? AND relation_kind IN ('imports', 'uses'))
+      OR (source_path = ? AND relation_kind = 'imports')
+    )
+      AND target_path IS NOT NULL
+  `).all(symbol.id, symbol.path) as Array<{ targetPath: string }>;
 
   const knownInboundReferences = inboundRows.length;
   const knownOutboundReferences = outboundRows.length;
@@ -2568,20 +2577,18 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
   });
   const rootLike = rootReasons.length > 0;
   const disconnectedFromIndexedGraph = knownInboundReferences === 0 && knownOutboundReferences === 0 && !rootLike;
-  const possibleOrphanReasons: string[] = [];
-  if (knownInboundReferences === 0) {
-    possibleOrphanReasons.push("no known inbound references");
-  }
-  if (!rootLike) {
-    possibleOrphanReasons.push("not classified as a likely root");
-  }
-  if (sameFileConnectivityOnly) {
-    possibleOrphanReasons.push("connectivity stays within the same file");
-  }
-  if (disconnectedFromIndexedGraph) {
-    possibleOrphanReasons.push("disconnected from the indexed graph");
-  }
   const possibleOrphanCandidate = knownInboundReferences === 0 && !rootLike && !sameFileConnectivityOnly;
+  const possibleOrphanReasons: string[] = [];
+  if (possibleOrphanCandidate) {
+    possibleOrphanReasons.push("no known inbound references");
+    possibleOrphanReasons.push("not classified as a likely root");
+    if (sameFileConnectivityOnly) {
+      possibleOrphanReasons.push("connectivity stays within the same file");
+    }
+    if (disconnectedFromIndexedGraph) {
+      possibleOrphanReasons.push("disconnected from the indexed graph");
+    }
+  }
 
   const notes: string[] = [];
   if (knownInboundReferences === 0) {
@@ -2595,6 +2602,9 @@ function buildGraphDiagnostics(db: Database, symbol: GraphDiagnosticContext): Gr
   }
   if (disconnectedFromIndexedGraph) {
     notes.push("No known inbound or outbound references were found in the indexed graph.");
+  }
+  if (knownOutboundReferences > 0 && outboundRelationRows.length > knownOutboundReferences) {
+    notes.push("knownOutboundReferences counts unique connected target paths; graph traversal may show multiple relation entries to the same target.");
   }
   if (rootLike) {
     notes.push("This symbol or file looks like a startup or entrypoint root based on lightweight heuristics.");

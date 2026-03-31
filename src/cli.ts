@@ -45,8 +45,8 @@ Usage:
   symballist status [--root PATH]
   symballist report [--root PATH]
   symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--full] [--compact] [--root PATH]
-  symballist graph <id> [--compact] [--root PATH]
-  symballist graph --name <symbol> [--compact] [--root PATH]
+  symballist graph <id> [--full] [--compact] [--root PATH]
+  symballist graph --name <symbol> [--full] [--compact] [--root PATH]
   symballist show <id> [--full] [--compact] [--root PATH]
   symballist show --name <symbol> [--full] [--compact] [--root PATH]
   symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]
@@ -86,7 +86,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives. Use this for exact symbols, config paths, CSS selectors from real .css files, and other one-shot lookups.");
       return;
     case "graph":
-      console.log("Usage:\n  symballist graph <id> [--compact] [--root PATH]\n  symballist graph --name <symbol> [--compact] [--root PATH]\n\nTraversal flow: resolve a known symbol and return grouped graph neighbors such as imports, uses, importedBy, usedBy, and containedIn.");
+      console.log("Usage:\n  symballist graph <id> [--full] [--compact] [--root PATH]\n  symballist graph --name <symbol> [--full] [--compact] [--root PATH]\n\nTraversal flow: resolve a known symbol and return grouped graph neighbors such as imports, uses, importedBy, usedBy, and containedIn. Neighbor bodies summarize by default; use --full to expand neighbor bodies inline.");
       return;
     case "show":
       console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
@@ -287,7 +287,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       compactOutput = true;
       continue;
     }
-    if (command === "lookup" && value === "--full") {
+    if ((command === "lookup" || command === "graph") && value === "--full") {
       showFull = true;
       continue;
     }
@@ -399,7 +399,8 @@ export async function runCli(argv: string[]): Promise<void> {
     case "graph": {
       const id = parsed.positionals[0] ?? "";
       await runGraph(parsed.root, id, parsed.showName ?? undefined, {
-        compact: parsed.compactOutput
+        compact: parsed.compactOutput,
+        full: parsed.showFull
       });
       return;
     }

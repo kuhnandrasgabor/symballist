@@ -9,6 +9,7 @@ import {
 } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
+import { summarizeBody } from "./show.ts";
 import type { GraphTraversalEntry, SymbolDetails } from "../types.ts";
 
 function compactSymbol(symbol: SymbolDetails): Omit<SymbolDetails, "body" | "doc" | "graphDiagnostics"> {
@@ -41,11 +42,34 @@ function compactTraversalEntry(entry: GraphTraversalEntry): Omit<GraphTraversalE
   };
 }
 
+function presentTraversalEntry(
+  entry: GraphTraversalEntry,
+  options: { compact?: boolean; full?: boolean }
+): GraphTraversalEntry | (Omit<GraphTraversalEntry, "symbol"> & {
+  symbol: ReturnType<typeof compactSymbol>;
+}) | (GraphTraversalEntry & {
+  bodyPresentation: ReturnType<typeof summarizeBody>["presentation"];
+}) {
+  if (options.compact === true) {
+    return compactTraversalEntry(entry);
+  }
+
+  const body = summarizeBody(entry.symbol.body, options.full === true);
+  return {
+    ...entry,
+    symbol: {
+      ...entry.symbol,
+      body: body.body
+    },
+    bodyPresentation: body.presentation
+  };
+}
+
 export async function runGraph(
   root: string,
   rawId: string,
   rawName?: string,
-  options: { compact?: boolean } = {}
+  options: { compact?: boolean; full?: boolean } = {}
 ): Promise<void> {
   const config = await readConfig(root);
   const db = await openDatabase(root);
@@ -82,19 +106,27 @@ export async function runGraph(
   const presentedSymbol = options.compact === true ? compactSymbol(symbol) : symbol;
   const presentedGraph = options.compact === true
     ? {
-        imports: groupedGraph.imports.map(compactTraversalEntry),
-        uses: groupedGraph.uses.map(compactTraversalEntry),
-        importedBy: groupedGraph.importedBy.map(compactTraversalEntry),
-        usedBy: groupedGraph.usedBy.map(compactTraversalEntry),
-        containedIn: groupedGraph.containedIn.map(compactTraversalEntry)
+        imports: groupedGraph.imports.map((entry) => presentTraversalEntry(entry, options)),
+        uses: groupedGraph.uses.map((entry) => presentTraversalEntry(entry, options)),
+        importedBy: groupedGraph.importedBy.map((entry) => presentTraversalEntry(entry, options)),
+        usedBy: groupedGraph.usedBy.map((entry) => presentTraversalEntry(entry, options)),
+        containedIn: groupedGraph.containedIn.map((entry) => presentTraversalEntry(entry, options))
       }
-    : groupedGraph;
+    : {
+        imports: groupedGraph.imports.map((entry) => presentTraversalEntry(entry, options)),
+        uses: groupedGraph.uses.map((entry) => presentTraversalEntry(entry, options)),
+        importedBy: groupedGraph.importedBy.map((entry) => presentTraversalEntry(entry, options)),
+        usedBy: groupedGraph.usedBy.map((entry) => presentTraversalEntry(entry, options)),
+        containedIn: groupedGraph.containedIn.map((entry) => presentTraversalEntry(entry, options))
+      };
 
   const payload = {
     indexFreshness,
     ...(options.compact === true ? {} : {
       graphSemantics: {
         traversals: "imports and uses are outbound from the selected symbol; imported_by and used_by are inbound graph neighbors; contained_in resolves the nearest owning container when present.",
+        neighborBodies: "Neighbor bodies summarize by default in graph output; rerun the same graph command with --full to expand neighbor bodies inline.",
+        graphDiagnostics: "knownInboundReferences and knownOutboundReferences count unique connected paths in the indexed graph; the grouped traversal view may still show multiple relation entries that point at the same target.",
         caveat: "Traversal is bounded by the currently indexed lightweight graph and is intended for navigation, not exhaustiveness."
       }
     }),
@@ -102,7 +134,8 @@ export async function runGraph(
     relations,
     graph: presentedGraph,
     graphSummary: {
-      totalEdges: traversals.length
+      totalEdges: traversals.length,
+      neighborBodyMode: options.compact === true ? "compact" : options.full === true ? "full" : "summary"
     }
   };
 
@@ -112,6 +145,7 @@ export async function runGraph(
       timestamp: new Date().toISOString(),
       payloadChars: JSON.stringify(payload).length,
       compact: options.compact === true,
+      fullRequested: options.full === true,
       selectedResult: true,
       graphEdgesViewed: traversals.length,
       staleIndex: indexFreshness.stale

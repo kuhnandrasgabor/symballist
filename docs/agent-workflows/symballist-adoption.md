@@ -127,6 +127,8 @@ Useful query refinements:
   - `lookup ".loading-card"`
 - known id or exact symbol inspection:
   - `show --name WorkspaceManager`
+- deep graph traversal read:
+  - `graph --name "build_message" --full`
 - use `--code-only --exclude-tests` when you want implementation-heavy results
 - check `fileGroups` on query responses when several hits come from the same file and you want a cheap grouped view without giving up symbol-level results
 - add one or more `--exclude-path <fragment>` flags when legacy, deprecated, generated, or vendor directories are polluting the result set

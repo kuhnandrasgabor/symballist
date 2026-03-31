@@ -219,6 +219,7 @@ symballist watch --once
   - expands large bodies instead of returning the summarized default
 - `symballist graph --name <symbol>`
   - traversal flow: returns grouped graph neighbors such as `imports`, `uses`, `importedBy`, `usedBy`, and `containedIn`
+  - neighbor bodies summarize by default; add `--full` to expand neighbor bodies inline for deep traversal reads
 - `bodyPresentation`
   - `lookup` and `show` summarize oversized bodies by default; check `bodyPresentation.fullerBodyAvailable` and `bodyPresentation.expansionHint` to decide whether `--full` is worth the extra payload
 - `score` and `scoreMarginFromTop`

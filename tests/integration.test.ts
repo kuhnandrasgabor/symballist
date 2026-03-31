@@ -508,6 +508,8 @@ describe("symballist vertical slice", () => {
           knownOutboundReferences: number;
           disconnectedFromIndexedGraph: boolean;
           possibleOrphanCandidate: boolean;
+          possibleOrphanReasons: string[];
+          notes: string[];
         };
       };
     };
@@ -534,6 +536,7 @@ describe("symballist vertical slice", () => {
     expect(lookupPayload.symbol?.graphDiagnostics.knownOutboundReferences).toBeGreaterThan(0);
     expect(lookupPayload.symbol?.graphDiagnostics.disconnectedFromIndexedGraph).toBeFalse();
     expect(lookupPayload.symbol?.graphDiagnostics.possibleOrphanCandidate).toBeFalse();
+    expect(lookupPayload.symbol?.graphDiagnostics.possibleOrphanReasons).toHaveLength(0);
     expect(normalizeRepoPath(cssPayload.symbol?.path)).toBe("static/css/dashboard.css");
     expect(cssPayload.symbol?.graphDiagnostics.knownInboundReferences).toBeGreaterThan(0);
     expect(cssPayload.symbol?.graphDiagnostics.rootLike).toBeTrue();
@@ -1148,14 +1151,15 @@ describe("symballist vertical slice", () => {
         name: string;
       };
       graph: {
-        imports: Array<{ symbol: { name: string; path: string } }>;
-        uses: Array<{ symbol: { name: string; path: string } }>;
-        importedBy: Array<{ symbol: { name: string; path: string } }>;
-        usedBy: Array<{ symbol: { name: string; path: string } }>;
-        containedIn: Array<{ symbol: { name: string; path: string } }>;
+        imports: Array<{ symbol: { name: string; path: string; body: string }; bodyPresentation: { mode: string; fullerBodyAvailable: boolean } }>;
+        uses: Array<{ symbol: { name: string; path: string; body: string }; bodyPresentation: { mode: string; fullerBodyAvailable: boolean } }>;
+        importedBy: Array<{ symbol: { name: string; path: string; body: string }; bodyPresentation: { mode: string; fullerBodyAvailable: boolean } }>;
+        usedBy: Array<{ symbol: { name: string; path: string; body: string }; bodyPresentation: { mode: string; fullerBodyAvailable: boolean } }>;
+        containedIn: Array<{ symbol: { name: string; path: string; body: string }; bodyPresentation: { mode: string; fullerBodyAvailable: boolean } }>;
       };
       graphSummary: {
         totalEdges: number;
+        neighborBodyMode: string;
       };
     };
 
@@ -1167,7 +1171,59 @@ describe("symballist vertical slice", () => {
     expect(payload.graph.imports.length).toBe(0);
     expect(payload.graph.uses.length).toBe(0);
     expect(payload.graph.containedIn.length).toBe(0);
+    expect(payload.graph.importedBy.every((entry) => typeof entry.bodyPresentation.mode === "string")).toBeTrue();
+    expect(payload.graph.importedBy.every((entry) => typeof entry.symbol.body === "string")).toBeTrue();
+    expect(payload.graphSummary.neighborBodyMode).toBe("summary");
     expect(payload.graphSummary.totalEdges).toBeGreaterThanOrEqual(4);
+  });
+
+  test("graph --full expands neighbor bodies inline for deep traversal reads", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "consumer.py"),
+      [
+        "from helpers import slugify",
+        "",
+        "def render_slug(name: str) -> str:",
+        '    formatted = slugify(name)',
+        '    return f"slug:{formatted}"'
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const output = await captureConsoleLog(async () => {
+      await runGraph(root, "", "slugify", { full: true });
+    });
+    const payload = JSON.parse(output) as {
+      graph: {
+        importedBy: Array<{
+          symbol: {
+            name: string;
+            body: string;
+          };
+          bodyPresentation: {
+            mode: string;
+            truncated: boolean;
+            fullerBodyAvailable: boolean;
+          };
+        }>;
+      };
+      graphSummary: {
+        neighborBodyMode: string;
+      };
+    };
+
+    const renderSlug = payload.graph.importedBy.find((entry) => entry.symbol.name === "render_slug");
+    expect(renderSlug).toBeDefined();
+    expect(renderSlug?.bodyPresentation.mode).toBe("full");
+    expect(renderSlug?.bodyPresentation.truncated).toBeFalse();
+    expect(renderSlug?.bodyPresentation.fullerBodyAvailable).toBeFalse();
+    expect(renderSlug?.symbol.body).toContain('return f"slug:{formatted}"');
+    expect(payload.graphSummary.neighborBodyMode).toBe("full");
   });
 
   test("graph compact mode strips neighbor bodies and keeps grouped collections list-typed", async () => {
@@ -2965,7 +3021,7 @@ describe("symballist vertical slice", () => {
       await runStatus(root);
     });
     await captureConsoleLog(async () => {
-      await runGraph(root, "", "greet");
+      await runGraph(root, "", "greet", { full: true });
     });
 
     const reportPayload = JSON.parse(await captureConsoleLog(async () => {
@@ -2990,6 +3046,7 @@ describe("symballist vertical slice", () => {
     expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_show).toBe(1);
     expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_full_show).toBe(1);
     expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_graph).toBe(1);
+    expect(reportPayload.impactTracking.summary.transitionCounts.lookup_to_full_graph).toBe(1);
   });
 
   test("hybrid retrieval can supplement lexical search with optional Ollama embeddings", async () => {

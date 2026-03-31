@@ -430,6 +430,7 @@ Current language coverage:
   - \`symballist show --name <symbol> --full\`
 - Use graph when you want direct traversal of a known symbol's indexed neighbors:
   - \`symballist graph --name <symbol>\`
+  - add \`--full\` when you want neighbor implementations expanded inline instead of summarized traversal context
   - check grouped \`imports\`, \`uses\`, \`importedBy\`, \`usedBy\`, and \`containedIn\`
 - Use \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
@@ -471,6 +472,7 @@ Current language coverage:
 - Add \`--docs-only\` when you are explicitly looking for workflows, plans, or architecture notes.
 - Use \`show\` to inspect a known result id or exact symbol name with spans, relations, and related symbols.
 - Use \`graph\` when you want direct navigation across indexed imports, uses, callers, or containers from a known symbol.
+- Use \`graph --full\` when you explicitly want neighbor implementations expanded inline instead of summarized traversal context.
 - Use \`report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - If you already know the symbol, use \`symballist show --name <symbol>\`.
@@ -517,6 +519,7 @@ Current language coverage:
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
+- Add \`--full\` to that graph command when you explicitly want expanded neighbor bodies inline for deep traversal reads.
 - Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
@@ -560,6 +563,7 @@ Current language coverage:
 - Use \`symballist_query\` when you want ranked candidate exploration across multiple hits, including graph signals and graph diagnostics.
 - Use \`symballist_show\` when you already know the symbol id or exact name and want direct inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors rather than retrieval output.
+- Add \`--full\` to that graph command when you explicitly want expanded neighbor bodies inline for deep traversal reads.
 - Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
@@ -603,6 +607,7 @@ Current language coverage:
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` / \`symballist_show\` when you want more manual ranked exploration or direct symbol inspection with graph diagnostics, or use the equivalent CLI commands if tool loading is unavailable.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
+- Add \`--full\` to that graph command when you explicitly want expanded neighbor bodies inline for deep traversal reads.
 - Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - Query styles by goal:
   - exact symbol: \`symballist_lookup\`
@@ -646,6 +651,7 @@ Current language coverage:
 - Prefer \`symballist_lookup\` when you want one selected best hit with graph diagnostics, context, and alternatives.
 - Use \`symballist_query\` and \`symballist_show\` when you need ranked exploration or direct symbol inspection with graph diagnostics.
 - Use the CLI fallback \`symballist graph --name <symbol>\` when you want grouped graph traversal neighbors such as imports, usedBy, or importedBy.
+- Add \`--full\` to that graph command when you explicitly want expanded neighbor bodies inline for deep traversal reads.
 - Use the CLI fallback \`symballist report\` only when you explicitly want the opt-in local usage and impact summary for this repo.
 - In \`report\`, treat \`commandCounts\` as intentional usage and \`infrastructureCommandCounts.watch\` as background refresh traffic.
 - Weak results may still be valid outcomes; for example \`resultQuality.noStrongMatch: true\` is not itself a tool failure.
