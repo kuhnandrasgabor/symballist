@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-03-28 08:56'
-updated_date: '2026-03-30 07:43'
+updated_date: '2026-03-31 05:54'
 labels: []
 dependencies: []
 references:
@@ -219,4 +219,6 @@ External usage feedback from Claude Sonnet during downstream testing:
 - Hybrid mode produced a strong positive hit for a grade-normalization query (`parse_grade_string`) without the exact symbol name, which validates semantic retrieval value for concept queries.
 - Source-filtered querying also surfaced the expected function (`fetch_chunk_nodes`) for the tested concept.
 - The non-authoritative guidance is landing correctly: use symballist to narrow search, then read the actual file before changing code.
+
+Downstream evaluation on a government-education taxonomy project was positive on named JS lookups and YAML compose-key retrieval. JS methods like runPipeline and classes like PipelineCard resolved correctly, with --code-only helping reduce doc noise. YAML extraction surfaced dotted service keys such as services.dashboard and nested dockerfile/container_name paths cleanly, which is a strong validation of the config/ops rollout.
 <!-- SECTION:NOTES:END -->

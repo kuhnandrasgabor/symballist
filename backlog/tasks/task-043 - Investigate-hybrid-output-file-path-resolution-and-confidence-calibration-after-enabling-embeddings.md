@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-03-30 07:43'
+updated_date: '2026-03-31 05:53'
 labels:
   - bug
 dependencies: []
@@ -24,3 +25,9 @@ Downstream testing with Claude Sonnet after enabling Ollama embeddings found tha
 - [ ] #2 Docs or output semantics clarify whether stale indexes, compact mode, or client rendering can affect displayed path labels
 - [ ] #3 Confidence behavior in hybrid mode is calibrated or explained so strong semantic hits can be distinguished from middling matches
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Reproduced again from downstream agent feedback on 2026-03-31: compact/hybrid consumption still shows resolved symbols with null or missing file paths even when symbol resolution itself works. JS named lookups and YAML compose-key lookups succeeded, so the path-display issue appears orthogonal to indexing quality. Feedback also reinforces that confidence/path calibration in compact hybrid output remains the active downstream trust gap.
+<!-- SECTION:NOTES:END -->
