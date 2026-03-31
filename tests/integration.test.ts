@@ -402,6 +402,10 @@ describe("symballist vertical slice", () => {
         "  display: flex;",
         "}",
         "",
+        ".section-header {",
+        "  font-weight: 700;",
+        "}",
+        "",
         "#app-root,",
         ".layout-main {",
         "  color: red;",
@@ -422,8 +426,10 @@ describe("symballist vertical slice", () => {
     const db = await openDatabase(root);
     const yamlResults = searchSymbols(db, buildFtsQuery("services.api"), 5, { rawQuery: "services.api" });
     const shellResults = searchSymbols(db, buildFtsQuery("deploy_app"), 5, { rawQuery: "deploy_app" });
+    const dockerFileResults = searchSymbols(db, buildFtsQuery("Dockerfile"), 5, { rawQuery: "Dockerfile" });
     const dockerResults = searchSymbols(db, buildFtsQuery("builder"), 5, { rawQuery: "builder" });
     const cssResults = searchSymbols(db, buildFtsQuery("search-panel"), 5, { rawQuery: "search-panel" });
+    const cssSelectorResults = searchSymbols(db, buildFtsQuery(".section-header"), 5, { rawQuery: ".section-header" });
     db.close();
 
     expect(stats.discoveredFiles).toBe(11);
@@ -431,9 +437,15 @@ describe("symballist vertical slice", () => {
     expect(yamlResults[0]?.kind).toBe("key");
     expect(shellResults[0]?.language).toBe("shell");
     expect(shellResults[0]?.kind).toBe("function");
+    expect(dockerFileResults[0]?.language).toBe("dockerfile");
+    expect(dockerFileResults[0]?.kind).toBe("file");
+    expect(dockerFileResults[0]?.name).toBe("Dockerfile");
     expect(dockerResults[0]?.language).toBe("dockerfile");
     expect(dockerResults[0]?.kind).toBe("stage");
     expect(cssResults.some((result) => result.language === "css" && result.kind === "selector")).toBeTrue();
+    expect(cssSelectorResults[0]?.language).toBe("css");
+    expect(cssSelectorResults[0]?.kind).toBe("selector");
+    expect(cssSelectorResults[0]?.name).toBe(".section-header");
 
     const currentFiles = await listSourceFiles(root);
     expect(currentFiles.some((file) => normalizeRepoPath(file.relativePath) === "Dockerfile" && file.language === "dockerfile")).toBeTrue();

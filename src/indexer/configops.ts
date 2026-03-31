@@ -1,5 +1,10 @@
 import type { SymbolRecord } from "../types.ts";
 
+function baseName(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  return normalized.split("/").at(-1) ?? path;
+}
+
 function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
   const lines = source.split(/\r?\n/);
   const endLine = Math.max(lines.length, 1);
@@ -35,6 +40,41 @@ function fallbackRecord(path: string, language: "yaml" | "shell" | "dockerfile" 
       ...fullFileSpan(source)
     }
   ];
+}
+
+function standaloneFileRecord(
+  path: string,
+  language: "dockerfile" | "css",
+  source: string,
+  doc: string
+): SymbolRecord {
+  return {
+    path,
+    language,
+    kind: "file",
+    name: baseName(path),
+    signature: path,
+    body: source.slice(0, 500).trim(),
+    doc,
+    fallback: false,
+    ...fullFileSpan(source)
+  };
+}
+
+function selectorAliasDoc(selector: string): string {
+  const parts = selector.match(/[A-Za-z0-9_-]+/g) ?? [];
+  const aliases = new Set<string>();
+  for (const part of parts) {
+    aliases.add(part.toLowerCase());
+  }
+  if (parts.length > 1) {
+    aliases.add(parts.join(" ").toLowerCase());
+  }
+  const collapsed = parts.join("").toLowerCase();
+  if (collapsed) {
+    aliases.add(collapsed);
+  }
+  return [...aliases].join(" ");
 }
 
 export function extractYamlSymbols(path: string, source: string): SymbolRecord[] {
@@ -137,7 +177,9 @@ export function extractShellSymbols(path: string, source: string): SymbolRecord[
 
 export function extractDockerfileSymbols(path: string, source: string): SymbolRecord[] {
   const lines = source.split(/\r?\n/);
-  const symbols: SymbolRecord[] = [];
+  const symbols: SymbolRecord[] = [
+    standaloneFileRecord(path, "dockerfile", source, "Standalone Dockerfile record for file-level retrieval.")
+  ];
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
@@ -208,7 +250,7 @@ export function extractCssSymbols(path: string, source: string): SymbolRecord[] 
         name: selector,
         signature: selector,
         body: selector,
-        doc: null,
+        doc: selector.startsWith("@") ? null : selectorAliasDoc(selector),
         fallback: false,
         ...spanForLine(lines[lineNumber - 1] ?? selector, lineNumber)
       });
