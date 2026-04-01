@@ -1438,10 +1438,20 @@ function analyzeQualifiedSymbolMatch(row: SearchRow, rawQuery: string, definitio
   }
 
   const loweredQuery = rawQuery.toLowerCase();
+  const querySegments = rawQuery.split("::").map((segment) => segment.trim()).filter(Boolean);
   const signature = row.signature ?? "";
   const strippedSignature = stripTypePrefix(signature);
   const loweredSignature = signature.toLowerCase();
   const loweredStrippedSignature = strippedSignature.toLowerCase();
+  const loweredName = row.name.trim().toLowerCase();
+
+  if (querySegments.length >= 3 && row.kind !== "class" && row.kind !== "module" && loweredName === loweredQuery) {
+    return {
+      adjustment: 1.25,
+      reason: "normalized_symbol_name",
+      confidence: "related"
+    };
+  }
 
   if (loweredStrippedSignature === loweredQuery) {
     return {

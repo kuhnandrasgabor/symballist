@@ -822,6 +822,43 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/lib/sis/v2/services/writing/student.rb");
   });
 
+  test("deep namespace Ruby lookup does not drift to lowercase tail-segment methods", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "lib", "sis", "v2", "services", "writing"), { recursive: true });
+    await writeFile(
+      join(root, "app", "lib", "sis", "v2", "services", "writing", "student.rb"),
+      [
+        "module Sis",
+        "  module V2",
+        "    module Services",
+        "      module Writing",
+        "        class Student",
+        "          def student",
+        "            true",
+        "          end",
+        "        end",
+        "      end",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "Sis::V2::Services::Writing::Student", 5);
+    })) as {
+      selectedResult?: { name: string; path: string; kind: string };
+    };
+
+    expect(lookupPayload.selectedResult?.name).toBe("Student");
+    expect(lookupPayload.selectedResult?.kind).toBe("class");
+    expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/lib/sis/v2/services/writing/student.rb");
+  });
+
   test("ruby infers cross-file uses relations from Rails-style constant references", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "app", "models"), { recursive: true });
