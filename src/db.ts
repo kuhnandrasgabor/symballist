@@ -2876,7 +2876,7 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
   if (variants.length === 0) {
     return null;
   }
-  const normalizedName = variants[0]!;
+  const normalizedName = rawName.trim();
   const normalizedVariants = [...new Set(variants.map((variant) => normalizeLookupValue(variant)).filter(Boolean))];
 
   const kinds = [...new Set((options.kinds ?? []).map((kind) => kind.trim()).filter(Boolean))];
@@ -2884,12 +2884,15 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
     ? ` AND kind IN (${kinds.map(() => "?").join(", ")})`
     : "";
   const exactPlaceholders = variants.map(() => "?").join(", ");
+  const normalizedPlaceholders = normalizedVariants.map(() => "?").join(", ");
+  const exactNameClause = `lower(name) IN (${exactPlaceholders})`;
+  const exactSignatureClause = `lower(COALESCE(signature, '')) IN (${exactPlaceholders})`;
   const normalizedSignatureSuffixClause = normalizedVariants.length > 0
     ? ` OR ${normalizedLookupSql("COALESCE(signature, '')")} LIKE '%' || ?`
     : "";
   const normalizedClause = normalizedVariants.length > 0
-    ? ` OR ${normalizedLookupSql("name")} IN (${normalizedVariants.map(() => "?").join(", ")})
-        OR ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedVariants.map(() => "?").join(", ")})
+    ? ` OR ${normalizedLookupSql("name")} IN (${normalizedPlaceholders})
+        OR ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedPlaceholders})
         ${normalizedSignatureSuffixClause}`
     : "";
   const exactValues = variants.map((variant) => variant.toLowerCase());
@@ -2912,11 +2915,29 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
       0.0 AS rawScore
     FROM symbols
     WHERE (
-      lower(name) IN (${exactPlaceholders})
-      OR lower(COALESCE(signature, '')) IN (${exactPlaceholders})
+      ${exactNameClause}
+      OR ${exactSignatureClause}
       ${normalizedClause}
     )
     ${whereKindClause}
+    ORDER BY
+      CASE
+        WHEN ${exactNameClause} THEN 0
+        WHEN ${exactSignatureClause} THEN 1
+        ${normalizedVariants.length > 0 ? `WHEN ${normalizedLookupSql("name")} IN (${normalizedPlaceholders}) THEN 2
+        WHEN ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedPlaceholders}) THEN 3
+        WHEN ${normalizedLookupSql("COALESCE(signature, '')")} LIKE '%' || ? THEN 4` : ""}
+        ELSE 5
+      END,
+      CASE kind
+        WHEN 'class' THEN 0
+        WHEN 'module' THEN 1
+        WHEN 'method' THEN 2
+        WHEN 'function' THEN 3
+        ELSE 4
+      END,
+      start_line ASC,
+      id ASC
     LIMIT 50
   `).all(
     ...exactValues,
@@ -2925,6 +2946,12 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
     ...(normalizedVariants.length > 0 ? [normalizedVariants[0]!] : []),
     ...kinds
+    ,
+    ...exactValues,
+    ...exactValues,
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? [normalizedVariants[0]!] : [])
   ) as SearchRow[];
 
   const rankedRows = rows.map((row, index) => ({

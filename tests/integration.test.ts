@@ -522,6 +522,75 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(graphPayload.symbol?.path)).toBe("app/services/scoring/submit_parts.rb");
   });
 
+  test("lookup, show, and graph prefer deep fully-qualified Ruby names over duplicate short-name symbols", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "models"), { recursive: true });
+    await mkdir(join(root, "app", "services", "sis", "v2", "services", "writing"), { recursive: true });
+    await writeFile(
+      join(root, "app", "models", "student.rb"),
+      [
+        "class Student",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "services", "sis", "v2", "services", "writing", "student.rb"),
+      [
+        "module Sis",
+        "  module V2",
+        "    module Services",
+        "      module Writing",
+        "        class Student",
+        "        end",
+        "      end",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const qualifiedName = "Sis::V2::Services::Writing::Student";
+
+    const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, qualifiedName, 5);
+    })) as {
+      selectedResult?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    const showPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", qualifiedName);
+    })) as {
+      symbol?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    const graphPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runGraph(root, "", qualifiedName);
+    })) as {
+      symbol?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    expect(lookupPayload.selectedResult?.name).toBe("Student");
+    expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/services/sis/v2/services/writing/student.rb");
+    expect(showPayload.symbol?.name).toBe("Student");
+    expect(normalizeRepoPath(showPayload.symbol?.path)).toBe("app/services/sis/v2/services/writing/student.rb");
+    expect(graphPayload.symbol?.name).toBe("Student");
+    expect(normalizeRepoPath(graphPayload.symbol?.path)).toBe("app/services/sis/v2/services/writing/student.rb");
+  });
+
   test("ruby infers cross-file uses relations from Rails-style constant references", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "app", "models"), { recursive: true });
