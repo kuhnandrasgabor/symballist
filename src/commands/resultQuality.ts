@@ -5,6 +5,14 @@ function isStrongMatch(result: QueryResult): boolean {
     || (result.confidence === "strong" && result.retrievalTrustLevel !== "low");
 }
 
+function isSemanticallyConfirmedTopResult(result: QueryResult): boolean {
+  return result.confidence === "related"
+    && result.retrievalTrustLevel === "high"
+    && result.hybridContribution !== "lexical_only"
+    && (result.semanticSimilarity ?? 0) >= 0.7
+    && (result.scoreMarginFromTop ?? 0) >= 0.15;
+}
+
 export function summarizeRetrievalQuality(results: QueryResult[]): RetrievalQualitySummary {
   const top = results[0] ?? null;
   const strongMatchCount = results.filter(isStrongMatch).length;
@@ -25,6 +33,18 @@ export function summarizeRetrievalQuality(results: QueryResult[]): RetrievalQual
     return {
       level: "strong",
       reason: "top_result_strong",
+      noStrongMatch: false,
+      strongMatchCount,
+      resultCount: results.length,
+      topResultConfidence: top.confidence,
+      topResultRetrievalTrustLevel: top.retrievalTrustLevel
+    };
+  }
+
+  if (isSemanticallyConfirmedTopResult(top)) {
+    return {
+      level: "strong",
+      reason: "top_result_semantically_confirmed",
       noStrongMatch: false,
       strongMatchCount,
       resultCount: results.length,

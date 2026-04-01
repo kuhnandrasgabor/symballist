@@ -8,6 +8,7 @@ import { runInit } from "../src/commands/init.ts";
 import { runLookup } from "../src/commands/lookup.ts";
 import { runQuery } from "../src/commands/query.ts";
 import { runReport } from "../src/commands/report.ts";
+import { summarizeRetrievalQuality } from "../src/commands/resultQuality.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runWatch } from "../src/commands/watch.ts";
@@ -3439,6 +3440,109 @@ describe("symballist vertical slice", () => {
       expect(exactOutput.results[0]?.retrievalChannels).toContain("semantic");
       expect(exactOutput.results[0]?.hybridContribution).toBe("semantic_assisted");
     });
+  });
+
+  test("result quality upgrades semantically confirmed hybrid top hits without loosening weak results", () => {
+    const semanticallyConfirmed = summarizeRetrievalQuality([
+      {
+        id: 1,
+        path: "app/workers/resend_welcome_email_worker.rb",
+        file: { path: "app/workers/resend_welcome_email_worker.rb", language: "ruby" },
+        location: { path: "app/workers/resend_welcome_email_worker.rb", startLine: 1, startColumn: 1, endLine: 12, endColumn: 1 },
+        language: "ruby",
+        kind: "class",
+        name: "ResendWelcomeEmailWorker",
+        signature: "class ResendWelcomeEmailWorker",
+        doc: null,
+        distance: 0.2,
+        score: 1,
+        scoreMarginFromTop: 0.22,
+        confidence: "related",
+        matchReason: "semantic_similarity",
+        extraction: "parsed",
+        trustLevel: "high",
+        retrievalTrustLevel: "high",
+        semanticSimilarity: 0.725,
+        retrievalChannels: ["lexical", "semantic"],
+        hybridContribution: "semantic_assisted",
+        graphSignals: [],
+        fallback: false,
+        startLine: 1,
+        startColumn: 1,
+        endLine: 12,
+        endColumn: 1,
+        snippet: "class ResendWelcomeEmailWorker"
+      },
+      {
+        id: 2,
+        path: "docs/email.md",
+        file: { path: "docs/email.md", language: "markdown" },
+        location: { path: "docs/email.md", startLine: 1, startColumn: 1, endLine: 2, endColumn: 1 },
+        language: "markdown",
+        kind: "heading",
+        name: "Email notes",
+        signature: null,
+        doc: null,
+        distance: 0.45,
+        score: 0.78,
+        scoreMarginFromTop: 0,
+        confidence: "related",
+        matchReason: "token_overlap",
+        extraction: "parsed",
+        trustLevel: "high",
+        retrievalTrustLevel: "medium",
+        semanticSimilarity: 0.42,
+        retrievalChannels: ["lexical"],
+        hybridContribution: "lexical_only",
+        graphSignals: [],
+        fallback: false,
+        startLine: 1,
+        startColumn: 1,
+        endLine: 2,
+        endColumn: 1,
+        snippet: "Email notes"
+      }
+    ]);
+
+    expect(semanticallyConfirmed.level).toBe("strong");
+    expect(semanticallyConfirmed.reason).toBe("top_result_semantically_confirmed");
+    expect(semanticallyConfirmed.noStrongMatch).toBeFalse();
+
+    const stillWeak = summarizeRetrievalQuality([
+      {
+        id: 3,
+        path: "docs/random.md",
+        file: { path: "docs/random.md", language: "markdown" },
+        location: { path: "docs/random.md", startLine: 1, startColumn: 1, endLine: 2, endColumn: 1 },
+        language: "markdown",
+        kind: "heading",
+        name: "Random note",
+        signature: null,
+        doc: null,
+        distance: 0.8,
+        score: 1,
+        scoreMarginFromTop: 0.03,
+        confidence: "related",
+        matchReason: "token_overlap",
+        extraction: "parsed",
+        trustLevel: "high",
+        retrievalTrustLevel: "medium",
+        semanticSimilarity: null,
+        retrievalChannels: ["lexical"],
+        hybridContribution: "lexical_only",
+        graphSignals: [],
+        fallback: false,
+        startLine: 1,
+        startColumn: 1,
+        endLine: 2,
+        endColumn: 1,
+        snippet: "Random note"
+      }
+    ]);
+
+    expect(stillWeak.level).toBe("moderate");
+    expect(stillWeak.reason).toBe("related_but_actionable");
+    expect(stillWeak.noStrongMatch).toBeTrue();
   });
 
   test("hybrid fusion can promote semantic implementation hits over weak lexical doc noise", async () => {

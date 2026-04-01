@@ -21,6 +21,7 @@ export type GraphSignal = "same_file_cluster" | "imports_candidate" | "imported_
 export type RetrievalQualityLevel = "strong" | "moderate" | "weak" | "none";
 export type RetrievalQualityReason =
   | "top_result_strong"
+  | "top_result_semantically_confirmed"
   | "strong_match_present"
   | "related_but_actionable"
   | "only_weak_matches"
