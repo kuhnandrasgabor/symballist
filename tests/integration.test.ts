@@ -12,7 +12,7 @@ import { summarizeRetrievalQuality } from "../src/commands/resultQuality.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runWatch } from "../src/commands/watch.ts";
-import { CURRENT_INDEX_FORMAT_VERSION, buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, getWatchOwnershipStatus, openDatabase, searchSymbols, updateWatchOwnership } from "../src/db.ts";
+import { CURRENT_INDEX_FORMAT_VERSION, analyzeQualifiedSymbolMatch, buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, getWatchOwnershipStatus, openDatabase, searchSymbols, updateWatchOwnership } from "../src/db.ts";
 import { buildEmbeddingText } from "../src/embeddings.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { readConfig, writeConfig } from "../src/fs.ts";
@@ -857,6 +857,40 @@ describe("symballist vertical slice", () => {
     expect(lookupPayload.selectedResult?.name).toBe("Student");
     expect(lookupPayload.selectedResult?.kind).toBe("class");
     expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/lib/sis/v2/services/writing/student.rb");
+  });
+
+  test("deep namespace qualified matching demotes lowercase tail-segment non-definition symbols", () => {
+    const match = analyzeQualifiedSymbolMatch(
+      {
+        kind: "method",
+        name: "student",
+        signature: "Sis::V2::Services::Writing::Student#student"
+      },
+      "Sis::V2::Services::Writing::Student",
+      0
+    );
+
+    expect(match).not.toBeNull();
+    expect(match?.adjustment).toBe(1.25);
+    expect(match?.reason).toBe("normalized_symbol_name");
+    expect(match?.confidence).toBe("related");
+  });
+
+  test("deep namespace qualified matching boosts tail-segment class or module definitions", () => {
+    const match = analyzeQualifiedSymbolMatch(
+      {
+        kind: "class",
+        name: "Student",
+        signature: "class Student"
+      },
+      "Sis::V2::Services::Writing::Student",
+      -1.2
+    );
+
+    expect(match).not.toBeNull();
+    expect(match?.adjustment).toBe(-2.7);
+    expect(match?.reason).toBe("normalized_symbol_name");
+    expect(match?.confidence).toBe("exact");
   });
 
   test("ruby infers cross-file uses relations from Rails-style constant references", async () => {
