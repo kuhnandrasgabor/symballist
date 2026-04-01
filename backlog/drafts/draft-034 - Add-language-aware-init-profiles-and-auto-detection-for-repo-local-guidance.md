@@ -38,12 +38,14 @@ The implementation model should stay simple:
 - `init --languages ruby,typescript` or manual config edits override the auto-detected list
 - config becomes the durable source of truth for enabled language profiles
 - instruction rendering appends the general shared guidance plus only the enabled language profile snippets
+- generated guidance should explicitly tell agents that the repo-local scope and language-profile-derived files are editable when they need to tune setup for the current project
 
 Why this matters:
 - reduces token cost by excluding irrelevant language guidance
 - makes the generated instructions easier to inspect and edit
 - gives users a deterministic, debuggable setup model
 - leaves room for later optional guided onboarding without making normal `init` depend on an LLM
+- still gives downstream agents a sanctioned path to refine `scope.txt` or other repo-local setup files when the project clearly needs custom scoping
 
 Recommended next action:
 - define the profile folder contract first
