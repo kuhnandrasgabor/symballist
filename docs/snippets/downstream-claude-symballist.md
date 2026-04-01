@@ -4,6 +4,7 @@ Use the generated repo-local `symballist` tool definitions when your runtime has
 
 Current language coverage:
 - Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
 
 - Tool-definition manifest: `.symballist\tools\symballist-tools.json`
 - Tooling guide: `.symballist\tools\README.md`

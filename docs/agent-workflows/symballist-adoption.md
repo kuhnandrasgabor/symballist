@@ -179,6 +179,7 @@ The snippet files reflect the default `hybrid` posture; `cli` and `tool` setups 
 
 - `symballist` currently supports Python, Ruby, HTML, Markdown, JavaScript, TypeScript, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS.
 - Ruby support includes fully-qualified symbol lookup plus conservative cross-file relation inference for obvious autoloaded constants; it is still lighter than a full Rails call graph.
+- Expect Ruby graph connectivity to stay conservative for now: `include` / `extend`, inheritance, worker-job calls, and broader Rails autoload resolution are not complete yet, so verify important cross-file conclusions in source.
 - optional embeddings currently start with Ollama via `.symballist/config.json`.
 - For fast-moving repos, freshness matters as much as ranking quality.
 - Prefer `hybrid` as the default setup. Keep CLI wrappers even when tool definitions are available so the integration stays portable across agent runtimes.

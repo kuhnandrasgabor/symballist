@@ -394,6 +394,7 @@ Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 Current language coverage:
 - Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
@@ -454,6 +455,7 @@ Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 Current language coverage:
 - Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
@@ -494,6 +496,7 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
 
 Current language coverage:
 - Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
 
 - Preferred tool-definition manifest:
   - \`.symballist\\tools\\symballist-tools.json\`
@@ -546,6 +549,7 @@ Use the generated repo-local \`symballist\` tool definitions as the preferred re
 
 Current language coverage:
 - Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`

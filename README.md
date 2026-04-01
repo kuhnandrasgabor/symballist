@@ -135,6 +135,7 @@ Current language coverage:
 
 - code and app structure: Python, Ruby, JavaScript, TypeScript, HTML
   - Ruby currently covers classes, modules, methods, constants, fully-qualified names, and conservative Rails-style autoload path inference for obvious cross-file constant references
+  - Current Ruby limitation: cross-file graph edges are still conservative. Obvious constant references may resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not yet complete.
 - docs: Markdown
 - config and ops: YAML, shell / bash / zsh, Dockerfile / Containerfile, CSS
 - optional local impact tracking: enable `impactTracking.enabled` in `.symballist/config.json`, then use `symballist report`
