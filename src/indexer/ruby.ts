@@ -774,7 +774,7 @@ function extractUsesForSymbol(
       pushRelation({
         kind: "uses",
         targetPath: resolvedConstantTarget.targetPath,
-        targetLabel: resolvedConstantTarget.labelPrefix
+        targetLabel: method ? `${resolvedConstantTarget.labelPrefix}.${method}` : resolvedConstantTarget.labelPrefix
       });
       return;
     }

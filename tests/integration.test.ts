@@ -962,6 +962,89 @@ describe("symballist vertical slice", () => {
     )).toBeTrue();
   });
 
+  test("ruby worker, job, and service constant receiver calls retain method-qualified cross-file edges", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "workers"), { recursive: true });
+    await mkdir(join(root, "app", "jobs"), { recursive: true });
+    await mkdir(join(root, "app", "services", "notifications"), { recursive: true });
+    await mkdir(join(root, "app", "services", "orchestration"), { recursive: true });
+    await writeFile(
+      join(root, "app", "workers", "archive_classroom_worker.rb"),
+      [
+        "class ArchiveClassroomWorker",
+        "  def self.perform_async(classroom_id)",
+        "    classroom_id",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "jobs", "sync_students_job.rb"),
+      [
+        "class SyncStudentsJob",
+        "  def self.perform_later(district_id)",
+        "    district_id",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "services", "notifications", "dispatch.rb"),
+      [
+        "module Notifications",
+        "  class Dispatch",
+        "    def self.call(message)",
+        "      message",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "services", "orchestration", "runner.rb"),
+      [
+        "module Orchestration",
+        "  class Runner",
+        "    def call(classroom_id, district_id)",
+        "      ArchiveClassroomWorker.perform_async(classroom_id)",
+        "      SyncStudentsJob.perform_later(district_id)",
+        '      Notifications::Dispatch.call("ok")',
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const showPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "Orchestration::Runner");
+    })) as {
+      relations?: Array<{ kind: string; targetLabel: string; targetPath: string | null }>;
+    };
+
+    expect(showPayload.relations?.some((relation) =>
+      relation.kind === "uses"
+      && relation.targetLabel === "ArchiveClassroomWorker.perform_async"
+      && normalizeRepoPath(relation.targetPath) === "app/workers/archive_classroom_worker.rb"
+    )).toBeTrue();
+    expect(showPayload.relations?.some((relation) =>
+      relation.kind === "uses"
+      && relation.targetLabel === "SyncStudentsJob.perform_later"
+      && normalizeRepoPath(relation.targetPath) === "app/jobs/sync_students_job.rb"
+    )).toBeTrue();
+    expect(showPayload.relations?.some((relation) =>
+      relation.kind === "uses"
+      && relation.targetLabel === "Notifications::Dispatch.call"
+      && normalizeRepoPath(relation.targetPath) === "app/services/notifications/dispatch.rb"
+    )).toBeTrue();
+  });
+
   test("ruby include concerns create cross-file graph edges", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "app", "models"), { recursive: true });
