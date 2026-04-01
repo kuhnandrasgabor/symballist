@@ -25,6 +25,7 @@ export type CliArgs = {
   codeOnly: boolean;
   docsOnly: boolean;
   excludeTests: boolean;
+  includePaths: string[];
   excludePaths: string[];
   preferImplementation: boolean;
   showName: string | null;
@@ -47,12 +48,12 @@ Usage:
   symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
   symballist report [--root PATH]
-  symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--full] [--compact] [--root PATH]
+  symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--path TEXT] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--full] [--compact] [--root PATH]
   symballist graph <id> [--full] [--compact] [--root PATH]
   symballist graph --name <symbol> [--full] [--compact] [--root PATH]
   symballist show <id|symbol> [--full] [--compact] [--root PATH]
   symballist show --name <symbol> [--full] [--compact] [--root PATH]
-  symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]
+  symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--path TEXT] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]
 
 Command intent:
   query   ranked candidate exploration when you want to inspect multiple hits
@@ -86,7 +87,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist report [--root PATH]\n\nImpact flow: read the opt-in repo-local Symballist usage and workflow-impact summary. The first slice stores aggregate command outcomes only and does not store raw query text.");
       return;
     case "lookup":
-      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives. Use this for exact symbols, config paths, CSS selectors from real .css files, and other one-shot lookups.");
+      console.log("Usage:\n  symballist lookup \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--path TEXT] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--full] [--compact] [--root PATH]\n\nBest-match flow: returns one selected result with symbol context, graph diagnostics, relations, body presentation, and alternatives. Use --path to constrain candidates to matching file-path fragments when you need deterministic disambiguation.");
       return;
     case "graph":
       console.log("Usage:\n  symballist graph <id> [--full] [--compact] [--root PATH]\n  symballist graph --name <symbol> [--full] [--compact] [--root PATH]\n\nTraversal flow: resolve a known symbol and return grouped graph neighbors such as imports, uses, importedBy, usedBy, and containedIn. Neighbor bodies summarize by default; use --full to expand neighbor bodies inline.");
@@ -95,7 +96,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist show <id|symbol> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. A non-numeric positional value is treated as a symbol name. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
       return;
     case "query":
-      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates plus lightweight fileGroups context for manual inspection. Use this for fuzzy concepts and broader exploration; use lookup when you want the best hit already resolved.");
+      console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--path TEXT] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates plus lightweight fileGroups context for manual inspection. Use --path to keep exploration inside matching file-path fragments.");
       return;
     default:
       usage();
@@ -131,6 +132,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
   let codeOnly = false;
   let docsOnly = false;
   let excludeTests = false;
+  const includePaths: string[] = [];
   const excludePaths: string[] = [];
   let preferImplementation = false;
   let showName: string | null = null;
@@ -156,6 +158,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       codeOnly,
       docsOnly,
       excludeTests,
+      includePaths,
       excludePaths,
       preferImplementation,
       showName,
@@ -183,6 +186,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       codeOnly,
       docsOnly,
       excludeTests,
+      includePaths,
       excludePaths,
       preferImplementation,
       showName,
@@ -300,6 +304,16 @@ export function parseCliArgs(argv: string[]): CliArgs {
       excludeTests = true;
       continue;
     }
+    if ((command === "query" || command === "lookup") && value === "--path") {
+      const next = argv[index + 1];
+      if (!next) {
+        error = "Expected a path fragment after --path.";
+        break;
+      }
+      includePaths.push(next);
+      index += 1;
+      continue;
+    }
     if ((command === "query" || command === "lookup") && value === "--exclude-path") {
       const next = argv[index + 1];
       if (!next) {
@@ -368,6 +382,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     codeOnly,
     docsOnly,
     excludeTests,
+    includePaths,
     excludePaths,
     preferImplementation,
     showName,
@@ -424,6 +439,7 @@ export async function runCli(argv: string[]): Promise<void> {
       await runLookup(parsed.root, query, parsed.limit, parsed.kinds, {
         codeOnly: parsed.codeOnly,
         docsOnly: parsed.docsOnly,
+        includePaths: parsed.includePaths,
         excludeTests: parsed.excludeTests,
         excludePaths: parsed.excludePaths,
         preferImplementation: parsed.preferImplementation
@@ -454,6 +470,7 @@ export async function runCli(argv: string[]): Promise<void> {
       await runQuery(parsed.root, query, parsed.limit, parsed.kinds, {
         codeOnly: parsed.codeOnly,
         docsOnly: parsed.docsOnly,
+        includePaths: parsed.includePaths,
         excludeTests: parsed.excludeTests,
         excludePaths: parsed.excludePaths,
         preferImplementation: parsed.preferImplementation

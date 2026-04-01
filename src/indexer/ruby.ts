@@ -376,15 +376,19 @@ function rubyAutoloadCandidatePaths(relativeSegments: string[], sourcePath: stri
 
   return [
     normalize(join("app", "models", `${relativePath}.rb`)),
+    normalize(join("app", "models", "concerns", `${relativePath}.rb`)),
     normalize(join("app", "services", `${relativePath}.rb`)),
     normalize(join("app", "controllers", `${relativePath}.rb`)),
+    normalize(join("app", "controllers", "concerns", `${relativePath}.rb`)),
     normalize(join("app", "helpers", `${relativePath}.rb`)),
     normalize(join("app", "jobs", `${relativePath}.rb`)),
     normalize(join("app", "workers", `${relativePath}.rb`)),
     normalize(join("app", "mailers", `${relativePath}.rb`)),
     normalize(join("app", "serializers", `${relativePath}.rb`)),
     normalize(join("app", "policies", `${relativePath}.rb`)),
+    normalize(join("app", "concerns", `${relativePath}.rb`)),
     normalize(join("lib", `${relativePath}.rb`)),
+    normalize(join("lib", "concerns", `${relativePath}.rb`)),
     normalize(`${relativePath}.rb`)
   ];
 }
@@ -582,17 +586,75 @@ function extractUsesForSymbol(
     relations.push(relation);
   };
 
+  const pushResolvedReference = (reference: string): void => {
+    const resolvedTarget = resolveRubyConstantPath(reference, sourcePath, availablePaths, lexicalNamespace);
+    if (resolvedTarget && resolvedTarget.targetPath !== owner.record.path) {
+      pushRelation({
+        kind: "uses",
+        targetPath: resolvedTarget.targetPath,
+        targetLabel: resolvedTarget.labelPrefix
+      });
+      return;
+    }
+
+    if (aliases.has(reference)) {
+      const target = aliases.get(reference)!;
+      pushRelation({
+        kind: "uses",
+        targetPath: target.targetPath,
+        targetLabel: target.labelPrefix
+      });
+      return;
+    }
+
+    if (localSymbols.has(reference)) {
+      const target = localSymbols.get(reference)!;
+      pushRelation({
+        kind: "uses",
+        targetPath: target.path,
+        targetLabel: target.signature ?? target.name
+      });
+    }
+  };
+
+  const pushStructuralReferences = (node: SyntaxNode): void => {
+    const superclassNode = node.childForFieldName("superclass");
+    const superclassReference = identifierText(source, superclassNode);
+    if (superclassReference) {
+      pushResolvedReference(superclassReference);
+    }
+
+    for (const child of node.namedChildren) {
+      if (child.type !== "call") {
+        continue;
+      }
+      const receiver = identifierText(source, child.childForFieldName("receiver"));
+      const method = identifierText(source, child.childForFieldName("method"));
+      if (receiver || !["include", "extend", "prepend"].includes(method)) {
+        continue;
+      }
+
+      visit(child, (descendant) => {
+        if (descendant.type === "constant" || descendant.type === "scope_resolution") {
+          const reference = identifierText(source, descendant);
+          if (reference) {
+            pushResolvedReference(reference);
+          }
+        }
+      });
+    }
+  };
+
+  if (owner.record.kind === "class" || owner.record.kind === "module") {
+    pushStructuralReferences(owner.node);
+  }
+
   visit(owner.node, (node) => {
     if (node.type !== "call") {
       if (node.type === "constant" || node.type === "scope_resolution") {
         const reference = identifierText(source, node);
-        const resolvedTarget = resolveRubyConstantPath(reference, sourcePath, availablePaths, lexicalNamespace);
-        if (resolvedTarget && resolvedTarget.targetPath !== owner.record.path) {
-          pushRelation({
-            kind: "uses",
-            targetPath: resolvedTarget.targetPath,
-            targetLabel: resolvedTarget.labelPrefix
-          });
+        if (reference) {
+          pushResolvedReference(reference);
         }
       }
       return;

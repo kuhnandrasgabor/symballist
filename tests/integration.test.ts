@@ -632,6 +632,49 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(graphPayload.symbol?.path)).toBe("app/services/scoring/submit_parts.rb");
   });
 
+  test("lookup can be constrained to a matching path fragment", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "services"), { recursive: true });
+    await mkdir(join(root, "app", "models"), { recursive: true });
+    await writeFile(
+      join(root, "app", "services", "student.rb"),
+      [
+        "class Student",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "models", "student.rb"),
+      [
+        "class Student",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const serviceLookup = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "Student", 5, [], { includePaths: ["app/services/student.rb"] });
+    })) as {
+      selectedResult?: { path: string };
+      alternatives?: Array<{ path: string }>;
+    };
+    const missingLookup = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "Student", 5, [], { includePaths: ["does/not/exist.rb"] });
+    })) as {
+      selectedResult?: { path: string } | null;
+      alternatives?: Array<{ path: string }>;
+    };
+
+    expect(normalizeRepoPath(serviceLookup.selectedResult?.path)).toBe("app/services/student.rb");
+    expect(serviceLookup.alternatives?.length ?? 0).toBe(0);
+    expect(missingLookup.selectedResult ?? null).toBeNull();
+    expect(missingLookup.alternatives ?? []).toEqual([]);
+  });
+
   test("lookup, show, and graph prefer deep fully-qualified Ruby names over duplicate short-name symbols", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "app", "models"), { recursive: true });
@@ -699,6 +742,84 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(showPayload.symbol?.path)).toBe("app/services/sis/v2/services/writing/student.rb");
     expect(graphPayload.symbol?.name).toBe("Student");
     expect(normalizeRepoPath(graphPayload.symbol?.path)).toBe("app/services/sis/v2/services/writing/student.rb");
+  });
+
+  test("namespace-qualified Ruby lookup ranks the intended module above unrelated short-name matches", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "services", "kids"), { recursive: true });
+    await mkdir(join(root, "app", "services"), { recursive: true });
+    await writeFile(
+      join(root, "app", "services", "kids", "merge.rb"),
+      [
+        "module Kids",
+        "  module Merge",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "services", "kids_import.rb"),
+      [
+        "class KidsImport",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "Kids::Merge", 5);
+    })) as {
+      selectedResult?: { name: string; path: string };
+      alternatives?: Array<{ name: string; path: string }>;
+    };
+
+    expect(lookupPayload.selectedResult?.name).toBe("Merge");
+    expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/services/kids/merge.rb");
+    expect(lookupPayload.alternatives?.some((entry) =>
+      entry.name === "KidsImport"
+      && normalizeRepoPath(entry.path) === "app/services/kids_import.rb"
+    )).toBeTrue();
+  });
+
+  test("namespace-qualified Ruby class lookup prefers the class over nested methods on the same namespace", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "lib", "sis", "v2", "services", "writing"), { recursive: true });
+    await writeFile(
+      join(root, "app", "lib", "sis", "v2", "services", "writing", "student.rb"),
+      [
+        "module Sis",
+        "  module V2",
+        "    module Services",
+        "      module Writing",
+        "        class Student",
+        "          def profile",
+        "            true",
+        "          end",
+        "        end",
+        "      end",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "Sis::V2::Services::Writing::Student", 5);
+    })) as {
+      selectedResult?: { name: string; path: string; kind: string };
+    };
+
+    expect(lookupPayload.selectedResult?.name).toBe("Student");
+    expect(lookupPayload.selectedResult?.kind).toBe("class");
+    expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/lib/sis/v2/services/writing/student.rb");
   });
 
   test("ruby infers cross-file uses relations from Rails-style constant references", async () => {
@@ -788,6 +909,66 @@ describe("symballist vertical slice", () => {
     expect(graphPayload.graph?.uses.some((entry) =>
       entry.symbol.name === "Student"
       && normalizeRepoPath(entry.symbol.path) === "app/models/student.rb"
+    )).toBeTrue();
+  });
+
+  test("ruby include concerns create cross-file graph edges", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "models"), { recursive: true });
+    await mkdir(join(root, "app", "models", "concerns"), { recursive: true });
+    await writeFile(
+      join(root, "app", "models", "concerns", "kid_searchable.rb"),
+      [
+        "module KidSearchable",
+        "  def search_by_keyword_and_school(keyword, school)",
+        "    [keyword, school]",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "models", "kid.rb"),
+      [
+        "class Kid < ApplicationRecord",
+        "  include KidSearchable",
+        "",
+        "  def active?",
+        "    true",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const kidGraphPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runGraph(root, "", "Kid");
+    })) as {
+      graph?: {
+        uses: Array<{ relation: { kind: string }; symbol: { name: string; path: string } }>;
+      };
+    };
+
+    const concernGraphPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runGraph(root, "", "KidSearchable");
+    })) as {
+      graph?: {
+        usedBy: Array<{ relation: { kind: string }; symbol: { name: string; path: string } }>;
+      };
+    };
+
+    expect(kidGraphPayload.graph?.uses.some((entry) =>
+      entry.relation.kind === "uses"
+      && entry.symbol.name === "KidSearchable"
+      && normalizeRepoPath(entry.symbol.path) === "app/models/concerns/kid_searchable.rb"
+    )).toBeTrue();
+    expect(concernGraphPayload.graph?.usedBy.some((entry) =>
+      entry.relation.kind === "uses"
+      && entry.symbol.name === "Kid"
+      && normalizeRepoPath(entry.symbol.path) === "app/models/kid.rb"
     )).toBeTrue();
   });
 
@@ -4071,6 +4252,16 @@ describe("symballist vertical slice", () => {
       "legacy"
     ]);
     expect(excludePathParsed.excludePaths).toEqual(["_deprecated", "legacy"]);
+
+    const includePathParsed = parseCliArgs([
+      "lookup",
+      "greet",
+      "--path",
+      "app/services/greeting.rb",
+      "--path",
+      "lib/legacy"
+    ]);
+    expect(includePathParsed.includePaths).toEqual(["app/services/greeting.rb", "lib/legacy"]);
 
     const conflictingQueryParsed = parseCliArgs(["query", "greet", "--code-only", "--docs-only"]);
     expect(conflictingQueryParsed.error).toContain("--code-only or --docs-only");

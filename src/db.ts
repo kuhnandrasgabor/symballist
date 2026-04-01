@@ -1428,6 +1428,52 @@ function syntheticLiteralRawScore(row: SearchRow, rawQuery: string, normalizedQu
   return -2.5;
 }
 
+function stripTypePrefix(signature: string): string {
+  return signature.replace(/^(class|module)\s+/, "").trim();
+}
+
+function analyzeQualifiedSymbolMatch(row: SearchRow, rawQuery: string, definitionBias: number): MatchAnalysis | null {
+  if (!rawQuery.includes("::")) {
+    return null;
+  }
+
+  const loweredQuery = rawQuery.toLowerCase();
+  const signature = row.signature ?? "";
+  const strippedSignature = stripTypePrefix(signature);
+  const loweredSignature = signature.toLowerCase();
+  const loweredStrippedSignature = strippedSignature.toLowerCase();
+
+  if (loweredStrippedSignature === loweredQuery) {
+    return {
+      adjustment: -5.5 + definitionBias,
+      reason: "signature_text",
+      confidence: row.kind === "class" || row.kind === "module" ? "exact" : "strong"
+    };
+  }
+
+  if ((row.kind === "class" || row.kind === "module") && loweredSignature.includes(loweredQuery)) {
+    return {
+      adjustment: -4.75 + definitionBias,
+      reason: "signature_text",
+      confidence: "exact"
+    };
+  }
+
+  if (
+    loweredStrippedSignature.startsWith(`${loweredQuery}#`)
+    || loweredStrippedSignature.startsWith(`${loweredQuery}.`)
+    || loweredStrippedSignature.startsWith(`${loweredQuery}::`)
+  ) {
+    return {
+      adjustment: -2.75 + definitionBias,
+      reason: "signature_text",
+      confidence: "strong"
+    };
+  }
+
+  return null;
+}
+
 function computeMatchAnalysis(row: SearchRow, rawQuery: string, options: SearchOptions = {}): MatchAnalysis {
   const trimmedQuery = rawQuery.trim();
   if (!trimmedQuery) {
@@ -1454,6 +1500,10 @@ function computeMatchAnalysis(row: SearchRow, rawQuery: string, options: SearchO
   }
 
   const normalizedName = normalizeLookupValue(row.name);
+  const qualifiedMatch = analyzeQualifiedSymbolMatch(row, trimmedQuery, definitionBias);
+  if (qualifiedMatch) {
+    return qualifiedMatch;
+  }
   if (exactCaseSensitiveName) {
     return {
       adjustment: -6.0 + definitionBias,
@@ -1743,6 +1793,18 @@ function pathMatchesNegativeFilter(path: string, filters: string[] | undefined):
     .some((filter) => normalizedPath.includes(filter));
 }
 
+function pathMatchesPositiveFilter(path: string, filters: string[] | undefined): boolean {
+  if (!filters || filters.length === 0) {
+    return true;
+  }
+
+  const normalizedPath = normalizePathForHeuristics(path);
+  return filters
+    .map((filter) => normalizePathForHeuristics(filter).trim())
+    .filter(Boolean)
+    .some((filter) => normalizedPath.includes(filter));
+}
+
 function classifyGraphRootCandidate(input: RootHeuristicInput): string[] {
   const normalizedPath = normalizePathForHeuristics(input.path);
   const fileName = normalizedPath.split("/").at(-1) ?? normalizedPath;
@@ -1943,6 +2005,9 @@ function rowMatchesIntent(row: SearchRow, options: SearchOptions): boolean {
     return false;
   }
   if (options.excludeTests && isTestPath(row.path)) {
+    return false;
+  }
+  if (!pathMatchesPositiveFilter(row.path, options.includePaths)) {
     return false;
   }
   if (pathMatchesNegativeFilter(row.path, options.excludePaths)) {

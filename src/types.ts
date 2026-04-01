@@ -185,6 +185,7 @@ export type SymbolLookupOptions = {
 export type QueryIntentOptions = {
   codeOnly?: boolean;
   docsOnly?: boolean;
+  includePaths?: string[];
   excludeTests?: boolean;
   excludePaths?: string[];
   preferImplementation?: boolean;
