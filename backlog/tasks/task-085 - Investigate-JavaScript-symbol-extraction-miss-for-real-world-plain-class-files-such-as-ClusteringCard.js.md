@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-04-01 10:50'
+updated_date: '2026-04-01 12:46'
 labels:
   - global
 dependencies: []
@@ -23,3 +24,9 @@ Downstream smoke testing reported that ClusteringCard.js was not indexed in a la
 - [ ] #2 The extractor indexes the reproduced class symbol correctly after the fix.
 - [ ] #3 Existing JavaScript and TypeScript extraction coverage continues to pass.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Context: this investigation now sits inside a broader emerging oversized-file extraction strategy. Python already had a large-file recovery path (TASK-002), and JavaScript/TypeScript now have a first oversized-file recovery path for top-level imports/classes/functions. The remaining work on ClusteringCard-style misses should be framed as refining the JS recovery adapter, not as a standalone one-off bug.
+<!-- SECTION:NOTES:END -->
