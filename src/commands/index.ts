@@ -78,6 +78,8 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   const db = await openDatabase(root);
   const indexCompatibility = getIndexCompatibility(db);
   const shouldRebuild = options.rebuild === true || indexCompatibility.requiresRebuild;
+  const indexedRowsBeforeRun = shouldRebuild ? [] : getIndexedFiles(db);
+  const startedFromEmptyIndex = indexedRowsBeforeRun.length === 0;
   if (shouldRebuild) {
     rebuildStoredIndex(db);
   } else {
@@ -87,7 +89,7 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   const currentPaths = new Set(files.map((file) => file.relativePath));
   const existingFiles = shouldRebuild
     ? new Map<string, ReturnType<typeof getIndexedFiles>[number]>()
-    : new Map(getIndexedFiles(db).map((file) => [file.path, file]));
+    : new Map(indexedRowsBeforeRun.map((file) => [file.path, file]));
 
   const stats: IndexStats = {
     discoveredFiles: files.length,
@@ -172,9 +174,10 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
 
   markCurrentIndexFormat(db);
   setIndexedScopeSignature(db, scope.signature);
-  if (shouldRebuild) {
+  if (shouldRebuild || startedFromEmptyIndex) {
     // A full rebuild establishes a fresh baseline, so symbol-change noise from
-    // rebuilding every file should not persist into subsequent status calls.
+    // rebuilding every file or bootstrapping a brand-new index should not
+    // persist into subsequent status calls.
     resetLatestSymbolChangeSummary(db);
   }
 

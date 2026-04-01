@@ -1365,6 +1365,9 @@ describe("symballist vertical slice", () => {
     expect(status.changeAwareness.sinceIndex.changedFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.newFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.deletedFiles).toBe(0);
+    expect(status.changeAwareness.symbolChangesSinceIndex.addedCount).toBe(0);
+    expect(status.changeAwareness.symbolChangesSinceIndex.removedCount).toBe(0);
+    expect(status.changeAwareness.symbolChangesSinceIndex.changedCount).toBe(0);
     expect(status.shellGuidance.recommendedEntrypoint.length).toBeGreaterThan(0);
     expect(status.shellGuidance.recommendedCommands.status).toContain("status");
   });
