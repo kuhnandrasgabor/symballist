@@ -1,6 +1,6 @@
-import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexCompatibility, getIndexedFiles, markCurrentIndexFormat, openDatabase, rebuildStoredIndex, recordImpactTrackingEvent, replaceFileIndex, resetLatestSymbolChangeSummary } from "../db.ts";
+import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexCompatibility, getIndexedFiles, markCurrentIndexFormat, openDatabase, rebuildStoredIndex, recordImpactTrackingEvent, replaceFileIndex, resetLatestSymbolChangeSummary, setIndexedScopeSignature } from "../db.ts";
 import { getActiveEmbeddingsConfig, updateEmbeddingsForSymbols } from "../embeddings.ts";
-import { fileMetadata, listSourceFiles, readConfig, readText } from "../fs.ts";
+import { fileMetadata, listSourceFiles, readConfig, readRepoScopeControl, readText } from "../fs.ts";
 import { extractSymbols } from "../indexer/index.ts";
 
 export type IndexStats = {
@@ -73,6 +73,7 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   const progress = options.progress ?? true;
   const emitStats = options.emitStats ?? true;
   const config = await readConfig(root);
+  const scope = await readRepoScopeControl(root);
   const embeddings = getActiveEmbeddingsConfig(config);
   const db = await openDatabase(root);
   const indexCompatibility = getIndexCompatibility(db);
@@ -82,7 +83,7 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   } else {
     resetLatestSymbolChangeSummary(db);
   }
-  const files = await listSourceFiles(root);
+  const files = await listSourceFiles(root, { scope });
   const currentPaths = new Set(files.map((file) => file.relativePath));
   const existingFiles = shouldRebuild
     ? new Map<string, ReturnType<typeof getIndexedFiles>[number]>()
@@ -170,6 +171,7 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   }
 
   markCurrentIndexFormat(db);
+  setIndexedScopeSignature(db, scope.signature);
 
   if (config?.impactTracking?.enabled) {
     recordImpactTrackingEvent(db, {

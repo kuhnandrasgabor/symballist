@@ -24,6 +24,7 @@ Do not treat it as authoritative yet. Agents should use `symballist` to narrow t
 - use it as a read-only helper
 - prefer explicit `--root <project-root>` targeting
 - rerun `index` when the target repo is stale
+- use `.symballist/scope.txt` when the repo needs persistent path scoping for vendored, generated, archived, or third-party zones
 - optionally enable local Ollama embeddings in `.symballist/config.json` when concept queries need more help
 - optionally enable `impactTracking.enabled` in `.symballist/config.json` when you want a local aggregate usage and workflow-impact summary via `symballist report`
 - fall back to normal file reads or search when results are weak or missing
@@ -97,22 +98,23 @@ Typical agent flow:
 1. Run `status`.
 2. If `indexFreshness.stale` is `true`, run `watch --once` or `index`.
 3. If `indexCompatibility.requiresRebuild` is `true`, run `index --rebuild` before trusting unchanged indexed files.
+4. If `.symballist/scope.txt` changed, that also counts as stale until `watch --once` or `index` reapplies the scoped view.
 4. If auto-watch is already active, `watch --once` may return an already-fresh no-op. That is expected.
 5. Use `lookup` when you want the one-shot best-match flow: one selected result, symbol context, and alternatives in one response.
-5. Use `query` when you want ranked candidate exploration and plan to inspect multiple hits more manually.
-6. Use `show` when you already know the symbol id or exact name and want direct inspection.
-7. If `bodyPresentation.fullerBodyAvailable` is true, rerun `lookup` or `show` with `--full` to expand the complete stored body.
-8. If the repo owner enabled `impactTracking.enabled`, use `report` only when you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
-9. In `query` and `lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not as absolute confidence values.
-10. In `report`, treat `commandCounts` as intentional usage and background `watch` traffic as separate infrastructure counts.
-11. Verify important conclusions in the underlying file.
-12. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
-13. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
-14. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
-15. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import/usage structure or root-awareness contributed to reranking.
-16. When you need a safer read on whether something merely looks isolated versus truly unused, inspect `graphDiagnostics` on the returned symbol or query results; these are bounded to what the current index can see.
-17. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
-18. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
+6. Use `query` when you want ranked candidate exploration and plan to inspect multiple hits more manually.
+7. Use `show` when you already know the symbol id or exact name and want direct inspection.
+8. If `bodyPresentation.fullerBodyAvailable` is true, rerun `lookup` or `show` with `--full` to expand the complete stored body.
+9. If the repo owner enabled `impactTracking.enabled`, use `report` only when you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
+10. In `query` and `lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not as absolute confidence values.
+11. In `report`, treat `commandCounts` as intentional usage and background `watch` traffic as separate infrastructure counts.
+12. Verify important conclusions in the underlying file.
+13. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
+14. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
+15. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
+16. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import/usage structure or root-awareness contributed to reranking.
+17. When you need a safer read on whether something merely looks isolated versus truly unused, inspect `graphDiagnostics` on the returned symbol or query results; these are bounded to what the current index can see.
+18. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
+19. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
 
 Useful query refinements:
 
@@ -133,6 +135,7 @@ Useful query refinements:
 - use `--code-only --exclude-tests` when you want implementation-heavy results
 - check `fileGroups` on query responses when several hits come from the same file and you want a cheap grouped view without giving up symbol-level results
 - add one or more `--exclude-path <fragment>` flags when legacy, deprecated, generated, or vendor directories are polluting the result set
+- use `.symballist/scope.txt` when those noisy paths are persistent repo structure rather than one-off query cleanup
 - add `--prefer-implementation` when broad conceptual code queries still lean toward wiring or references; this now suppresses Markdown/doc noise and pushes implementation files more aggressively
 - use `--docs-only` when you are explicitly looking for plans, workflows, or architecture notes; it now prefers canonical docs like `docs/`, `README.md`, and `plan.md` over duplicated operational mirrors
 - use the `changeAwareness` block from `status` when you want a cheap answer to "what changed since the last index?" or, in git repos, "what changed since HEAD?"
@@ -180,6 +183,7 @@ The snippet files reflect the default `hybrid` posture; `cli` and `tool` setups 
 - `symballist` currently supports Python, Ruby, HTML, Markdown, JavaScript, TypeScript, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS.
 - Ruby support includes fully-qualified symbol lookup plus conservative cross-file relation inference for obvious autoloaded constants; it is still lighter than a full Rails call graph.
 - Expect Ruby graph connectivity to stay conservative for now: `include` / `extend`, inheritance, worker-job calls, and broader Rails autoload resolution are not complete yet, so verify important cross-file conclusions in source.
+- `.symballist/scope.txt` is the persistent repo-level scope-control file for indexing, freshness, and default retrieval; prefer it over hardcoded path assumptions when a repo has vendored or third-party zones.
 - optional embeddings currently start with Ollama via `.symballist/config.json`.
 - For fast-moving repos, freshness matters as much as ranking quality.
 - Prefer `hybrid` as the default setup. Keep CLI wrappers even when tool definitions are available so the integration stays portable across agent runtimes.

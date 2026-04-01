@@ -1,6 +1,7 @@
 import {
   buildFtsQuery,
   getIndexedFiles,
+  getIndexedScopeSignature,
   getRelatedSymbolsForSymbol,
   getRelationsForSymbol,
   getSymbolById,
@@ -55,7 +56,9 @@ export async function runLookup(
   const symbol = selectedResult ? getSymbolById(db, selectedResult.id) : null;
   const relations = symbol ? getRelationsForSymbol(db, symbol) : [];
   const related = symbol ? getRelatedSymbolsForSymbol(db, symbol) : [];
-  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
+  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db), {
+    indexedScopeSignature: getIndexedScopeSignature(db)
+  });
   const resultQuality = summarizeRetrievalQuality(search.results);
 
   const body = symbol ? summarizeBody(symbol.body, options.full === true) : null;

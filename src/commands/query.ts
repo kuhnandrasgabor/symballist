@@ -1,4 +1,4 @@
-import { buildFtsQuery, getIndexedFiles, openDatabase, recordImpactTrackingEvent, searchSymbolsWithDiagnostics } from "../db.ts";
+import { buildFtsQuery, getIndexedFiles, getIndexedScopeSignature, openDatabase, recordImpactTrackingEvent, searchSymbolsWithDiagnostics } from "../db.ts";
 import { embedTexts, getActiveEmbeddingsConfig, summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
@@ -122,7 +122,9 @@ export async function runQuery(
     ...intent
   });
   const results = diversifyQueryResultsByFile(search.results, limit);
-  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
+  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db), {
+    indexedScopeSignature: getIndexedScopeSignature(db)
+  });
   const resultQuality = summarizeRetrievalQuality(results);
   const fileGroups = buildQueryFileGroups(results);
 

@@ -1,5 +1,5 @@
 import { runIndex, type IndexStats } from "./index.ts";
-import { getIndexCompatibility, getIndexedFiles, openDatabase, recordImpactTrackingEvent } from "../db.ts";
+import { getIndexCompatibility, getIndexedFiles, getIndexedScopeSignature, openDatabase, recordImpactTrackingEvent } from "../db.ts";
 import { detectIndexFreshness, type IndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
 
@@ -31,12 +31,15 @@ async function inspectWatchState(root: string): Promise<{
 }> {
   const db = await openDatabase(root);
   const indexedFiles = getIndexedFiles(db);
+  const indexedScopeSignature = getIndexedScopeSignature(db);
   const indexCompatibility = getIndexCompatibility(db);
   db.close();
 
   return {
     indexedFileCount: indexedFiles.length,
-    freshness: await detectIndexFreshness(root, indexedFiles),
+    freshness: await detectIndexFreshness(root, indexedFiles, {
+      indexedScopeSignature
+    }),
     requiresRebuild: indexCompatibility.requiresRebuild
   };
 }

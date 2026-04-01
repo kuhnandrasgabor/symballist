@@ -32,6 +32,7 @@ export const CURRENT_INDEX_FORMAT_VERSION = 2;
 
 const SYMBOL_CHANGE_SUMMARY_KEY = "latest_symbol_change_summary";
 const INDEX_FORMAT_VERSION_KEY = "index_format_version";
+const INDEX_SCOPE_SIGNATURE_KEY = "index_scope_signature";
 const IMPACT_SUMMARY_KEY = "impact_tracking_summary";
 const IMPACT_LAST_EVENT_KEY = "impact_tracking_last_event";
 const IMPACT_LAST_FLOW_EVENT_KEY = "impact_tracking_last_flow_event";
@@ -53,6 +54,7 @@ export type StatusSummary = {
   languages: string[];
   schemaVersion: number;
   indexFormatVersion: number;
+  indexScopeSignature: string | null;
 };
 
 export type IndexCompatibility = {
@@ -421,6 +423,19 @@ function setIndexFormatVersion(db: Database, version: number): void {
     VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(INDEX_FORMAT_VERSION_KEY, String(version));
+}
+
+export function getIndexedScopeSignature(db: Database): string | null {
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(INDEX_SCOPE_SIGNATURE_KEY) as { value?: string } | null;
+  return row?.value ?? null;
+}
+
+export function setIndexedScopeSignature(db: Database, signature: string): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(INDEX_SCOPE_SIGNATURE_KEY, signature);
 }
 
 export function getIndexCompatibility(db: Database): IndexCompatibility {
@@ -2495,7 +2510,8 @@ export function getStatusSummary(db: Database): StatusSummary {
     fallbackSymbols: counts.fallbackSymbols,
     languages: languageRows.map((row) => row.language),
     schemaVersion: getSchemaVersion(db),
-    indexFormatVersion: getIndexFormatVersion(db) ?? 0
+    indexFormatVersion: getIndexFormatVersion(db) ?? 0,
+    indexScopeSignature: getIndexedScopeSignature(db)
   };
 }
 

@@ -2,6 +2,7 @@ import {
   getBestSymbolByName,
   getGraphTraversalForSymbol,
   getIndexedFiles,
+  getIndexedScopeSignature,
   getRelationsForSymbol,
   getSymbolById,
   openDatabase,
@@ -86,7 +87,9 @@ export async function runGraph(
   }
   const traversals = symbol ? getGraphTraversalForSymbol(db, symbol, 20) : [];
   const relations = symbol ? getRelationsForSymbol(db, symbol) : [];
-  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
+  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db), {
+    indexedScopeSignature: getIndexedScopeSignature(db)
+  });
 
   if (!symbol) {
     db.close();

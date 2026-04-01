@@ -1,4 +1,4 @@
-import { getBestSymbolByName, getIndexedFiles, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, recordImpactTrackingEvent } from "../db.ts";
+import { getBestSymbolByName, getIndexedFiles, getIndexedScopeSignature, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, recordImpactTrackingEvent } from "../db.ts";
 import { detectIndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
 
@@ -80,7 +80,9 @@ export async function runShow(
   }
   const relations = symbol ? getRelationsForSymbol(db, symbol) : [];
   const related = symbol ? getRelatedSymbolsForSymbol(db, symbol) : [];
-  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db));
+  const indexFreshness = await detectIndexFreshness(root, getIndexedFiles(db), {
+    indexedScopeSignature: getIndexedScopeSignature(db)
+  });
 
   if (!symbol) {
     db.close();

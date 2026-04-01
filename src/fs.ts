@@ -34,6 +34,7 @@ const LOCAL_POWERSHELL_WRAPPER = "symballist.ps1";
 const LOCAL_POSIX_WRAPPER = "symballist";
 const GITIGNORE_FILE = ".gitignore";
 const APP_GITIGNORE_ENTRY = ".symballist/";
+export const SCOPE_FILE = "scope.txt";
 const MANAGED_BLOCK_START = "<!-- SYMBALLIST RETRIEVAL START -->";
 const MANAGED_BLOCK_END = "<!-- SYMBALLIST RETRIEVAL END -->";
 const SYMBALLIST_ROOT = normalize(fileURLToPath(new URL("..", import.meta.url))).replace(/[\\\/]+$/, "");
@@ -46,6 +47,13 @@ function isIgnorableFsError(error: unknown): boolean {
   return error.code === "EPERM" || error.code === "EACCES" || error.code === "ENOENT";
 }
 
+export type RepoScopeControl = {
+  path: string;
+  exists: boolean;
+  rules: string[];
+  signature: string;
+};
+
 export async function ensureInitialized(root: string, requestedSetupType?: SetupType): Promise<void> {
   await mkdir(appPath(root), { recursive: true });
   await mkdir(appPath(root, BIN_DIR), { recursive: true });
@@ -56,6 +64,7 @@ export async function ensureInitialized(root: string, requestedSetupType?: Setup
   const existingConfig = await readConfig(root);
   const setupType = requestedSetupType ?? existingConfig?.setupType ?? defaultConfig(root).setupType;
   await writeConfig(root, mergeConfig(root, existingConfig, setupType));
+  await ensureScopeFile(root);
   await bootstrapAgentInstructions(root, setupType);
   const gitignoreUpdated = await ensureGitignoreEntry(root, APP_GITIGNORE_ENTRY);
   if (gitignoreUpdated && await appearsGitTracked(root, APP_DIR)) {
@@ -91,6 +100,63 @@ export async function readConfig(root: string): Promise<SymballistConfig | null>
 
 export async function writeConfig(root: string, config: SymballistConfig): Promise<void> {
   await writeFile(appPath(root, CONFIG_FILE), JSON.stringify(config, null, 2), { flag: "w" });
+}
+
+function normalizeScopePath(value: string): string {
+  return value
+    .replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "")
+    .replace(/\/+/g, "/")
+    .trim();
+}
+
+function parseScopeRules(source: string): string[] {
+  return source
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .map((line) => normalizeScopePath(line))
+    .filter((line) => line.length > 0);
+}
+
+export function defaultScopeSignature(): string {
+  return JSON.stringify([]);
+}
+
+export function pathMatchesRepoScope(relativePath: string, rules: string[]): boolean {
+  const normalizedPath = normalizeScopePath(relativePath);
+  if (!normalizedPath) {
+    return false;
+  }
+
+  return rules.some((rule) => {
+    const normalizedRule = normalizeScopePath(rule).replace(/\/+$/, "");
+    if (!normalizedRule) {
+      return false;
+    }
+    return normalizedPath === normalizedRule || normalizedPath.startsWith(`${normalizedRule}/`);
+  });
+}
+
+export async function readRepoScopeControl(root: string): Promise<RepoScopeControl> {
+  const path = appPath(root, SCOPE_FILE);
+  if (!(await exists(path))) {
+    return {
+      path,
+      exists: false,
+      rules: [],
+      signature: defaultScopeSignature()
+    };
+  }
+
+  const rules = parseScopeRules(await readText(path));
+  return {
+    path,
+    exists: true,
+    rules,
+    signature: JSON.stringify(rules)
+  };
 }
 
 function detectSupportedLanguage(name: string): "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" | null {
@@ -184,8 +250,12 @@ async function detectSupportedLanguageForPath(absolutePath: string, name: string
   }
 }
 
-export async function listSourceFiles(root: string): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }>> {
+export async function listSourceFiles(
+  root: string,
+  options: { scope?: RepoScopeControl } = {}
+): Promise<Array<{ absolutePath: string; relativePath: string; language: "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }>> {
   const files: Array<{ absolutePath: string; relativePath: string; language: "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css" }> = [];
+  const scope = options.scope ?? await readRepoScopeControl(root);
 
   async function walk(current: string): Promise<void> {
     let entries;
@@ -200,14 +270,19 @@ export async function listSourceFiles(root: string): Promise<Array<{ absolutePat
 
     for (const entry of entries) {
       const absolutePath = join(current, entry.name);
+      const relativePath = normalizeScopePath(relative(root, absolutePath));
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) {
+        if (!SKIP_DIRS.has(entry.name) && !pathMatchesRepoScope(relativePath, scope.rules)) {
           await walk(absolutePath);
         }
         continue;
       }
 
       if (!entry.isFile()) {
+        continue;
+      }
+
+      if (pathMatchesRepoScope(relativePath, scope.rules)) {
         continue;
       }
 
@@ -218,7 +293,7 @@ export async function listSourceFiles(root: string): Promise<Array<{ absolutePat
 
       files.push({
         absolutePath,
-        relativePath: relative(root, absolutePath),
+        relativePath,
         language
       });
     }
@@ -304,6 +379,25 @@ async function appearsGitTracked(root: string, pathSpec: string): Promise<boolea
   } catch {
     return false;
   }
+}
+
+async function ensureScopeFile(root: string): Promise<void> {
+  const path = appPath(root, SCOPE_FILE);
+  if (await exists(path)) {
+    return;
+  }
+
+  await writeFile(path, [
+    "# Repo-scoped ignore and scope rules for Symballist.",
+    "# One repo-relative path or directory prefix per line.",
+    "# Blank lines and lines starting with # are ignored.",
+    "# Examples:",
+    "# submods/",
+    "# vendor/",
+    "# dist/",
+    "# tmp/generated/",
+    ""
+  ].join("\n"), "utf8");
 }
 
 async function loadInstructionTemplates(root: string, setupType: SetupType): Promise<{
@@ -406,6 +500,7 @@ Current language coverage:
 - Use the \`indexCompatibility\` block from \`status\` to see whether extractor/storage behavior changed and a full rebuild is required.
 - Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
 - Use the \`embeddings\` block from \`status\` when you want to know whether hybrid retrieval is configured and available for the active model.
+- Use \`.symballist/scope.txt\` for persistent repo-local path scoping when vendored, generated, archived, or third-party zones should stay out of indexing and default retrieval.
 - If \`impactTracking.enabled\` is true in \`.symballist/config.json\`, use \`symballist report\` when you want the local aggregate usage and impact summary; it does not store raw query text.
 - If the index is stale, refresh it before relying on results:
   - \`symballist watch --once\`
@@ -462,6 +557,7 @@ Current language coverage:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Run \`symballist status\` before trusting older results.
+- Use \`.symballist/scope.txt\` for persistent repo-local path scoping when vendored, generated, archived, or third-party zones should stay out of indexing and default retrieval.
 - If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\` before relying on unchanged indexed files.
 - If \`indexFreshness.stale\` is true, run \`symballist index\`.
 - Use the \`graphAwareness\` block from \`status\` when you want likely roots or advisory possible-orphan candidates from the indexed graph.
@@ -559,6 +655,7 @@ Current language coverage:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Mandatory first step: start with \`symballist_status\` to check freshness, index compatibility, graph awareness, and embeddings state.
+- Use \`.symballist/scope.txt\` for persistent repo-local path scoping when vendored, generated, archived, or third-party zones should stay out of indexing and default retrieval.
 - Use \`symballist_refresh\` when the repo is stale.
 - If \`indexCompatibility.requiresRebuild\` is true, run the CLI fallback \`symballist index --rebuild\`.
 - If \`impactTracking.enabled\` is true in \`.symballist/config.json\`, use the CLI fallback \`symballist report\` when you want the local aggregate usage and impact summary; it does not store raw query text.
@@ -604,6 +701,7 @@ Current language coverage:
   - bash / zsh / sh: \`./.symballist/bin/symballist\`
   - PowerShell / cmd.exe: \`.\\.symballist\\bin\\symballist.cmd\`
 - Mandatory first step: use \`symballist_status\` first or run \`symballist status\` to inspect freshness, index compatibility, graph awareness, and embeddings state.
+- Use \`.symballist/scope.txt\` for persistent repo-local path scoping when vendored, generated, archived, or third-party zones should stay out of indexing and default retrieval.
 - If the repo is stale, use \`symballist_refresh\` or run \`symballist watch --once\`.
 - If \`indexCompatibility.requiresRebuild\` is true, run \`symballist index --rebuild\`.
 - If auto-watch is already active, \`symballist watch --once\` may return an already-fresh no-op. That is expected.

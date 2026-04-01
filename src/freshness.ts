@@ -1,4 +1,4 @@
-import { fileMetadata, listSourceFiles } from "./fs.ts";
+import { defaultScopeSignature, fileMetadata, listSourceFiles, readRepoScopeControl } from "./fs.ts";
 import type { IndexedFileRow } from "./db.ts";
 
 const MTIME_EPSILON_MS = 10;
@@ -9,6 +9,7 @@ export type IndexFreshness = {
   changedFiles: number;
   newFiles: number;
   deletedFiles: number;
+  scopeChanged: boolean;
 };
 
 export type FileChangeSet = {
@@ -168,16 +169,24 @@ export async function detectGitHeadFileChanges(
   }
 }
 
-export async function detectIndexFreshness(root: string, indexedFiles: IndexedFileRow[]): Promise<IndexFreshness> {
+export async function detectIndexFreshness(
+  root: string,
+  indexedFiles: IndexedFileRow[],
+  options: { indexedScopeSignature?: string | null } = {}
+): Promise<IndexFreshness> {
   const changes = await detectIndexFileChanges(root, indexedFiles);
   const changedFiles = changes.changedPaths.length;
   const newFiles = changes.newPaths.length;
   const deletedFiles = changes.deletedPaths.length;
+  const currentScope = await readRepoScopeControl(root);
+  const indexedScopeSignature = options.indexedScopeSignature ?? defaultScopeSignature();
+  const scopeChanged = indexedScopeSignature !== currentScope.signature;
 
   return {
-    stale: changedFiles > 0 || newFiles > 0 || deletedFiles > 0,
+    stale: changedFiles > 0 || newFiles > 0 || deletedFiles > 0 || scopeChanged,
     changedFiles,
     newFiles,
-    deletedFiles
+    deletedFiles,
+    scopeChanged
   };
 }

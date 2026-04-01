@@ -111,6 +111,7 @@ After `init`, the target repo gets:
 - local wrapper commands in `.symballist/bin/`
 - generated tool definitions in `.symballist/tools/` for `tool` or `hybrid` setups
 - adoption docs in `.symballist/instructions/`
+- `.symballist/scope.txt` as the repo-local scope-control / ignore driver file
 - managed `AGENTS.md` / `CLAUDE.md` retrieval blocks
 - a `.gitignore` entry for `.symballist/`
 
@@ -171,6 +172,8 @@ For agents, the default contract should be:
 3. If `indexCompatibility.requiresRebuild` is `true`, run `symballist index --rebuild`.
 4. Otherwise proceed with `lookup`, `query`, `show`, or `graph`.
 
+`indexFreshness.stale` now also covers repo scope changes. If `.symballist/scope.txt` changes, `status` and `watch --once` will treat the index as stale until the scoped view is re-applied.
+
 If the repo owner explicitly enables local impact tracking in `.symballist/config.json`, you can inspect the aggregate usage and workflow-impact summary with:
 
 ```powershell
@@ -198,16 +201,18 @@ symballist watch --once
 - `symballist init`
   - bootstraps repo-local state and downstream agent instructions
   - supports `--setup-type cli|tool|hybrid`
+  - creates `.symballist/scope.txt`, the editable repo-local scope-control file
 - `symballist index`
   - performs a full incremental-aware index pass
 - `symballist index --rebuild`
   - forces a full rebuild when extractor/storage behavior changed or `status` reports `indexCompatibility.requiresRebuild`
 - `symballist watch --once`
   - does a one-shot freshness sweep and reindex if needed
+  - also reapplies scope changes from `.symballist/scope.txt`
 - `symballist watch --interval-ms 2000`
   - keeps a foreground polling loop alive
 - `symballist status`
-  - shows index health, freshness, change awareness, embeddings state, and shell-aware entrypoint guidance
+  - shows index health, freshness, scope control, change awareness, embeddings state, and shell-aware entrypoint guidance
 - `symballist report`
   - shows the opt-in repo-local usage and workflow-impact summary without storing raw query text
   - separates intentional usage from background `watch` refresh traffic so auto-watch does not inflate the main command counts
@@ -332,6 +337,24 @@ Important behavior:
   - downstream consumers may rely on these being present and equivalent in both compact and non-compact flows
 
 If you want a cheaper response for agent consumers, use `--compact` to keep the retrieval payload while omitting the repeated legend / semantics blocks.
+
+## Repo Scope Control
+
+Use `.symballist/scope.txt` to define repo-local paths Symballist should exclude from indexing, freshness, and default retrieval.
+
+- one repo-relative path or directory prefix per line
+- blank lines and `#` comments are ignored
+- directory prefixes such as `submods/`, `vendor/`, `dist/`, or `tmp/generated/` are the intended first-slice use case
+- after editing it, run `symballist watch --once` or `symballist index` so the stored index matches the new scope
+
+Example:
+
+```text
+submods/
+vendor/
+dist/
+tmp/generated/
+```
 
 ## Optional Embeddings
 

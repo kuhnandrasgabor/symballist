@@ -91,6 +91,7 @@ describe("symballist vertical slice", () => {
     expect(await Bun.file(join(root, ".symballist", "bin", "symballist.cmd")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "bin", "symballist.ps1")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "bin", "symballist")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "scope.txt")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "symballist-adoption.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "AGENTS.symballist.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "instructions", "CLAUDE.symballist.md")).exists()).toBeTrue();
@@ -229,6 +230,43 @@ describe("symballist vertical slice", () => {
     await runInit(blankRoot);
     const createdGitignore = await readFile(join(blankRoot, ".gitignore"), "utf8");
     expect(createdGitignore.trim()).toBe(".symballist/");
+    const scopeFile = await readFile(join(blankRoot, ".symballist", "scope.txt"), "utf8");
+    expect(scopeFile).toContain("Repo-scoped ignore and scope rules");
+  });
+
+  test("repo-scoped scope rules exclude matching paths from indexing and status surfaces", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "submods", "vendor-lib"), { recursive: true });
+    await writeFile(join(root, "submods", "vendor-lib", "noise.rb"), "class Noise\nend\n", "utf8");
+    await runInit(root);
+    await writeFile(join(root, ".symballist", "scope.txt"), "submods/\n", "utf8");
+
+    const files = await listSourceFiles(root);
+    expect(files.some((file) => normalizeRepoPath(file.relativePath) === "submods/vendor-lib/noise.rb")).toBeFalse();
+
+    const stats = await runIndex(root, { progress: false, emitStats: false });
+    expect(stats.discoveredFiles).toBe(7);
+
+    const output = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(output) as {
+      scopeControl: {
+        exists: boolean;
+        ruleCount: number;
+        rules: string[];
+      };
+      indexedFiles: number;
+      indexFreshness: {
+        scopeChanged: boolean;
+      };
+    };
+
+    expect(status.scopeControl.exists).toBeTrue();
+    expect(status.scopeControl.ruleCount).toBe(1);
+    expect(status.scopeControl.rules).toEqual(["submods/"]);
+    expect(status.indexedFiles).toBe(7);
+    expect(status.indexFreshness.scopeChanged).toBeFalse();
   });
 
   test("init warns when .symballist is already git-tracked and gitignore is newly updated", async () => {
@@ -2941,6 +2979,56 @@ describe("symballist vertical slice", () => {
     expect(status.changeAwareness.sinceIndex.changedPaths).toContain("helpers.py");
     expect(queryPayload.indexFreshness.stale).toBeTrue();
     expect(queryPayload.indexFreshness.changedFiles).toBe(1);
+  });
+
+  test("scope rule changes mark the index stale and one-shot watch reapplies scope", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "submods", "vendor-lib"), { recursive: true });
+    await writeFile(join(root, "submods", "vendor-lib", "noise.rb"), "class Noise\nend\n", "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    await writeFile(join(root, ".symballist", "scope.txt"), "submods/\n", "utf8");
+
+    const statusOutput = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(statusOutput) as {
+      indexFreshness: {
+        stale: boolean;
+        scopeChanged: boolean;
+      };
+      changeAwareness: {
+        sinceIndex: {
+          deletedFiles: number;
+          deletedPaths: string[];
+        };
+      };
+    };
+
+    expect(status.indexFreshness.stale).toBeTrue();
+    expect(status.indexFreshness.scopeChanged).toBeTrue();
+    expect(status.changeAwareness.sinceIndex.deletedPaths).toContain("submods/vendor-lib/noise.rb");
+
+    const watchOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runWatch(root, { once: true });
+    })) as {
+      event: string;
+      reason: string;
+      stats: {
+        removedFiles: number;
+      } | null;
+      indexFreshnessAfter: {
+        stale: boolean;
+        scopeChanged: boolean;
+      };
+    };
+
+    expect(watchOutput.event).toBe("indexed");
+    expect(watchOutput.reason).toBe("stale_index");
+    expect(watchOutput.stats?.removedFiles).toBe(1);
+    expect(watchOutput.indexFreshnessAfter.stale).toBeFalse();
+    expect(watchOutput.indexFreshnessAfter.scopeChanged).toBeFalse();
   });
 
   test("status reports lightweight file-level changes since git HEAD for indexed source files", async () => {

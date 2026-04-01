@@ -2,7 +2,7 @@ import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "..
 import { CURRENT_INDEX_FORMAT_VERSION, CURRENT_SCHEMA_VERSION, getImpactTrackingSummary, getIndexCompatibility, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, openDatabase, recordImpactTrackingEvent } from "../db.ts";
 import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
-import { exists, readConfig } from "../fs.ts";
+import { exists, readConfig, readRepoScopeControl } from "../fs.ts";
 import { getShellGuidance } from "../shell.ts";
 
 function defaultLanguages(): string[] {
@@ -21,12 +21,15 @@ export async function runStatus(root: string): Promise<void> {
   let fallbackSymbols = 0;
   let indexedSchemaVersion: number | null = null;
   let indexedIndexFormatVersion: number | null = null;
+  let indexedScopeSignature: string | null = null;
   let languages = config?.languages ?? defaultLanguages();
+  const scopeControl = await readRepoScopeControl(root);
   let freshness = {
     stale: false,
     changedFiles: 0,
     newFiles: 0,
-    deletedFiles: 0
+    deletedFiles: 0,
+    scopeChanged: false
   };
   let changeAwareness = {
     sinceIndex: {
@@ -112,10 +115,13 @@ export async function runStatus(root: string): Promise<void> {
     fallbackSymbols = summary.fallbackSymbols;
     indexedSchemaVersion = summary.schemaVersion;
     indexedIndexFormatVersion = summary.indexFormatVersion;
+    indexedScopeSignature = summary.indexScopeSignature;
     if (summary.languages.length > 0) {
       languages = summary.languages;
     }
-    freshness = await detectIndexFreshness(root, indexedRows);
+    freshness = await detectIndexFreshness(root, indexedRows, {
+      indexedScopeSignature
+    });
     const indexChanges = await detectIndexFileChanges(root, indexedRows);
     changeAwareness = {
       sinceIndex: summarizeFileChanges(indexChanges),
@@ -143,6 +149,14 @@ export async function runStatus(root: string): Promise<void> {
         currentIndexFormatVersion: CURRENT_INDEX_FORMAT_VERSION,
         indexedIndexFormatVersion,
         indexCompatibility,
+        scopeControl: {
+          path: scopeControl.path,
+          exists: scopeControl.exists,
+          ruleCount: scopeControl.rules.length,
+          rules: scopeControl.rules,
+          indexedScopeSignature,
+          currentScopeSignature: scopeControl.signature
+        },
         indexedFiles: indexedFileCount,
         indexedSymbols,
         fallbackSymbols,
@@ -181,6 +195,14 @@ export async function runStatus(root: string): Promise<void> {
     currentIndexFormatVersion: CURRENT_INDEX_FORMAT_VERSION,
     indexedIndexFormatVersion,
     indexCompatibility,
+    scopeControl: {
+      path: scopeControl.path,
+      exists: scopeControl.exists,
+      ruleCount: scopeControl.rules.length,
+      rules: scopeControl.rules,
+      indexedScopeSignature,
+      currentScopeSignature: scopeControl.signature
+    },
     indexedFiles: indexedFileCount,
     indexedSymbols,
     fallbackSymbols,

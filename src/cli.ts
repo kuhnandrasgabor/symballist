@@ -68,16 +68,16 @@ Runtime contract:
 function commandUsage(command: string): void {
   switch (command) {
     case "init":
-      console.log("Usage:\n  symballist init [--root PATH] [--setup-type cli|tool|hybrid]");
+      console.log("Usage:\n  symballist init [--root PATH] [--setup-type cli|tool|hybrid]\n\nSetup flow: initializes repo-local state, writes .symballist/scope.txt as the editable scope-control file, and bootstraps wrappers/instructions for the selected integration mode.");
       return;
     case "index":
       console.log("Usage:\n  symballist index [--root PATH] [--rebuild]\n\nIndex flow: performs an incremental-aware pass by default. Use --rebuild to force a full reindex when extractor/storage behavior changed or status reports indexCompatibility.requiresRebuild.");
       return;
     case "watch":
-      console.log("Usage:\n  symballist watch [--root PATH] [--interval-ms N] [--once]\n\nRefresh flow: --once performs a one-shot freshness sweep and may legitimately no-op when auto-watch already kept the repo fresh.");
+      console.log("Usage:\n  symballist watch [--root PATH] [--interval-ms N] [--once]\n\nRefresh flow: --once performs a one-shot freshness sweep and may legitimately no-op when auto-watch already kept the repo fresh. Scope-rule changes in .symballist/scope.txt also count as stale and are reapplied here.");
       return;
     case "status":
-      console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, index compatibility, embeddings, graph awareness, and shell guidance for the current repo. This is the mandatory first step before trusting older retrieval output.");
+      console.log("Usage:\n  symballist status [--root PATH]\n\nHealth flow: inspect freshness, index compatibility, repo scope-control, embeddings, graph awareness, and shell guidance for the current repo. This is the mandatory first step before trusting older retrieval output.");
       return;
     case "report":
       console.log("Usage:\n  symballist report [--root PATH]\n\nImpact flow: read the opt-in repo-local Symballist usage and workflow-impact summary. The first slice stores aggregate command outcomes only and does not store raw query text.");
