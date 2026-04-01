@@ -912,6 +912,56 @@ describe("symballist vertical slice", () => {
     )).toBeTrue();
   });
 
+  test("ruby autoload resolution can infer graph edges to app/lib namespaced constants", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "lib", "sis", "v2", "services", "writing"), { recursive: true });
+    await mkdir(join(root, "app", "services", "scoring"), { recursive: true });
+    await writeFile(
+      join(root, "app", "lib", "sis", "v2", "services", "writing", "student.rb"),
+      [
+        "module Sis",
+        "  module V2",
+        "    module Services",
+        "      module Writing",
+        "        class Student",
+        "        end",
+        "      end",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "services", "scoring", "submit_parts.rb"),
+      [
+        "module Scoring",
+        "  class SubmitParts",
+        "    def call",
+        "      Sis::V2::Services::Writing::Student.new",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const showPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "Scoring::SubmitParts");
+    })) as {
+      relations?: Array<{ kind: string; targetLabel: string; targetPath: string | null }>;
+    };
+
+    expect(showPayload.relations?.some((relation) =>
+      relation.kind === "uses"
+      && relation.targetLabel === "Sis::V2::Services::Writing::Student"
+      && normalizeRepoPath(relation.targetPath) === "app/lib/sis/v2/services/writing/student.rb"
+    )).toBeTrue();
+  });
+
   test("ruby include concerns create cross-file graph edges", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "app", "models"), { recursive: true });

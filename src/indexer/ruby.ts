@@ -13,6 +13,34 @@ type UsageTarget = {
   labelPrefix: string;
 };
 
+type RubyAutoloadRoot = {
+  rootPath: string;
+  category:
+    | "models"
+    | "services"
+    | "controllers"
+    | "helpers"
+    | "jobs"
+    | "workers"
+    | "mailers"
+    | "serializers"
+    | "policies"
+    | "queries"
+    | "forms"
+    | "presenters"
+    | "validators"
+    | "lib"
+    | "concerns"
+    | "root";
+  priority: number;
+};
+
+type RubyAutoloadCandidate = {
+  path: string;
+  category: RubyAutoloadRoot["category"];
+  priority: number;
+};
+
 type RubySymbolNode = {
   node: SyntaxNode;
   record: SymbolRecord;
@@ -371,26 +399,67 @@ function isRubyConstantReference(value: string): boolean {
   return /^[A-Z][A-Za-z0-9_]*(::[A-Z][A-Za-z0-9_]*)*$/.test(value.trim());
 }
 
-function rubyAutoloadCandidatePaths(relativeSegments: string[], sourcePath: string): string[] {
+const RUBY_AUTOLOAD_ROOTS: RubyAutoloadRoot[] = [
+  { rootPath: join("app", "models"), category: "models", priority: 0 },
+  { rootPath: join("app", "models", "concerns"), category: "concerns", priority: 1 },
+  { rootPath: join("app", "services"), category: "services", priority: 2 },
+  { rootPath: join("app", "controllers"), category: "controllers", priority: 3 },
+  { rootPath: join("app", "controllers", "concerns"), category: "concerns", priority: 4 },
+  { rootPath: join("app", "helpers"), category: "helpers", priority: 5 },
+  { rootPath: join("app", "jobs"), category: "jobs", priority: 6 },
+  { rootPath: join("app", "workers"), category: "workers", priority: 7 },
+  { rootPath: join("app", "mailers"), category: "mailers", priority: 8 },
+  { rootPath: join("app", "serializers"), category: "serializers", priority: 9 },
+  { rootPath: join("app", "policies"), category: "policies", priority: 10 },
+  { rootPath: join("app", "queries"), category: "queries", priority: 11 },
+  { rootPath: join("app", "forms"), category: "forms", priority: 12 },
+  { rootPath: join("app", "presenters"), category: "presenters", priority: 13 },
+  { rootPath: join("app", "validators"), category: "validators", priority: 14 },
+  { rootPath: join("app", "concerns"), category: "concerns", priority: 15 },
+  { rootPath: join("app", "lib"), category: "lib", priority: 16 },
+  { rootPath: join("lib"), category: "lib", priority: 17 },
+  { rootPath: join("lib", "concerns"), category: "concerns", priority: 18 },
+  { rootPath: "", category: "root", priority: 19 }
+];
+
+function sourceRubyAutoloadCategory(sourcePath: string): RubyAutoloadRoot["category"] | null {
+  const normalizedPath = normalize(sourcePath);
+  const matched = RUBY_AUTOLOAD_ROOTS.find((root) =>
+    root.rootPath.length > 0
+    && (normalizedPath === root.rootPath || normalizedPath.startsWith(`${root.rootPath}/`))
+  );
+  return matched?.category ?? null;
+}
+
+function rubyAutoloadCandidatePaths(relativeSegments: string[]): RubyAutoloadCandidate[] {
   const relativePath = join(...relativeSegments.map((segment) => snakeCaseRubySegment(segment)));
 
-  return [
-    normalize(join("app", "models", `${relativePath}.rb`)),
-    normalize(join("app", "models", "concerns", `${relativePath}.rb`)),
-    normalize(join("app", "services", `${relativePath}.rb`)),
-    normalize(join("app", "controllers", `${relativePath}.rb`)),
-    normalize(join("app", "controllers", "concerns", `${relativePath}.rb`)),
-    normalize(join("app", "helpers", `${relativePath}.rb`)),
-    normalize(join("app", "jobs", `${relativePath}.rb`)),
-    normalize(join("app", "workers", `${relativePath}.rb`)),
-    normalize(join("app", "mailers", `${relativePath}.rb`)),
-    normalize(join("app", "serializers", `${relativePath}.rb`)),
-    normalize(join("app", "policies", `${relativePath}.rb`)),
-    normalize(join("app", "concerns", `${relativePath}.rb`)),
-    normalize(join("lib", `${relativePath}.rb`)),
-    normalize(join("lib", "concerns", `${relativePath}.rb`)),
-    normalize(`${relativePath}.rb`)
-  ];
+  return RUBY_AUTOLOAD_ROOTS.map((root) => ({
+    path: normalize(root.rootPath.length > 0 ? join(root.rootPath, `${relativePath}.rb`) : `${relativePath}.rb`),
+    category: root.category,
+    priority: root.priority
+  }));
+}
+
+function scoreRubyAutoloadCandidate(
+  candidate: RubyAutoloadCandidate,
+  sourcePath: string,
+  lexicalNamespaceDepth: number
+): number {
+  const sourceCategory = sourceRubyAutoloadCategory(sourcePath);
+  let score = 100 - candidate.priority;
+
+  if (sourceCategory && candidate.category === sourceCategory) {
+    score += 25;
+  }
+  if (candidate.category === "concerns") {
+    score += 8;
+  }
+  if (candidate.category === "lib" && sourceCategory === "lib") {
+    score += 6;
+  }
+  score += lexicalNamespaceDepth * 3;
+  return score;
 }
 
 function resolveRubyConstantPath(
@@ -417,23 +486,46 @@ function resolveRubyConstantPath(
     }
   }
 
-  const resolved = new Map<string, string>();
+  const resolvedCandidates = new Map<string, { labelPrefix: string; score: number }>();
   for (const candidateSegments of candidateSegmentSets) {
-    for (const candidatePath of rubyAutoloadCandidatePaths(candidateSegments, sourcePath)) {
-      if (availablePaths.has(candidatePath)) {
-        resolved.set(candidatePath, candidateSegments.join("::"));
+    for (const candidate of rubyAutoloadCandidatePaths(candidateSegments)) {
+      if (availablePaths.has(candidate.path)) {
+        const score = scoreRubyAutoloadCandidate(candidate, sourcePath, candidateSegments.length - segments.length);
+        const existing = resolvedCandidates.get(candidate.path);
+        if (!existing || existing.score < score) {
+          resolvedCandidates.set(candidate.path, {
+            labelPrefix: candidateSegments.join("::"),
+            score
+          });
+        }
       }
     }
   }
 
-  if (resolved.size !== 1) {
+  if (resolvedCandidates.size === 0) {
     return null;
   }
 
-  const [targetPath, labelPrefix] = [...resolved.entries()][0];
+  const rankedCandidates = [...resolvedCandidates.entries()]
+    .map(([targetPath, details]) => ({
+      targetPath,
+      labelPrefix: details.labelPrefix,
+      score: details.score
+    }))
+    .sort((left, right) => right.score - left.score || left.targetPath.localeCompare(right.targetPath));
+
+  if (rankedCandidates.length > 1 && rankedCandidates[0]!.score === rankedCandidates[1]!.score) {
+    return null;
+  }
+
+  const [best] = rankedCandidates;
+  if (!best) {
+    return null;
+  }
+
   return {
-    targetPath,
-    labelPrefix
+    targetPath: best.targetPath,
+    labelPrefix: best.labelPrefix
   };
 }
 
