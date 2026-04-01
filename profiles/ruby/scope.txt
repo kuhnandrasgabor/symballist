@@ -1,0 +1,5 @@
+# Optional Ruby-heavy repo scope hints.
+# Examples:
+# vendor/
+# tmp/generated/
+# submods/

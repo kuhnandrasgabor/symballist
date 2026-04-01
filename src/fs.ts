@@ -25,6 +25,7 @@ const INSTRUCTIONS_DIR = "instructions";
 const BIN_DIR = "bin";
 const TOOLS_DIR = "tools";
 const PROFILES_DIR = "profiles";
+const PROFILE_SOURCE_DIR = "profiles";
 const LOCAL_ADOPTION_GUIDE = "symballist-adoption.md";
 const LOCAL_AGENTS_SNIPPET = "AGENTS.symballist.md";
 const LOCAL_CLAUDE_SNIPPET = "CLAUDE.symballist.md";
@@ -497,12 +498,7 @@ async function ensureProfileScaffolding(root: string, languages: SupportedLangua
   for (const language of languages) {
     const profileRoot = appPath(root, PROFILES_DIR, language);
     await mkdir(profileRoot, { recursive: true });
-    const files: Array<[string, string]> = [
-      ["agents.md", `<!-- ${language} profile content appended into managed AGENTS.md blocks when this language is enabled. -->\n`],
-      ["claude.md", `<!-- ${language} profile content appended into managed CLAUDE.md blocks when this language is enabled. -->\n`],
-      ["instructions.md", `<!-- ${language} profile content appended into repo-local Symballist instruction files when this language is enabled. -->\n`],
-      ["scope.txt", `# Optional ${language}-specific scope hints for this repo.\n`]
-    ];
+    const files = await buildProfileSeedFiles(language);
     for (const [name, contents] of files) {
       const path = appPath(root, PROFILES_DIR, language, name);
       if (!(await exists(path))) {
@@ -510,6 +506,27 @@ async function ensureProfileScaffolding(root: string, languages: SupportedLangua
       }
     }
   }
+}
+
+async function buildProfileSeedFiles(language: SupportedLanguage): Promise<Array<[string, string]>> {
+  return [
+    ["agents.md", await readProfileSourceFile(language, "agents.md", `<!-- ${language} profile content appended into managed AGENTS.md blocks when this language is enabled. -->\n`)],
+    ["claude.md", await readProfileSourceFile(language, "claude.md", `<!-- ${language} profile content appended into managed CLAUDE.md blocks when this language is enabled. -->\n`)],
+    ["instructions.md", await readProfileSourceFile(language, "instructions.md", `<!-- ${language} profile content appended into repo-local Symballist instruction files when this language is enabled. -->\n`)],
+    ["scope.txt", await readProfileSourceFile(language, "scope.txt", `# Optional ${language}-specific scope hints for this repo.\n`)]
+  ];
+}
+
+async function readProfileSourceFile(
+  language: SupportedLanguage,
+  name: "agents.md" | "claude.md" | "instructions.md" | "scope.txt",
+  fallback: string
+): Promise<string> {
+  const sourcePath = join(SYMBALLIST_ROOT, PROFILE_SOURCE_DIR, language, name);
+  if (!(await exists(sourcePath))) {
+    return fallback;
+  }
+  return readText(sourcePath);
 }
 
 async function loadInstructionTemplates(root: string, setupType: SetupType, languages?: SupportedLanguage[]): Promise<{
@@ -523,8 +540,8 @@ async function loadInstructionTemplates(root: string, setupType: SetupType, lang
 
   return {
     adoptionGuide: renderInstructionTemplate(await appendLanguageProfileContent(root, `${setupTypeNote}\n\n${adoptionGuideSource}`, enabledLanguages, "instructions.md"), root),
-    agentsSnippet: renderInstructionTemplate(await appendLanguageProfileContent(root, renderManagedSnippet("agents", setupType), enabledLanguages, "agents.md"), root),
-    claudeSnippet: renderInstructionTemplate(await appendLanguageProfileContent(root, renderManagedSnippet("claude", setupType), enabledLanguages, "claude.md"), root)
+    agentsSnippet: renderInstructionTemplate(await appendLanguageProfileContent(root, renderManagedSnippet("agents", setupType, enabledLanguages), enabledLanguages, "agents.md"), root),
+    claudeSnippet: renderInstructionTemplate(await appendLanguageProfileContent(root, renderManagedSnippet("claude", setupType, enabledLanguages), enabledLanguages, "claude.md"), root)
   };
 }
 
@@ -612,24 +629,52 @@ function buildSetupTypeNote(setupType: SetupType): string {
   }
 }
 
-function renderManagedSnippet(target: "agents" | "claude", setupType: SetupType): string {
+function renderManagedSnippet(target: "agents" | "claude", setupType: SetupType, languages: SupportedLanguage[]): string {
   if (setupType === "cli") {
-    return target === "agents" ? renderCliAgentsSnippet() : renderCliClaudeSnippet();
+    return target === "agents" ? renderCliAgentsSnippet(languages) : renderCliClaudeSnippet(languages);
   }
   if (setupType === "tool") {
-    return target === "agents" ? renderToolAgentsSnippet() : renderToolClaudeSnippet();
+    return target === "agents" ? renderToolAgentsSnippet(languages) : renderToolClaudeSnippet(languages);
   }
-  return target === "agents" ? renderHybridAgentsSnippet() : renderHybridClaudeSnippet();
+  return target === "agents" ? renderHybridAgentsSnippet(languages) : renderHybridClaudeSnippet(languages);
 }
 
-function renderCliAgentsSnippet(): string {
+function formatLanguageCoverage(languages: SupportedLanguage[]): string {
+  const labels = languages.map((language) => {
+    switch (language) {
+      case "javascript":
+        return "JavaScript";
+      case "typescript":
+        return "TypeScript";
+      case "markdown":
+        return "Markdown";
+      case "dockerfile":
+        return "Dockerfile / Containerfile";
+      case "shell":
+        return "shell / bash / zsh";
+      case "yaml":
+        return "YAML";
+      case "html":
+        return "HTML";
+      case "python":
+        return "Python";
+      case "ruby":
+        return "Ruby";
+      case "css":
+        return "CSS";
+    }
+  });
+
+  return labels.join(", ");
+}
+
+function renderCliAgentsSnippet(languages: SupportedLanguage[]): string {
   return `## Symballist Retrieval
 
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 Current language coverage:
-- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
-- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
+- ${formatLanguageCoverage(languages)}
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
@@ -684,14 +729,13 @@ Reference:
 - \`.symballist\\instructions\\symballist-adoption.md\``;
 }
 
-function renderCliClaudeSnippet(): string {
+function renderCliClaudeSnippet(languages: SupportedLanguage[]): string {
   return `## Symballist Retrieval
 
 Use \`symballist\` as a CLI-first read-only retrieval helper for this repo.
 
 Current language coverage:
-- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
-- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
+- ${formatLanguageCoverage(languages)}
 
 - If \`symballist\` is installed globally or linked, prefer the plain \`symballist\` command when working from this repo root.
 - Preferred local entrypoints:
@@ -726,14 +770,13 @@ Reference:
 - \`.symballist\\instructions\\symballist-adoption.md\``;
 }
 
-function renderToolAgentsSnippet(): string {
+function renderToolAgentsSnippet(languages: SupportedLanguage[]): string {
   return `## Symballist Retrieval
 
 Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo only when your current runtime has actually loaded them.
 
 Current language coverage:
-- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
-- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
+- ${formatLanguageCoverage(languages)}
 
 - Preferred tool-definition manifest:
   - \`.symballist\\tools\\symballist-tools.json\`
@@ -779,14 +822,13 @@ Reference:
 - \`.symballist\\instructions\\symballist-adoption.md\``;
 }
 
-function renderToolClaudeSnippet(): string {
+function renderToolClaudeSnippet(languages: SupportedLanguage[]): string {
   return `## Symballist Retrieval
 
 Use the generated repo-local \`symballist\` tool definitions as the preferred retrieval interface for this repo only when your current runtime has actually loaded them.
 
 Current language coverage:
-- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
-- Ruby graph edges are still conservative: fully-qualified names and some obvious autoloaded constants resolve, but mixins, inheritance, worker/job calls, and broader Rails autoload conventions are not complete yet.
+- ${formatLanguageCoverage(languages)}
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`
@@ -817,13 +859,13 @@ Reference:
 - \`.symballist\\instructions\\symballist-adoption.md\``;
 }
 
-function renderHybridAgentsSnippet(): string {
+function renderHybridAgentsSnippet(languages: SupportedLanguage[]): string {
   return `## Symballist Retrieval
 
 Use the generated repo-local \`symballist\` tool definitions when your agent runtime has actually loaded them. Keep the repo-local CLI wrappers as the robust fallback.
 
 Current language coverage:
-- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- ${formatLanguageCoverage(languages)}
 
 - Preferred tool-definition manifest:
   - \`.symballist\\tools\\symballist-tools.json\`
@@ -870,13 +912,13 @@ Reference:
 - \`.symballist\\instructions\\symballist-adoption.md\``;
 }
 
-function renderHybridClaudeSnippet(): string {
+function renderHybridClaudeSnippet(languages: SupportedLanguage[]): string {
   return `## Symballist Retrieval
 
 Use the generated repo-local \`symballist\` tool definitions when your runtime has actually loaded them, and fall back to the repo-local CLI wrappers when it cannot.
 
 Current language coverage:
-- Python, Ruby, JavaScript, TypeScript, HTML, Markdown, YAML, shell / bash / zsh, Dockerfile / Containerfile, and CSS
+- ${formatLanguageCoverage(languages)}
 
 - Tool-definition manifest: \`.symballist\\tools\\symballist-tools.json\`
 - Tooling guide: \`.symballist\\tools\\README.md\`

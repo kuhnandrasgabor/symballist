@@ -202,6 +202,10 @@ describe("symballist vertical slice", () => {
     expect(await Bun.file(join(root, ".symballist", "profiles", "html", "instructions.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "profiles", "markdown", "scope.txt")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "profiles", "ruby", "agents.md")).exists()).toBeFalse();
+
+    const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
+    expect(localAgentsSnippet).toContain("Python, HTML, Markdown");
+    expect(localAgentsSnippet).not.toContain("Ruby graph edges are still conservative");
   });
 
   test("init can record an explicit enabled-language list", async () => {
@@ -214,6 +218,10 @@ describe("symballist vertical slice", () => {
     expect(await Bun.file(join(root, ".symballist", "profiles", "ruby", "agents.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "profiles", "typescript", "agents.md")).exists()).toBeTrue();
     expect(await Bun.file(join(root, ".symballist", "profiles", "python", "agents.md")).exists()).toBeFalse();
+
+    const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
+    expect(localAgentsSnippet).toContain("Ruby, TypeScript");
+    expect(localAgentsSnippet).toContain("Ruby graph edges are still conservative");
   });
 
   test("shell guidance detects bash-like and Windows shells and returns matching entrypoints", () => {
@@ -1290,7 +1298,7 @@ describe("symballist vertical slice", () => {
     expect(status.dbExists).toBeTrue();
     expect(status.supportedLanguages).toEqual(["html", "markdown", "python"]);
     expect(status.indexedFiles).toBe(7);
-    expect(status.indexedSymbols).toBe(13);
+    expect(status.indexedSymbols).toBe(15);
     expect(status.fallbackSymbols).toBe(1);
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
     expect(status.currentIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
