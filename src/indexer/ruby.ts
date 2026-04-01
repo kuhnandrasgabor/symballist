@@ -3,7 +3,7 @@ import Parser from "tree-sitter";
 import Ruby from "tree-sitter-ruby";
 import type { SyntaxNode } from "tree-sitter";
 import type { RelationDetails, SymbolRecord } from "../types.ts";
-import { MAX_TREE_SITTER_SOURCE_CHARS, oversizedFallbackReason } from "./oversized.ts";
+import { MAX_TREE_SITTER_SOURCE_CHARS, oversizedFallbackReason, oversizedRecoveryDoc } from "./oversized.ts";
 
 const parser = new Parser();
 parser.setLanguage(Ruby);
@@ -16,6 +16,11 @@ type UsageTarget = {
 type RubySymbolNode = {
   node: SyntaxNode;
   record: SymbolRecord;
+};
+
+type LineIndex = {
+  lines: string[];
+  starts: number[];
 };
 
 function nodeText(source: string, node: SyntaxNode | null): string {
@@ -47,6 +52,204 @@ function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startCo
     endLine,
     endColumn
   };
+}
+
+function buildLineIndex(source: string): LineIndex {
+  const lines = source.split(/\r?\n/);
+  const starts: number[] = [];
+  let cursor = 0;
+
+  for (const line of lines) {
+    starts.push(cursor);
+    cursor += line.length;
+    if (source[cursor] === "\r" && source[cursor + 1] === "\n") {
+      cursor += 2;
+    } else if (source[cursor] === "\n") {
+      cursor += 1;
+    }
+  }
+
+  return { lines, starts };
+}
+
+function lineStartOffset(index: LineIndex, lineNumber: number): number {
+  return index.starts[lineNumber - 1] ?? 0;
+}
+
+function lineEndOffset(source: string, index: LineIndex, lineNumber: number): number {
+  if (lineNumber >= index.starts.length) {
+    return source.length;
+  }
+  return index.starts[lineNumber] - (source[index.starts[lineNumber] - 2] === "\r" ? 2 : 1);
+}
+
+function sliceLines(source: string, index: LineIndex, startLine: number, endLine: number): string {
+  const start = lineStartOffset(index, startLine);
+  const end = lineEndOffset(source, index, endLine);
+  return source.slice(start, Math.max(start, end)).trim();
+}
+
+function rubyBlockDelta(line: string): number {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) {
+    return 0;
+  }
+
+  let delta = 0;
+  if (/^(class|module|def|if|unless|case|begin|while|until|for)\b/.test(trimmed)) {
+    delta += 1;
+  }
+  if (/\bdo\b(?:\s*\|[^|]*\|)?\s*$/.test(trimmed)) {
+    delta += 1;
+  }
+  if (/^end\b/.test(trimmed)) {
+    delta -= 1;
+  }
+  return delta;
+}
+
+function nextRubyBlockBoundary(index: LineIndex, startLine: number): number {
+  let depth = 0;
+  for (let lineNumber = startLine; lineNumber <= index.lines.length; lineNumber += 1) {
+    depth += rubyBlockDelta(index.lines[lineNumber - 1] ?? "");
+    if (depth <= 0) {
+      return lineNumber;
+    }
+  }
+  return index.lines.length;
+}
+
+function recoverOversizedRubySymbols(path: string, source: string, availablePaths: Set<string>): SymbolRecord[] {
+  const index = buildLineIndex(source);
+  const symbols: SymbolRecord[] = [];
+  const namespaceStack: Array<{ type: "class" | "module"; name: string; endLine: number }> = [];
+
+  for (let lineNumber = 1; lineNumber <= index.lines.length; lineNumber += 1) {
+    while (namespaceStack.length > 0 && lineNumber > namespaceStack[namespaceStack.length - 1]!.endLine) {
+      namespaceStack.pop();
+    }
+
+    const line = index.lines[lineNumber - 1] ?? "";
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const requireRelations = extractRequireRelations(trimmed, path, availablePaths);
+    if (requireRelations.length > 0) {
+      symbols.push({
+        path,
+        language: "ruby",
+        kind: "import",
+        name: trimmed,
+        signature: trimmed,
+        body: trimmed,
+        doc: oversizedRecoveryDoc("ruby"),
+        fallback: false,
+        relations: requireRelations,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine: lineNumber,
+        endColumn: (index.lines[lineNumber - 1]?.length ?? 0) + 1
+      });
+      continue;
+    }
+
+    const classOrModuleMatch = trimmed.match(/^(class|module)\s+([A-Z][A-Za-z0-9_:]*)\b/);
+    if (classOrModuleMatch) {
+      const kind = classOrModuleMatch[1] as "class" | "module";
+      const rawName = classOrModuleMatch[2];
+      const shortName = rawName.split("::").at(-1) ?? rawName;
+      const currentNamespace = namespaceStack.map((entry) => entry.name);
+      const qualifiedName = rawName.includes("::")
+        ? rawName
+        : currentNamespace.length > 0
+          ? `${currentNamespace.join("::")}::${rawName}`
+          : rawName;
+      const endLine = nextRubyBlockBoundary(index, lineNumber);
+      symbols.push({
+        path,
+        language: "ruby",
+        kind,
+        name: shortName,
+        signature: `${kind} ${qualifiedName}`,
+        body: sliceLines(source, index, lineNumber, endLine),
+        doc: oversizedRecoveryDoc("ruby"),
+        fallback: false,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine,
+        endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+      });
+      namespaceStack.push({ type: kind, name: shortName, endLine });
+      continue;
+    }
+
+    const singletonMethodMatch = trimmed.match(/^def\s+self\.([A-Za-z_][A-Za-z0-9_!?=]*)\b(.*)$/);
+    if (singletonMethodMatch) {
+      const currentNamespace = namespaceStack.map((entry) => entry.name);
+      const prefix = currentNamespace.length > 0 ? `${currentNamespace.join("::")}.` : "self.";
+      const endLine = nextRubyBlockBoundary(index, lineNumber);
+      symbols.push({
+        path,
+        language: "ruby",
+        kind: "method",
+        name: singletonMethodMatch[1],
+        signature: `${prefix}${singletonMethodMatch[1]}${singletonMethodMatch[2].trim()}`,
+        body: sliceLines(source, index, lineNumber, endLine),
+        doc: oversizedRecoveryDoc("ruby"),
+        fallback: false,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine,
+        endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+      });
+      continue;
+    }
+
+    const methodMatch = trimmed.match(/^def\s+([A-Za-z_][A-Za-z0-9_!?=]*)\b(.*)$/);
+    if (methodMatch) {
+      const currentNamespace = namespaceStack.map((entry) => entry.name);
+      const prefix = currentNamespace.length > 0 ? `${currentNamespace.join("::")}#` : "";
+      const endLine = nextRubyBlockBoundary(index, lineNumber);
+      symbols.push({
+        path,
+        language: "ruby",
+        kind: "method",
+        name: methodMatch[1],
+        signature: `${prefix}${methodMatch[1]}${methodMatch[2].trim()}`,
+        body: sliceLines(source, index, lineNumber, endLine),
+        doc: oversizedRecoveryDoc("ruby"),
+        fallback: false,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine,
+        endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+      });
+      continue;
+    }
+
+    const constantMatch = trimmed.match(/^([A-Z][A-Za-z0-9_]*)\s*=/);
+    if (constantMatch) {
+      const currentNamespace = namespaceStack.map((entry) => entry.name);
+      symbols.push({
+        path,
+        language: "ruby",
+        kind: "constant",
+        name: constantMatch[1],
+        signature: currentNamespace.length > 0 ? `${currentNamespace.join("::")}::${constantMatch[1]}` : constantMatch[1],
+        body: trimmed,
+        doc: oversizedRecoveryDoc("ruby"),
+        fallback: false,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine: lineNumber,
+        endColumn: (index.lines[lineNumber - 1]?.length ?? 0) + 1
+      });
+    }
+  }
+
+  return symbols;
 }
 
 function nodeSpan(node: SyntaxNode): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
@@ -447,11 +650,11 @@ function extractUsesForSymbol(
 
 export function extractRubySymbols(path: string, source: string, availablePaths: Set<string> = new Set()): SymbolRecord[] {
   if (source.length > MAX_TREE_SITTER_SOURCE_CHARS) {
-    return fallbackRecord(
-      path,
-      source,
-      oversizedFallbackReason("Ruby")
-    );
+    const recovered = recoverOversizedRubySymbols(path, source, availablePaths);
+    if (recovered.length > 0) {
+      return recovered;
+    }
+    return fallbackRecord(path, source, oversizedFallbackReason("Ruby"));
   }
 
   const tree = parser.parse(source);

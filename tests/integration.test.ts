@@ -3290,6 +3290,53 @@ describe("symballist vertical slice", () => {
     expect(details?.endLine).toBeGreaterThan(clusteringCard?.startLine ?? 0);
   });
 
+  test("oversized ruby files recover top-level modules, classes, methods, and constants instead of a single file fallback", async () => {
+    const root = await createFixtureRepo();
+    const oversizedSource = [
+      'require_relative "./score_helper"',
+      "",
+      "module Scoring",
+      "  class SubmitParts",
+      '    STATUS = "active"',
+      "",
+      "    def self.enqueue(user)",
+      "      user",
+      "    end",
+      "",
+      "    def call(part)",
+      "      part",
+      "    end",
+      "  end",
+      "end",
+      "",
+      "# filler",
+      "# filler\n".repeat(5000)
+    ].join("\n");
+
+    await writeFile(join(root, "big_worker.rb"), oversizedSource, "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const submitParts = searchSymbols(db, "SubmitParts", 10).find((result) => result.kind === "class" && result.path === "big_worker.rb");
+    const scoringModule = searchSymbols(db, "Scoring", 10).find((result) => result.kind === "module" && result.path === "big_worker.rb");
+    const enqueue = searchSymbols(db, "enqueue", 10).find((result) => result.kind === "method" && result.path === "big_worker.rb");
+    const call = searchSymbols(db, "call", 10).find((result) => result.kind === "method" && result.path === "big_worker.rb");
+    const statusConstant = searchSymbols(db, "STATUS", 10).find((result) => result.kind === "constant" && result.path === "big_worker.rb");
+    const fileFallback = searchSymbols(db, "big_worker.rb", 10).find((result) => result.kind === "file" && result.path === "big_worker.rb");
+    const details = submitParts ? getSymbolById(db, submitParts.id) : null;
+    db.close();
+
+    expect(scoringModule?.extraction).toBe("recovered");
+    expect(submitParts?.extraction).toBe("recovered");
+    expect(submitParts?.signature).toContain("class Scoring::SubmitParts");
+    expect(enqueue?.signature).toContain("Scoring::SubmitParts.enqueue");
+    expect(call?.signature).toContain("Scoring::SubmitParts#call");
+    expect(statusConstant?.signature).toContain("Scoring::SubmitParts::STATUS");
+    expect(fileFallback).toBeUndefined();
+    expect(details?.body).toContain("class SubmitParts");
+  });
+
   test("cli args accept an explicit root path", () => {
     const parsed = parseCliArgs(["query", "greet", "--root", "D:/Projects/co-ma", "--limit", "3", "--kind", "class,function"]);
     expect(parsed.command).toBe("query");
