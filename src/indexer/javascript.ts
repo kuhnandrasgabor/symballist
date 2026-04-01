@@ -158,6 +158,112 @@ function nextScriptTopLevelBoundary(index: LineIndex, startLine: number): number
   return index.lines.length;
 }
 
+function recoverOversizedVariableFunctionSymbol(
+  path: string,
+  language: "javascript" | "typescript",
+  source: string,
+  index: LineIndex,
+  startLine: number
+): { symbol: SymbolRecord; endLine: number } | null {
+  const firstLine = index.lines[startLine - 1] ?? "";
+  const firstTrimmed = firstLine.trim();
+  const declarationMatch = firstTrimmed.match(/^(?:export\s+default\s+|export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b/);
+  if (!declarationMatch) {
+    return null;
+  }
+
+  const endLine = nextScriptTopLevelBoundary(index, startLine);
+  const body = sliceLines(source, index, startLine, endLine);
+  const signatureHead = body.replace(/\s+/g, " ").trim();
+  const functionLike = signatureHead.match(
+    /^(?:export\s+default\s+|export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b[^=]*=\s*(?:async\s+)?(?:function\b|(?:\([^)]*\)|[A-Za-z_$][A-Za-z0-9_$]*)\s*=>)/
+  );
+  if (!functionLike) {
+    return null;
+  }
+
+  return {
+    symbol: {
+      path,
+      language,
+      kind: "function",
+      name: declarationMatch[1],
+      signature: signatureHead,
+      body,
+      doc: oversizedRecoveryDoc(language),
+      fallback: false,
+      startLine,
+      startColumn: 1,
+      endLine,
+      endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+    },
+    endLine
+  };
+}
+
+function recoverOversizedClassMethods(
+  path: string,
+  language: "javascript" | "typescript",
+  source: string,
+  index: LineIndex,
+  className: string,
+  classStartLine: number,
+  classEndLine: number
+): SymbolRecord[] {
+  const symbols: SymbolRecord[] = [];
+  let braceDepth = statementBalance(index.lines[classStartLine - 1] ?? "");
+  let lineNumber = classStartLine + 1;
+
+  while (lineNumber < classEndLine) {
+    const line = index.lines[lineNumber - 1] ?? "";
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("//")) {
+      braceDepth += statementBalance(line);
+      lineNumber += 1;
+      continue;
+    }
+
+    if (braceDepth !== 1) {
+      braceDepth += statementBalance(line);
+      lineNumber += 1;
+      continue;
+    }
+
+    const methodMatch = trimmed.match(/^(?:(?:static|async|get|set)\s+)*(#?[A-Za-z_$][A-Za-z0-9_$]*)\s*\((.*)$/);
+    const propertyArrowMatch = trimmed.match(
+      /^(?:(?:static|readonly)\s+)*(#?[A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][A-Za-z0-9_$]*)\s*=>/
+    );
+
+    if (methodMatch || propertyArrowMatch) {
+      const name = (methodMatch?.[1] ?? propertyArrowMatch?.[1] ?? "").trim();
+      const endLine = nextScriptTopLevelBoundary(index, lineNumber);
+      const body = sliceLines(source, index, lineNumber, endLine);
+      symbols.push({
+        path,
+        language,
+        kind: "method",
+        name,
+        signature: `${className}.${trimmed.replace(/\s*{$/, "").trim()}`,
+        body,
+        doc: oversizedRecoveryDoc(language),
+        fallback: false,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine,
+        endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+      });
+      lineNumber = endLine + 1;
+      continue;
+    }
+
+    braceDepth += statementBalance(line);
+    lineNumber += 1;
+  }
+
+  return symbols;
+}
+
 function recoverOversizedScriptSymbols(path: string, language: "javascript" | "typescript", source: string, availablePaths: Set<string>): SymbolRecord[] {
   const index = buildLineIndex(source);
   const symbols: SymbolRecord[] = [];
@@ -228,6 +334,7 @@ function recoverOversizedScriptSymbols(path: string, language: "javascript" | "t
         endLine,
         endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
       });
+      symbols.push(...recoverOversizedClassMethods(path, language, source, index, name, lineNumber, endLine));
       lineNumber = endLine + 1;
       continue;
     }
@@ -252,6 +359,13 @@ function recoverOversizedScriptSymbols(path: string, language: "javascript" | "t
         endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
       });
       lineNumber = endLine + 1;
+      continue;
+    }
+
+    const variableFunction = recoverOversizedVariableFunctionSymbol(path, language, source, index, lineNumber);
+    if (variableFunction) {
+      symbols.push(variableFunction.symbol);
+      lineNumber = variableFunction.endLine + 1;
       continue;
     }
 

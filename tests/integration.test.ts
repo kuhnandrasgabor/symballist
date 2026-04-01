@@ -3242,7 +3242,7 @@ describe("symballist vertical slice", () => {
     expect(details?.endLine).toBeGreaterThan(agentConfig?.startLine ?? 0);
   });
 
-  test("oversized javascript files recover top-level classes instead of a single file fallback", async () => {
+  test("oversized javascript files recover top-level classes, methods, and const functions instead of a single file fallback", async () => {
     const root = await createFixtureRepo();
     const oversizedSource = [
       "import * as utils from './utils.js';",
@@ -3252,6 +3252,10 @@ describe("symballist vertical slice", () => {
       "    return utils.ready();",
       "  }",
       "}",
+      "",
+      "export const buildCard = async (label) => {",
+      "  return label.trim();",
+      "};",
       "",
       "export default ClusteringCard;",
       "",
@@ -3266,6 +3270,8 @@ describe("symballist vertical slice", () => {
     const db = await openDatabase(root);
     const results = searchSymbols(db, "ClusteringCard", 10);
     const clusteringCard = results.find((result) => result.name === "ClusteringCard");
+    const initializeMethod = searchSymbols(db, "initialize", 10).find((result) => result.kind === "method" && result.path === "big_component.js");
+    const buildCard = searchSymbols(db, "buildCard", 10).find((result) => result.kind === "function" && result.path === "big_component.js");
     const fileFallback = results.find((result) => result.path === "big_component.js" && result.kind === "file");
     const details = clusteringCard ? getSymbolById(db, clusteringCard.id) : null;
     db.close();
@@ -3276,6 +3282,10 @@ describe("symballist vertical slice", () => {
     expect(clusteringCard?.extraction).toBe("recovered");
     expect(clusteringCard?.trustLevel).toBe("medium");
     expect(fileFallback).toBeUndefined();
+    expect(initializeMethod?.extraction).toBe("recovered");
+    expect(initializeMethod?.signature).toContain("ClusteringCard.initialize");
+    expect(buildCard?.extraction).toBe("recovered");
+    expect(buildCard?.signature).toContain("export const buildCard");
     expect(details?.body).toContain("class ClusteringCard");
     expect(details?.endLine).toBeGreaterThan(clusteringCard?.startLine ?? 0);
   });
