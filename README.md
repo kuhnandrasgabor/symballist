@@ -232,6 +232,10 @@ symballist watch --once
   - neighbor bodies summarize by default; add `--full` to expand neighbor bodies inline for deep traversal reads
 - `bodyPresentation`
   - `lookup` and `show` summarize oversized bodies by default; check `bodyPresentation.fullerBodyAvailable` and `bodyPresentation.expansionHint` to decide whether `--full` is worth the extra payload
+- oversized-file extraction policy
+  - files are classified as `parsed`, `recovered`, or `fallback` based on whether the normal parser succeeded, an oversized-file recovery adapter could salvage top-level symbols, or only a file-level fallback record was safe
+  - Python and JavaScript/TypeScript currently have oversized-file recovery adapters; HTML and Ruby still fall back when oversized
+  - recovered symbols report `extraction: "recovered"` with medium extraction trust so agents can treat them as useful but less authoritative than fully parsed symbols
 - `score` and `scoreMarginFromTop`
   - `query` and `lookup` expose relative 0-1 ranking signals for the returned result set
   - use them to compare nearby candidates within one response, not as absolute confidence or probability

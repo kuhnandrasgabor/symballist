@@ -4,6 +4,7 @@ import Javascript from "tree-sitter-javascript";
 import Typescript from "tree-sitter-typescript";
 import type { SyntaxNode } from "tree-sitter";
 import type { RelationDetails, SymbolRecord } from "../types.ts";
+import { MAX_TREE_SITTER_SOURCE_CHARS, oversizedFallbackReason, oversizedRecoveryDoc } from "./oversized.ts";
 
 const javascriptParser = new Parser();
 javascriptParser.setLanguage(Javascript);
@@ -14,7 +15,6 @@ typescriptParser.setLanguage(Typescript.typescript);
 const tsxParser = new Parser();
 tsxParser.setLanguage(Typescript.tsx);
 
-const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 const SCRIPT_IMPORT_CANDIDATE_EXTENSIONS = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".css"];
 
 type LineIndex = {
@@ -195,7 +195,7 @@ function recoverOversizedScriptSymbols(path: string, language: "javascript" | "t
           name: statement,
           signature: statement,
           body: statement,
-          doc: `Recovered from oversized ${language} file via lightweight top-level scan.`,
+          doc: oversizedRecoveryDoc(language),
           fallback: false,
           relations: extractImportRelations(statement, path, availablePaths),
           startLine: lineNumber,
@@ -221,7 +221,7 @@ function recoverOversizedScriptSymbols(path: string, language: "javascript" | "t
         name,
         signature: `class ${name}${suffix.replace(/\s*{$/, "").trim()}`,
         body,
-        doc: `Recovered from oversized ${language} file via lightweight top-level scan.`,
+        doc: oversizedRecoveryDoc(language),
         fallback: false,
         startLine: lineNumber,
         startColumn: 1,
@@ -244,7 +244,7 @@ function recoverOversizedScriptSymbols(path: string, language: "javascript" | "t
         name,
         signature: `${name}${signatureTail.replace(/\s*{$/, "").trim()}`,
         body,
-        doc: `Recovered from oversized ${language} file via lightweight top-level scan.`,
+        doc: oversizedRecoveryDoc(language),
         fallback: false,
         startLine: lineNumber,
         startColumn: 1,
@@ -641,7 +641,7 @@ function extractScriptSymbols(
       path,
       language,
       source,
-      `Fallback record created because ${language} source exceeded the safe tree-sitter size limit (${MAX_TREE_SITTER_SOURCE_CHARS} chars) on this runtime.`
+      oversizedFallbackReason(language)
     );
   }
 

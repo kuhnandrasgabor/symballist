@@ -26,6 +26,7 @@ import type {
   SymbolRecord,
   TrustLevel
 } from "./types.ts";
+import { isOversizedRecoveryDoc } from "./indexer/oversized.ts";
 
 export const CURRENT_SCHEMA_VERSION = 6;
 export const CURRENT_INDEX_FORMAT_VERSION = 2;
@@ -938,7 +939,7 @@ function getExtractionDetails(row: { fallback: number | boolean; doc: string | n
     };
   }
 
-  if ((row.doc ?? "").startsWith("Recovered from oversized ")) {
+  if (isOversizedRecoveryDoc(row.doc)) {
     return {
       extraction: "recovered",
       trustLevel: "medium"

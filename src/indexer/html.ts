@@ -2,10 +2,10 @@ import Parser from "tree-sitter";
 import Html from "tree-sitter-html";
 import type { SyntaxNode } from "tree-sitter";
 import type { SymbolRecord } from "../types.ts";
+import { MAX_TREE_SITTER_SOURCE_CHARS, oversizedFallbackReason } from "./oversized.ts";
 
 const parser = new Parser();
 parser.setLanguage(Html);
-const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 
 function nodeText(source: string, node: SyntaxNode | null): string {
   if (!node) {
@@ -63,7 +63,7 @@ export function extractHtmlSymbols(path: string, source: string): SymbolRecord[]
     return fallbackRecord(
       path,
       source,
-      `Fallback record created because HTML source exceeded the safe tree-sitter size limit (${MAX_TREE_SITTER_SOURCE_CHARS} chars) on this runtime.`
+      oversizedFallbackReason("HTML")
     );
   }
 

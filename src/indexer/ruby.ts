@@ -3,11 +3,10 @@ import Parser from "tree-sitter";
 import Ruby from "tree-sitter-ruby";
 import type { SyntaxNode } from "tree-sitter";
 import type { RelationDetails, SymbolRecord } from "../types.ts";
+import { MAX_TREE_SITTER_SOURCE_CHARS, oversizedFallbackReason } from "./oversized.ts";
 
 const parser = new Parser();
 parser.setLanguage(Ruby);
-
-const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 
 type UsageTarget = {
   targetPath: string;
@@ -451,7 +450,7 @@ export function extractRubySymbols(path: string, source: string, availablePaths:
     return fallbackRecord(
       path,
       source,
-      `Fallback record created because Ruby source exceeded the safe tree-sitter size limit (${MAX_TREE_SITTER_SOURCE_CHARS} chars) on this runtime.`
+      oversizedFallbackReason("Ruby")
     );
   }
 

@@ -115,14 +115,16 @@ Typical agent flow:
 9. If the repo owner enabled `impactTracking.enabled`, use `report` only when you explicitly want the local aggregate usage and impact summary; it does not store raw query text.
 10. In `query` and `lookup`, use `score` and `scoreMarginFromTop` only as relative within-result-set ranking hints, not as absolute confidence values.
 11. In `report`, treat `commandCounts` as intentional usage and background `watch` traffic as separate infrastructure counts.
-12. Verify important conclusions in the underlying file.
-13. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
-14. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
-15. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
-16. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import/usage structure or root-awareness contributed to reranking.
-17. When you need a safer read on whether something merely looks isolated versus truly unused, inspect `graphDiagnostics` on the returned symbol or query results; these are bounded to what the current index can see.
-18. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
-19. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
+12. For oversized source files, treat `extraction: "parsed"` as the strongest case, `extraction: "recovered"` as a useful lightweight recovery pass, and `extraction: "fallback"` as file-level guidance only.
+13. In the current build, Python and JavaScript/TypeScript have oversized-file recovery adapters; HTML and Ruby still fall back when a file exceeds the safe parser limit.
+14. Verify important conclusions in the underlying file.
+15. If embeddings are enabled, check the `retrieval` block from `query` or `lookup` to see whether the run was truly `hybrid` or fell back to lexical.
+16. When debugging hybrid behavior, inspect `retrieval.hybrid` plus each result's `retrievalChannels`, `hybridContribution`, and `semanticSimilarity` fields to see whether embeddings actually contributed to the merged ranking.
+17. In the current build, hybrid retrieval is no longer just informational: it can promote canonical implementation hits for weak conceptual queries when lexical overlap alone is not enough.
+18. When inspecting why nearby code results clustered together, check `graphSignals` on each result to see whether one-hop file/import/usage structure or root-awareness contributed to reranking.
+19. When you need a safer read on whether something merely looks isolated versus truly unused, inspect `graphDiagnostics` on the returned symbol or query results; these are bounded to what the current index can see.
+20. When onboarding in a fresh shell, prefer the wrapper that matches the current shell instead of assuming the Windows `.cmd` entrypoint will work everywhere.
+21. When the response is intended primarily for an agent consumer, prefer `--compact` on `query`, `lookup`, or `show` to avoid paying repeatedly for the static legend blocks.
 
 Useful query refinements:
 

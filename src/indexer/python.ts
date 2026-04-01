@@ -3,10 +3,10 @@ import Python from "tree-sitter-python";
 import type { SyntaxNode } from "tree-sitter";
 import { dirname, join, normalize } from "node:path";
 import type { RelationDetails, SymbolRecord } from "../types.ts";
+import { MAX_TREE_SITTER_SOURCE_CHARS, oversizedFallbackReason, oversizedRecoveryDoc } from "./oversized.ts";
 
 const parser = new Parser();
 parser.setLanguage(Python);
-const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 const PYTHON_IDENTIFIER = "[A-Za-z_][A-Za-z0-9_]*";
 
 function sliceBody(source: string, start: number, end: number): string {
@@ -174,7 +174,7 @@ function recoverOversizedPythonSymbols(path: string, source: string): SymbolReco
           name: statement,
           signature: statement,
           body: statement,
-          doc: "Recovered from oversized Python file via lightweight top-level scan.",
+          doc: oversizedRecoveryDoc("python"),
           fallback: false,
           startLine: lineNumber,
           startColumn: 1,
@@ -224,7 +224,7 @@ function recoverOversizedPythonSymbols(path: string, source: string): SymbolReco
           name,
           signature: `class ${name}${signatureSuffix}`,
           body: bodyText || headerText,
-          doc: "Recovered from oversized Python file via lightweight top-level scan.",
+          doc: oversizedRecoveryDoc("python"),
           fallback: false,
           startLine: lineNumber,
           startColumn: 1,
@@ -245,7 +245,7 @@ function recoverOversizedPythonSymbols(path: string, source: string): SymbolReco
           name,
           signature: `${name}${parameters}${returnSuffix ? ` ${returnSuffix}` : ""}`,
           body: bodyText || headerText,
-          doc: "Recovered from oversized Python file via lightweight top-level scan.",
+          doc: oversizedRecoveryDoc("python"),
           fallback: false,
           startLine: lineNumber,
           startColumn: 1,
@@ -494,7 +494,7 @@ export function extractPythonSymbols(path: string, source: string, availablePath
     return fallbackRecord(
       path,
       source,
-      `Fallback record created because Python source exceeded the safe tree-sitter size limit (${MAX_TREE_SITTER_SOURCE_CHARS} chars) on this runtime.`
+      oversizedFallbackReason("Python")
     );
   }
 
