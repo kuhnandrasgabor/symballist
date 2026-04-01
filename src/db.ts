@@ -1090,11 +1090,15 @@ function getExactLookupCandidates(
   const exactNameClause = `lower(name) IN (${exactPlaceholders})`;
   const exactSignatureClause = `lower(COALESCE(signature, '')) IN (${exactPlaceholders})`;
   const exactPathClause = `lower(path) IN (${exactPlaceholders})`;
+  const normalizedSignatureSuffixClause = normalizedVariants.length > 0
+    ? ` OR ${normalizedLookupSql("COALESCE(signature, '')")} LIKE '%' || ?`
+    : "";
   const normalizedClause = normalizedVariants.length > 0
     ? `
       OR ${normalizedLookupSql("name")} IN (${normalizedPlaceholders})
       OR ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedPlaceholders})
       OR ${normalizedLookupSql("path")} IN (${normalizedPlaceholders})
+      ${normalizedSignatureSuffixClause}
     `
     : "";
   const exactValues = variants.map((variant) => variant.toLowerCase());
@@ -1131,8 +1135,9 @@ function getExactLookupCandidates(
         WHEN ${exactPathClause} THEN 2
         ${normalizedVariants.length > 0 ? `WHEN ${normalizedLookupSql("name")} IN (${normalizedPlaceholders}) THEN 3
         WHEN ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedPlaceholders}) THEN 4
-        WHEN ${normalizedLookupSql("path")} IN (${normalizedPlaceholders}) THEN 5` : ""}
-        ELSE 6
+        WHEN ${normalizedLookupSql("path")} IN (${normalizedPlaceholders}) THEN 5
+        WHEN ${normalizedLookupSql("COALESCE(signature, '')")} LIKE '%' || ? THEN 6` : ""}
+        ELSE 7
       END,
       CASE kind
         WHEN 'class' THEN 0
@@ -1153,6 +1158,7 @@ function getExactLookupCandidates(
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? [normalizedVariants[0]!] : []),
     ...kinds,
     ...exactValues,
     ...exactValues,
@@ -1160,6 +1166,7 @@ function getExactLookupCandidates(
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? [normalizedVariants[0]!] : []),
     limit
   ) as SearchRow[];
 
@@ -2877,8 +2884,13 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
     ? ` AND kind IN (${kinds.map(() => "?").join(", ")})`
     : "";
   const exactPlaceholders = variants.map(() => "?").join(", ");
+  const normalizedSignatureSuffixClause = normalizedVariants.length > 0
+    ? ` OR ${normalizedLookupSql("COALESCE(signature, '')")} LIKE '%' || ?`
+    : "";
   const normalizedClause = normalizedVariants.length > 0
-    ? ` OR ${normalizedLookupSql("name")} IN (${normalizedVariants.map(() => "?").join(", ")})`
+    ? ` OR ${normalizedLookupSql("name")} IN (${normalizedVariants.map(() => "?").join(", ")})
+        OR ${normalizedLookupSql("COALESCE(signature, '')")} IN (${normalizedVariants.map(() => "?").join(", ")})
+        ${normalizedSignatureSuffixClause}`
     : "";
   const exactValues = variants.map((variant) => variant.toLowerCase());
 
@@ -2899,12 +2911,19 @@ export function getBestSymbolByName(db: Database, rawName: string, options: Symb
       end_column AS endColumn,
       0.0 AS rawScore
     FROM symbols
-    WHERE (lower(name) IN (${exactPlaceholders})${normalizedClause})
+    WHERE (
+      lower(name) IN (${exactPlaceholders})
+      OR lower(COALESCE(signature, '')) IN (${exactPlaceholders})
+      ${normalizedClause}
+    )
     ${whereKindClause}
     LIMIT 50
   `).all(
     ...exactValues,
+    ...exactValues,
     ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? normalizedVariants : []),
+    ...(normalizedVariants.length > 0 ? [normalizedVariants[0]!] : []),
     ...kinds
   ) as SearchRow[];
 
@@ -3537,7 +3556,11 @@ function getTargetSymbolCandidates(db: Database, relation: RelationDetails): Sym
     return [];
   }
 
-  const preferredName = relation.targetLabel.split(".").at(-1) ?? relation.targetLabel;
+  const preferredName = relation.targetLabel
+    .split(/::|\./)
+    .at(-1)
+    ?.trim()
+    ?? relation.targetLabel;
   const rows = db.query(`
     SELECT
       id,
@@ -3585,7 +3608,11 @@ function getSourceSymbolCandidates(db: Database, relation: InboundRelationRow): 
     return [];
   }
 
-  const preferredName = relation.targetLabel.split(".").at(-1) ?? relation.targetLabel;
+  const preferredName = relation.targetLabel
+    .split(/::|\./)
+    .at(-1)
+    ?.trim()
+    ?? relation.targetLabel;
   const rows = db.query(`
     SELECT
       id,

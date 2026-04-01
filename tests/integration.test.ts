@@ -467,6 +467,151 @@ describe("symballist vertical slice", () => {
     expect(status.supportedLanguages).toContain("ruby");
   });
 
+  test("lookup, show, and graph resolve fully-qualified Ruby names", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "services", "scoring"), { recursive: true });
+    await writeFile(
+      join(root, "app", "services", "scoring", "submit_parts.rb"),
+      [
+        "module Scoring",
+        "  class SubmitParts",
+        "    def call(part)",
+        "      part.to_s",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const lookupPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runLookup(root, "Scoring::SubmitParts", 5);
+    })) as {
+      selectedResult?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    const showPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "Scoring::SubmitParts");
+    })) as {
+      symbol?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    const graphPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runGraph(root, "", "Scoring::SubmitParts");
+    })) as {
+      symbol?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    expect(lookupPayload.selectedResult?.name).toBe("SubmitParts");
+    expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/services/scoring/submit_parts.rb");
+    expect(showPayload.symbol?.name).toBe("SubmitParts");
+    expect(normalizeRepoPath(showPayload.symbol?.path)).toBe("app/services/scoring/submit_parts.rb");
+    expect(graphPayload.symbol?.name).toBe("SubmitParts");
+    expect(normalizeRepoPath(graphPayload.symbol?.path)).toBe("app/services/scoring/submit_parts.rb");
+  });
+
+  test("ruby infers cross-file uses relations from Rails-style constant references", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "models"), { recursive: true });
+    await mkdir(join(root, "app", "services", "scoring"), { recursive: true });
+    await writeFile(
+      join(root, "app", "models", "student.rb"),
+      [
+        "class Student",
+        "  def self.active",
+        "    true",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "services", "scoring", "gradebook.rb"),
+      [
+        "module Scoring",
+        "  class Gradebook",
+        "    def self.persist(student)",
+        "      student",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "services", "scoring", "submit_parts.rb"),
+      [
+        "module Scoring",
+        "  class SubmitParts",
+        "    def call",
+        "      Gradebook.persist(Student.new)",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const showPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runShow(root, "", "Scoring::SubmitParts");
+    })) as {
+      relations?: Array<{ kind: string; targetLabel: string; targetPath: string | null }>;
+      related?: Array<{ relation: { kind: string }; symbol: { name: string; path: string } }>;
+    };
+
+    const graphPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runGraph(root, "", "Scoring::SubmitParts");
+    })) as {
+      graph?: {
+        uses: Array<{ symbol: { name: string; path: string } }>;
+      };
+    };
+
+    expect(showPayload.relations?.some((relation) =>
+      relation.kind === "uses"
+      && relation.targetLabel === "Scoring::Gradebook"
+      && normalizeRepoPath(relation.targetPath) === "app/services/scoring/gradebook.rb"
+    )).toBeTrue();
+    expect(showPayload.relations?.some((relation) =>
+      relation.kind === "uses"
+      && relation.targetLabel === "Student"
+      && normalizeRepoPath(relation.targetPath) === "app/models/student.rb"
+    )).toBeTrue();
+    expect(showPayload.related?.some((entry) =>
+      entry.relation.kind === "uses"
+      && entry.symbol.name === "Gradebook"
+      && normalizeRepoPath(entry.symbol.path) === "app/services/scoring/gradebook.rb"
+    )).toBeTrue();
+    expect(showPayload.related?.some((entry) =>
+      entry.relation.kind === "uses"
+      && entry.symbol.name === "Student"
+      && normalizeRepoPath(entry.symbol.path) === "app/models/student.rb"
+    )).toBeTrue();
+    expect(graphPayload.graph?.uses.some((entry) =>
+      entry.symbol.name === "Gradebook"
+      && normalizeRepoPath(entry.symbol.path) === "app/services/scoring/gradebook.rb"
+    )).toBeTrue();
+    expect(graphPayload.graph?.uses.some((entry) =>
+      entry.symbol.name === "Student"
+      && normalizeRepoPath(entry.symbol.path) === "app/models/student.rb"
+    )).toBeTrue();
+  });
+
   test("frontend JS and CSS participate in graph relations and diagnostics for fuzzy implementation queries", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "dashboard_frontend", "core"), { recursive: true });

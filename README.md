@@ -48,6 +48,7 @@ Use `symballist` if you want:
 - automatic foreground watch-based refresh
 - optional Ollama embeddings with hybrid lexical + semantic retrieval
 - one-hop graph-aware reranking using containment, import, usage, and root hints
+- Ruby relation heuristics for `require` / `require_relative` plus obvious Rails-style cross-file constant references
 - lightweight follow-up context through relations, related symbols, and graph diagnostics
 - bounded graph awareness for likely roots and advisory possible-orphan candidates
 - opt-in repo-local usage and impact summaries for adopted repos
@@ -133,6 +134,7 @@ Available setup types:
 Current language coverage:
 
 - code and app structure: Python, Ruby, JavaScript, TypeScript, HTML
+  - Ruby currently covers classes, modules, methods, constants, fully-qualified names, and conservative Rails-style autoload path inference for obvious cross-file constant references
 - docs: Markdown
 - config and ops: YAML, shell / bash / zsh, Dockerfile / Containerfile, CSS
 - optional local impact tracking: enable `impactTracking.enabled` in `.symballist/config.json`, then use `symballist report`

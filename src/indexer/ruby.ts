@@ -148,6 +148,89 @@ function extractRequireRelations(statement: string, sourcePath: string, availabl
   return [];
 }
 
+function snakeCaseRubySegment(segment: string): string {
+  return segment
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/-/g, "_")
+    .toLowerCase();
+}
+
+function splitRubyConstantReference(value: string): string[] {
+  return value
+    .trim()
+    .replace(/^::/, "")
+    .split("::")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+function isRubyConstantReference(value: string): boolean {
+  return /^[A-Z][A-Za-z0-9_]*(::[A-Z][A-Za-z0-9_]*)*$/.test(value.trim());
+}
+
+function rubyAutoloadCandidatePaths(relativeSegments: string[], sourcePath: string): string[] {
+  const relativePath = join(...relativeSegments.map((segment) => snakeCaseRubySegment(segment)));
+
+  return [
+    normalize(join("app", "models", `${relativePath}.rb`)),
+    normalize(join("app", "services", `${relativePath}.rb`)),
+    normalize(join("app", "controllers", `${relativePath}.rb`)),
+    normalize(join("app", "helpers", `${relativePath}.rb`)),
+    normalize(join("app", "jobs", `${relativePath}.rb`)),
+    normalize(join("app", "workers", `${relativePath}.rb`)),
+    normalize(join("app", "mailers", `${relativePath}.rb`)),
+    normalize(join("app", "serializers", `${relativePath}.rb`)),
+    normalize(join("app", "policies", `${relativePath}.rb`)),
+    normalize(join("lib", `${relativePath}.rb`)),
+    normalize(`${relativePath}.rb`)
+  ];
+}
+
+function resolveRubyConstantPath(
+  reference: string,
+  sourcePath: string,
+  availablePaths: Set<string>,
+  lexicalNamespace: string[]
+): UsageTarget | null {
+  if (!isRubyConstantReference(reference)) {
+    return null;
+  }
+
+  const segments = splitRubyConstantReference(reference);
+  if (segments.length === 0) {
+    return null;
+  }
+
+  const candidateSegmentSets: string[][] = [];
+  if (reference.includes("::")) {
+    candidateSegmentSets.push(segments);
+  } else {
+    for (let index = lexicalNamespace.length; index >= 0; index -= 1) {
+      candidateSegmentSets.push([...lexicalNamespace.slice(0, index), ...segments]);
+    }
+  }
+
+  const resolved = new Map<string, string>();
+  for (const candidateSegments of candidateSegmentSets) {
+    for (const candidatePath of rubyAutoloadCandidatePaths(candidateSegments, sourcePath)) {
+      if (availablePaths.has(candidatePath)) {
+        resolved.set(candidatePath, candidateSegments.join("::"));
+      }
+    }
+  }
+
+  if (resolved.size !== 1) {
+    return null;
+  }
+
+  const [targetPath, labelPrefix] = [...resolved.entries()][0];
+  return {
+    targetPath,
+    labelPrefix
+  };
+}
+
 function parseRequireAliases(statement: string, sourcePath: string, availablePaths: Set<string>): Map<string, UsageTarget> {
   const aliases = new Map<string, UsageTarget>();
   const normalized = statement.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
@@ -279,14 +362,37 @@ function extractConstantSymbol(path: string, source: string, node: SyntaxNode): 
 function extractUsesForSymbol(
   source: string,
   owner: RubySymbolNode,
+  sourcePath: string,
+  availablePaths: Set<string>,
   aliases: Map<string, UsageTarget>,
   localSymbols: Map<string, SymbolRecord>
 ): RelationDetails[] {
   const relations: RelationDetails[] = [];
   const seen = new Set<string>();
+  const lexicalNamespace = enclosingNamespace(source, owner.node);
+
+  const pushRelation = (relation: RelationDetails): void => {
+    const key = `${relation.kind}::${relation.targetPath ?? ""}::${relation.targetLabel}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    relations.push(relation);
+  };
 
   visit(owner.node, (node) => {
     if (node.type !== "call") {
+      if (node.type === "constant" || node.type === "scope_resolution") {
+        const reference = identifierText(source, node);
+        const resolvedTarget = resolveRubyConstantPath(reference, sourcePath, availablePaths, lexicalNamespace);
+        if (resolvedTarget && resolvedTarget.targetPath !== owner.record.path) {
+          pushRelation({
+            kind: "uses",
+            targetPath: resolvedTarget.targetPath,
+            targetLabel: resolvedTarget.labelPrefix
+          });
+        }
+      }
       return;
     }
 
@@ -297,12 +403,7 @@ function extractUsesForSymbol(
 
     if (receiver && aliases.has(receiver) && method) {
       const target = aliases.get(receiver)!;
-      const key = `${target.targetPath}::${target.labelPrefix}.${method}`;
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-      relations.push({
+      pushRelation({
         kind: "uses",
         targetPath: target.targetPath,
         targetLabel: `${target.labelPrefix}.${method}`
@@ -310,14 +411,21 @@ function extractUsesForSymbol(
       return;
     }
 
+    const resolvedConstantTarget = receiver
+      ? resolveRubyConstantPath(receiver, sourcePath, availablePaths, lexicalNamespace)
+      : null;
+    if (resolvedConstantTarget && resolvedConstantTarget.targetPath !== owner.record.path) {
+      pushRelation({
+        kind: "uses",
+        targetPath: resolvedConstantTarget.targetPath,
+        targetLabel: resolvedConstantTarget.labelPrefix
+      });
+      return;
+    }
+
     if (receiver && localSymbols.has(receiver)) {
       const target = localSymbols.get(receiver)!;
-      const key = `${target.path}::${target.name}`;
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-      relations.push({
+      pushRelation({
         kind: "uses",
         targetPath: target.path,
         targetLabel: target.signature ?? target.name
@@ -327,12 +435,7 @@ function extractUsesForSymbol(
 
     if (!receiver && method && localSymbols.has(method)) {
       const target = localSymbols.get(method)!;
-      const key = `${target.path}::${target.name}`;
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-      relations.push({
+      pushRelation({
         kind: "uses",
         targetPath: target.path,
         targetLabel: target.signature ?? target.name
@@ -442,7 +545,7 @@ export function extractRubySymbols(path: string, source: string, availablePaths:
       : [];
     owner.record.relations = [
       ...(owner.record.relations ?? importRelations),
-      ...extractUsesForSymbol(source, owner, aliases, localSymbols)
+      ...extractUsesForSymbol(source, owner, path, availablePaths, aliases, localSymbols)
     ];
   }
 
