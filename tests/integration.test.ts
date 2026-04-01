@@ -859,11 +859,92 @@ describe("symballist vertical slice", () => {
     expect(normalizeRepoPath(lookupPayload.selectedResult?.path)).toBe("app/lib/sis/v2/services/writing/student.rb");
   });
 
+  test("deep namespace Ruby exact lookup can admit the tail-segment class into the candidate pool", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "lib", "sis", "v2", "services", "writing"), { recursive: true });
+    await writeFile(
+      join(root, "app", "lib", "sis", "v2", "services", "writing", "student.rb"),
+      [
+        "module Sis",
+        "  module V2",
+        "    module Services",
+        "      module Writing",
+        "        class Student",
+        "        end",
+        "      end",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const symbol = getBestSymbolByName(db, "Sis::V2::Services::Writing::Student");
+    db.close();
+
+    expect(symbol?.name).toBe("Student");
+    expect(symbol?.kind).toBe("class");
+    expect(normalizeRepoPath(symbol?.path)).toBe("app/lib/sis/v2/services/writing/student.rb");
+  });
+
+  test("deep namespace exact lookup keeps the intended class ahead of same-file helpers and duplicate short-name classes", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "app", "models"), { recursive: true });
+    await mkdir(join(root, "app", "lib", "sis", "v2", "services", "writing"), { recursive: true });
+    await writeFile(
+      join(root, "app", "models", "student.rb"),
+      [
+        "class Student",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      join(root, "app", "lib", "sis", "v2", "services", "writing", "student.rb"),
+      [
+        "module Sis",
+        "  module V2",
+        "    module Services",
+        "      module Writing",
+        "        class Student",
+        "          def attrs_for_db",
+        "            {}",
+        "          end",
+        "",
+        "          def student",
+        "            attrs_for_db",
+        "          end",
+        "        end",
+        "      end",
+        "    end",
+        "  end",
+        "end"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const symbol = getBestSymbolByName(db, "Sis::V2::Services::Writing::Student");
+    db.close();
+
+    expect(symbol?.name).toBe("Student");
+    expect(symbol?.kind).toBe("class");
+    expect(normalizeRepoPath(symbol?.path)).toBe("app/lib/sis/v2/services/writing/student.rb");
+  });
+
   test("deep namespace qualified matching demotes lowercase tail-segment non-definition symbols", () => {
     const match = analyzeQualifiedSymbolMatch(
       {
         kind: "method",
         name: "student",
+        path: "app/lib/sis/v2/services/writing/student.rb",
         signature: "Sis::V2::Services::Writing::Student#student"
       },
       "Sis::V2::Services::Writing::Student",
@@ -881,6 +962,7 @@ describe("symballist vertical slice", () => {
       {
         kind: "class",
         name: "Student",
+        path: "app/lib/sis/v2/services/writing/student.rb",
         signature: "class Student"
       },
       "Sis::V2::Services::Writing::Student",
@@ -891,6 +973,21 @@ describe("symballist vertical slice", () => {
     expect(match?.adjustment).toBe(-2.7);
     expect(match?.reason).toBe("normalized_symbol_name");
     expect(match?.confidence).toBe("exact");
+  });
+
+  test("deep namespace qualified matching does not boost unrelated top-level tail-segment classes", () => {
+    const match = analyzeQualifiedSymbolMatch(
+      {
+        kind: "class",
+        name: "Student",
+        path: "app/models/student.rb",
+        signature: "class Student"
+      },
+      "Sis::V2::Services::Writing::Student",
+      -1.2
+    );
+
+    expect(match).toBeNull();
   });
 
   test("ruby infers cross-file uses relations from Rails-style constant references", async () => {

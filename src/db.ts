@@ -913,6 +913,30 @@ function normalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function snakeCaseNamespaceSegment(segment: string): string {
+  return segment
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[-\s]+/g, "_")
+    .toLowerCase();
+}
+
+function qualifiedLookupPathSuffixes(rawQuery: string): string[] {
+  const segments = rawQuery
+    .split("::")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => snakeCaseNamespaceSegment(segment));
+  if (segments.length < 2) {
+    return [];
+  }
+
+  const joined = segments.join("/");
+  return [
+    `/${joined}.rb`,
+    `/${joined}`
+  ];
+}
+
 function unwrapQuotedLookupValue(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length < 2) {
@@ -940,6 +964,18 @@ function lookupLiteralVariants(rawValue: string): string[] {
   }
   if (unwrapped) {
     variants.add(unwrapped);
+  }
+  if (trimmed.includes("::")) {
+    const tail = trimmed.split("::").at(-1)?.trim();
+    if (tail) {
+      variants.add(tail);
+    }
+  }
+  if (unwrapped.includes("::")) {
+    const tail = unwrapped.split("::").at(-1)?.trim();
+    if (tail) {
+      variants.add(tail);
+    }
   }
 
   return [...variants];
@@ -1396,6 +1432,7 @@ function getLiteralFallbackCandidates(
 
 function syntheticExactLookupRawScore(row: SearchRow, rawQuery: string): number {
   const loweredRawQuery = rawQuery.toLowerCase();
+  const loweredName = row.name.trim().toLowerCase();
   if (row.name.trim().toLowerCase() === loweredRawQuery) {
     return -7.5;
   }
@@ -1404,6 +1441,31 @@ function syntheticExactLookupRawScore(row: SearchRow, rawQuery: string): number 
   }
   if (row.path.trim().toLowerCase() === loweredRawQuery) {
     return -6.5;
+  }
+  if (rawQuery.includes("::")) {
+    const querySegments = rawQuery.split("::").map((segment) => segment.trim()).filter(Boolean);
+    const lastSegment = querySegments.at(-1)?.toLowerCase() ?? "";
+    const signature = row.signature ?? "";
+    const strippedSignature = stripTypePrefix(signature);
+    const loweredSignature = signature.toLowerCase();
+    const loweredStrippedSignature = strippedSignature.toLowerCase();
+    const loweredPath = row.path.toLowerCase().replace(/\\/g, "/");
+    const pathSuffixes = qualifiedLookupPathSuffixes(rawQuery);
+    const hasNamespaceEvidence = loweredStrippedSignature === loweredRawQuery
+      || loweredSignature.includes(loweredRawQuery)
+      || loweredStrippedSignature.startsWith(`${loweredRawQuery}#`)
+      || loweredStrippedSignature.startsWith(`${loweredRawQuery}.`)
+      || loweredStrippedSignature.startsWith(`${loweredRawQuery}::`)
+      || pathSuffixes.some((suffix) => loweredPath.endsWith(suffix));
+
+    if (
+      querySegments.length >= 3
+      && hasNamespaceEvidence
+      && (row.kind === "class" || row.kind === "module")
+      && loweredName === lastSegment
+    ) {
+      return -10.0;
+    }
   }
   return -6.0;
 }
@@ -1433,7 +1495,7 @@ function stripTypePrefix(signature: string): string {
 }
 
 export function analyzeQualifiedSymbolMatch(
-  row: Pick<SearchRow, "kind" | "name" | "signature">,
+  row: Pick<SearchRow, "kind" | "name" | "path" | "signature">,
   rawQuery: string,
   definitionBias: number
 ): MatchAnalysis | null {
@@ -1449,8 +1511,21 @@ export function analyzeQualifiedSymbolMatch(
   const loweredSignature = signature.toLowerCase();
   const loweredStrippedSignature = strippedSignature.toLowerCase();
   const loweredName = row.name.trim().toLowerCase();
+  const loweredPath = row.path.toLowerCase().replace(/\\/g, "/");
+  const pathSuffixes = qualifiedLookupPathSuffixes(rawQuery);
+  const hasNamespaceEvidence = loweredStrippedSignature === loweredQuery
+    || loweredSignature.includes(loweredQuery)
+    || loweredStrippedSignature.startsWith(`${loweredQuery}#`)
+    || loweredStrippedSignature.startsWith(`${loweredQuery}.`)
+    || loweredStrippedSignature.startsWith(`${loweredQuery}::`)
+    || pathSuffixes.some((suffix) => loweredPath.endsWith(suffix));
 
-  if (querySegments.length >= 3 && (row.kind === "class" || row.kind === "module") && loweredName === lastSegment) {
+  if (
+    querySegments.length >= 3
+    && hasNamespaceEvidence
+    && (row.kind === "class" || row.kind === "module")
+    && loweredName === lastSegment
+  ) {
     return {
       adjustment: -1.5 + definitionBias,
       reason: "normalized_symbol_name",
@@ -1458,7 +1533,13 @@ export function analyzeQualifiedSymbolMatch(
     };
   }
 
-  if (querySegments.length >= 3 && row.kind !== "class" && row.kind !== "module" && loweredName === lastSegment) {
+  if (
+    querySegments.length >= 3
+    && hasNamespaceEvidence
+    && row.kind !== "class"
+    && row.kind !== "module"
+    && loweredName === lastSegment
+  ) {
     return {
       adjustment: 1.25,
       reason: "normalized_symbol_name",
