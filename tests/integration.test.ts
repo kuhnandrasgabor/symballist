@@ -1280,6 +1280,18 @@ describe("symballist vertical slice", () => {
       indexedFiles: number;
       indexedSymbols: number;
       fallbackSymbols: number;
+      extractionSummary: {
+        parsed: number;
+        recovered: number;
+        fallback: number;
+        byLanguage: Array<{
+          language: string;
+          total: number;
+          parsed: number;
+          recovered: number;
+          fallback: number;
+        }>;
+      };
       indexedSchemaVersion: number | null;
       currentIndexFormatVersion: number;
       indexedIndexFormatVersion: number | null;
@@ -1338,6 +1350,11 @@ describe("symballist vertical slice", () => {
     expect(status.indexedFiles).toBe(7);
     expect(status.indexedSymbols).toBe(15);
     expect(status.fallbackSymbols).toBe(1);
+    expect(status.extractionSummary.parsed).toBe(14);
+    expect(status.extractionSummary.recovered).toBe(0);
+    expect(status.extractionSummary.fallback).toBe(1);
+    expect(status.extractionSummary.byLanguage.reduce((sum, entry) => sum + entry.fallback, 0)).toBe(1);
+    expect(status.extractionSummary.byLanguage.some((entry) => entry.language === "python" && entry.parsed > 0)).toBeTrue();
     expect(status.indexedSchemaVersion).toBeGreaterThan(0);
     expect(status.currentIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
     expect(status.indexedIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);

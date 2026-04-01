@@ -19,6 +19,18 @@ export async function runStatus(root: string): Promise<void> {
   let indexedFileCount = 0;
   let indexedSymbols = 0;
   let fallbackSymbols = 0;
+  let extractionSummary = {
+    parsed: 0,
+    recovered: 0,
+    fallback: 0,
+    byLanguage: [] as Array<{
+      language: string;
+      total: number;
+      parsed: number;
+      recovered: number;
+      fallback: number;
+    }>
+  };
   let indexedSchemaVersion: number | null = null;
   let indexedIndexFormatVersion: number | null = null;
   let indexedScopeSignature: string | null = null;
@@ -113,6 +125,7 @@ export async function runStatus(root: string): Promise<void> {
     indexedFileCount = summary.indexedFiles;
     indexedSymbols = summary.indexedSymbols;
     fallbackSymbols = summary.fallbackSymbols;
+    extractionSummary = summary.extractionSummary;
     indexedSchemaVersion = summary.schemaVersion;
     indexedIndexFormatVersion = summary.indexFormatVersion;
     indexedScopeSignature = summary.indexScopeSignature;
@@ -160,6 +173,7 @@ export async function runStatus(root: string): Promise<void> {
         indexedFiles: indexedFileCount,
         indexedSymbols,
         fallbackSymbols,
+        extractionSummary,
         setupType: config?.setupType ?? null,
         shellGuidance,
         embeddings,
@@ -206,6 +220,7 @@ export async function runStatus(root: string): Promise<void> {
     indexedFiles: indexedFileCount,
     indexedSymbols,
     fallbackSymbols,
+    extractionSummary,
     setupType: config?.setupType ?? null,
     shellGuidance,
     embeddings,

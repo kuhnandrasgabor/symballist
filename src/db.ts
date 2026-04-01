@@ -52,6 +52,18 @@ export type StatusSummary = {
   indexedFiles: number;
   indexedSymbols: number;
   fallbackSymbols: number;
+  extractionSummary: {
+    parsed: number;
+    recovered: number;
+    fallback: number;
+    byLanguage: Array<{
+      language: string;
+      total: number;
+      parsed: number;
+      recovered: number;
+      fallback: number;
+    }>;
+  };
   languages: string[];
   schemaVersion: number;
   indexFormatVersion: number;
@@ -2492,11 +2504,13 @@ export function getStatusSummary(db: Database): StatusSummary {
     SELECT
       (SELECT COUNT(*) FROM files) AS indexedFiles,
       (SELECT COUNT(*) FROM symbols) AS indexedSymbols,
-      (SELECT COUNT(*) FROM symbols WHERE fallback = 1) AS fallbackSymbols
+      (SELECT COUNT(*) FROM symbols WHERE fallback = 1) AS fallbackSymbols,
+      (SELECT COUNT(*) FROM symbols WHERE fallback = 0 AND doc LIKE 'Recovered from oversized %') AS recoveredSymbols
   `).get() as {
     indexedFiles: number;
     indexedSymbols: number;
     fallbackSymbols: number;
+    recoveredSymbols: number;
   };
 
   const languageRows = db.query(`
@@ -2505,10 +2519,40 @@ export function getStatusSummary(db: Database): StatusSummary {
     ORDER BY language
   `).all() as Array<{ language: string }>;
 
+  const extractionRows = db.query(`
+    SELECT
+      language,
+      COUNT(*) AS total,
+      SUM(CASE WHEN fallback = 1 THEN 1 ELSE 0 END) AS fallback,
+      SUM(CASE WHEN fallback = 0 AND doc LIKE 'Recovered from oversized %' THEN 1 ELSE 0 END) AS recovered
+    FROM symbols
+    GROUP BY language
+    ORDER BY language
+  `).all() as Array<{
+    language: string;
+    total: number;
+    fallback: number;
+    recovered: number;
+  }>;
+
+  const parsedSymbols = counts.indexedSymbols - counts.fallbackSymbols - counts.recoveredSymbols;
+
   return {
     indexedFiles: counts.indexedFiles,
     indexedSymbols: counts.indexedSymbols,
     fallbackSymbols: counts.fallbackSymbols,
+    extractionSummary: {
+      parsed: parsedSymbols,
+      recovered: counts.recoveredSymbols,
+      fallback: counts.fallbackSymbols,
+      byLanguage: extractionRows.map((row) => ({
+        language: row.language,
+        total: row.total,
+        parsed: row.total - row.fallback - row.recovered,
+        recovered: row.recovered,
+        fallback: row.fallback
+      }))
+    },
     languages: languageRows.map((row) => row.language),
     schemaVersion: getSchemaVersion(db),
     indexFormatVersion: getIndexFormatVersion(db) ?? 0,
