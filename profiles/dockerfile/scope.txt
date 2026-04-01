@@ -1,0 +1,5 @@
+# Optional container-build repo scope hints.
+# Examples:
+# vendor/
+# .docker/cache/
+# generated/

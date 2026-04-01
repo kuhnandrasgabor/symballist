@@ -1,0 +1,5 @@
+# Optional CSS-heavy repo scope hints.
+# Examples:
+# dist/
+# generated/
+# vendor/

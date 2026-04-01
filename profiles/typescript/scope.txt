@@ -1,0 +1,5 @@
+# Optional TypeScript repo scope hints.
+# Examples:
+# node_modules/
+# dist/
+# coverage/

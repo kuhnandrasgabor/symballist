@@ -1,0 +1,5 @@
+# Optional YAML-heavy repo scope hints.
+# Examples:
+# rendered/
+# generated/
+# vendor/

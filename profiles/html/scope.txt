@@ -1,0 +1,5 @@
+# Optional HTML-heavy repo scope hints.
+# Examples:
+# public/build/
+# dist/
+# generated/

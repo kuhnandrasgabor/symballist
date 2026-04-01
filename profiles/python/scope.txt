@@ -1,0 +1,5 @@
+# Optional Python repo scope hints.
+# Examples:
+# .venv/
+# build/
+# dist/

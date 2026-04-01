@@ -205,7 +205,12 @@ describe("symballist vertical slice", () => {
 
     const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
     expect(localAgentsSnippet).toContain("Python, HTML, Markdown");
+    expect(localAgentsSnippet).toContain("Python support covers parsed top-level classes and functions well");
+    expect(localAgentsSnippet).toContain("HTML support is structural and lexical");
     expect(localAgentsSnippet).not.toContain("Ruby graph edges are still conservative");
+
+    const seededPythonProfile = await readFile(join(root, ".symballist", "profiles", "python", "agents.md"), "utf8");
+    expect(seededPythonProfile).toContain("Python support covers parsed top-level classes and functions well");
   });
 
   test("init can record an explicit enabled-language list", async () => {
@@ -222,6 +227,10 @@ describe("symballist vertical slice", () => {
     const localAgentsSnippet = await readFile(join(root, ".symballist", "instructions", "AGENTS.symballist.md"), "utf8");
     expect(localAgentsSnippet).toContain("Ruby, TypeScript");
     expect(localAgentsSnippet).toContain("Ruby graph edges are still conservative");
+    expect(localAgentsSnippet).toContain("TypeScript retrieval includes interface, enum, alias, class, and method symbols");
+
+    const seededTypeScriptProfile = await readFile(join(root, ".symballist", "profiles", "typescript", "scope.txt"), "utf8");
+    expect(seededTypeScriptProfile).toContain("node_modules/");
   });
 
   test("shell guidance detects bash-like and Windows shells and returns matching entrypoints", () => {

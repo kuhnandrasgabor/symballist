@@ -1,0 +1,5 @@
+# Optional Markdown-heavy repo scope hints.
+# Examples:
+# docs/generated/
+# archive/
+# exported/
