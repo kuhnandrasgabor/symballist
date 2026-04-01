@@ -1,9 +1,10 @@
 ---
-id: DRAFT-034
+id: TASK-082
 title: Add language-aware init profiles and auto-detection for repo-local guidance
-status: Draft
+status: Done
 assignee: []
 created_date: '2026-04-01 07:16'
+updated_date: '2026-04-01 07:35'
 labels:
   - idea
   - setup
@@ -53,3 +54,24 @@ Recommended next action:
 - keep detection file- and marker-based in the first slice
 - treat any later LLM-assisted onboarding as an optional follow-up, not the foundation
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add init language-selection parsing and deterministic repo auto-detection.
+2. Store enabled languages in config and scaffold repo-local profile folders for those languages.
+3. Make managed instruction rendering append enabled language profile files while preserving current built-in prose as fallback.
+4. Add tests for parser/init/profile scaffolding, then verify and leave full profile-content migration for a follow-up pass.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented the framework slice only. Added init language selection parsing (`--languages auto|...`), fast repo language auto-detection, enabled-language persistence in config, repo-local profile scaffolding under `.symballist/profiles/<language>/`, and template assembly hooks that can append enabled language profile files while preserving current built-in snippet text as fallback. Added parser/init/profile tests and minimal README/adoption doc updates. Left full profile-content migration for a follow-up draft.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built the first-turn backbone for language-aware init. `symballist init` now supports `--languages auto|python,ruby,...`, records enabled languages in config, scaffolds matching repo-local profile folders, and keeps managed instruction rendering deterministic with language-profile append hooks. Current built-in prose remains the fallback until profile-content migration lands. Verified with `bun test tests/integration.test.ts` (80 pass, 0 fail) and `bun run src/cli.ts init --help`. Follow-up draft created for migrating actual language profile content.
+<!-- SECTION:FINAL_SUMMARY:END -->

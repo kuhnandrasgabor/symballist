@@ -10,7 +10,8 @@ import { runReport } from "./commands/report.ts";
 import { runShow } from "./commands/show.ts";
 import { runStatus } from "./commands/status.ts";
 import { runWatch } from "./commands/watch.ts";
-import type { SetupType } from "./config.ts";
+import type { SetupType, SupportedLanguage } from "./config.ts";
+import { parseLanguageSelection } from "./fs.ts";
 
 export type CliArgs = {
   command: string | null;
@@ -31,6 +32,8 @@ export type CliArgs = {
   positionals: string[];
   helpRequested: boolean;
   setupType: SetupType | null;
+  languages: SupportedLanguage[] | null;
+  autoDetectLanguages: boolean;
   error: string | null;
 };
 
@@ -39,7 +42,7 @@ function usage(): void {
 
 Usage:
   symballist --help
-  symballist init [--root PATH] [--setup-type cli|tool|hybrid]
+  symballist init [--root PATH] [--setup-type cli|tool|hybrid] [--languages auto|python,ruby,...]
   symballist index [--root PATH] [--rebuild]
   symballist watch [--root PATH] [--interval-ms N] [--once]
   symballist status [--root PATH]
@@ -68,7 +71,7 @@ Runtime contract:
 function commandUsage(command: string): void {
   switch (command) {
     case "init":
-      console.log("Usage:\n  symballist init [--root PATH] [--setup-type cli|tool|hybrid]\n\nSetup flow: initializes repo-local state, writes .symballist/scope.txt as the editable scope-control file, and bootstraps wrappers/instructions for the selected integration mode.");
+      console.log("Usage:\n  symballist init [--root PATH] [--setup-type cli|tool|hybrid] [--languages auto|python,ruby,...]\n\nSetup flow: initializes repo-local state, writes .symballist/scope.txt as the editable scope-control file, detects or records enabled languages, scaffolds repo-local profile folders, and bootstraps wrappers/instructions for the selected integration mode.");
       return;
     case "index":
       console.log("Usage:\n  symballist index [--root PATH] [--rebuild]\n\nIndex flow: performs an incremental-aware pass by default. Use --rebuild to force a full reindex when extractor/storage behavior changed or status reports indexCompatibility.requiresRebuild.");
@@ -134,6 +137,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
   let showFull = false;
   let helpRequested = false;
   let setupType: SetupType | null = null;
+  let languages: SupportedLanguage[] | null = null;
+  let autoDetectLanguages = false;
   let error: string | null = null;
   let command: string | null = null;
   const positionals: string[] = [];
@@ -158,6 +163,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
       positionals,
       helpRequested: false,
       setupType,
+      languages,
+      autoDetectLanguages,
       error: null
     };
   }
@@ -183,6 +190,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
       positionals,
       helpRequested: true,
       setupType,
+      languages,
+      autoDetectLanguages,
       error: null
     };
   }
@@ -212,6 +221,28 @@ export function parseCliArgs(argv: string[]): CliArgs {
         break;
       }
       setupType = next as SetupType;
+      index += 1;
+      continue;
+    }
+    if (command === "init" && value === "--languages") {
+      const next = argv[index + 1];
+      if (!next) {
+        error = "Missing value for --languages.";
+        break;
+      }
+      try {
+        const parsed = parseLanguageSelection(next);
+        if (parsed === "auto") {
+          autoDetectLanguages = true;
+          languages = null;
+        } else {
+          languages = parsed;
+          autoDetectLanguages = false;
+        }
+      } catch (parseError) {
+        error = parseError instanceof Error ? parseError.message : String(parseError);
+        break;
+      }
       index += 1;
       continue;
     }
@@ -344,6 +375,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
     positionals,
     helpRequested,
     setupType,
+    languages,
+    autoDetectLanguages,
     error
   };
 }
@@ -366,7 +399,10 @@ export async function runCli(argv: string[]): Promise<void> {
 
   switch (parsed.command) {
     case "init":
-      await runInit(parsed.root, parsed.setupType ?? undefined);
+      await runInit(parsed.root, parsed.setupType ?? undefined, {
+        languages: parsed.languages ?? undefined,
+        autoDetectLanguages: parsed.autoDetectLanguages
+      });
       return;
     case "index":
       await runIndex(parsed.root, { rebuild: parsed.rebuildIndex });

@@ -97,7 +97,7 @@ bun run src/cli.ts --help
 If you already ran `bun link` from this checkout, the simplest way to try `symballist` on another local project is from that target repo root:
 
 ```powershell
-symballist init
+symballist init --languages auto
 symballist index
 symballist watch
 symballist lookup "your query here"
@@ -201,6 +201,7 @@ symballist watch --once
 - `symballist init`
   - bootstraps repo-local state and downstream agent instructions
   - supports `--setup-type cli|tool|hybrid`
+  - supports `--languages auto|python,ruby,...` for deterministic enabled-language selection and repo-local profile scaffolding
   - creates `.symballist/scope.txt`, the editable repo-local scope-control file
 - `symballist index`
   - performs a full incremental-aware index pass

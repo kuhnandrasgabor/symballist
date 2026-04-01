@@ -1,9 +1,9 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { extname, join, normalize, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { APP_DIR, CACHE_DIR, CONFIG_FILE, LOGS_DIR, SUPPORTED_EXTENSIONS, SUPPORTED_FILENAMES, appPath, defaultConfig } from "./config.ts";
+import { APP_DIR, CACHE_DIR, CONFIG_FILE, LOGS_DIR, SUPPORTED_EXTENSIONS, SUPPORTED_FILENAMES, SUPPORTED_LANGUAGES, appPath, defaultConfig } from "./config.ts";
 import type { SymballistConfig } from "./config.ts";
-import type { SetupType } from "./config.ts";
+import type { SetupType, SupportedLanguage } from "./config.ts";
 
 const SKIP_DIRS = new Set([
   ".git",
@@ -24,6 +24,7 @@ const SKIP_DIRS = new Set([
 const INSTRUCTIONS_DIR = "instructions";
 const BIN_DIR = "bin";
 const TOOLS_DIR = "tools";
+const PROFILES_DIR = "profiles";
 const LOCAL_ADOPTION_GUIDE = "symballist-adoption.md";
 const LOCAL_AGENTS_SNIPPET = "AGENTS.symballist.md";
 const LOCAL_CLAUDE_SNIPPET = "CLAUDE.symballist.md";
@@ -54,22 +55,45 @@ export type RepoScopeControl = {
   signature: string;
 };
 
+export type InitLanguagesMode = "auto" | "explicit";
+
 export async function ensureInitialized(root: string, requestedSetupType?: SetupType): Promise<void> {
   await mkdir(appPath(root), { recursive: true });
   await mkdir(appPath(root, BIN_DIR), { recursive: true });
   await mkdir(appPath(root, CACHE_DIR), { recursive: true });
   await mkdir(appPath(root, LOGS_DIR), { recursive: true });
   await mkdir(appPath(root, INSTRUCTIONS_DIR), { recursive: true });
+  await mkdir(appPath(root, PROFILES_DIR), { recursive: true });
 
   const existingConfig = await readConfig(root);
   const setupType = requestedSetupType ?? existingConfig?.setupType ?? defaultConfig(root).setupType;
   await writeConfig(root, mergeConfig(root, existingConfig, setupType));
   await ensureScopeFile(root);
-  await bootstrapAgentInstructions(root, setupType);
   const gitignoreUpdated = await ensureGitignoreEntry(root, APP_GITIGNORE_ENTRY);
   if (gitignoreUpdated && await appearsGitTracked(root, APP_DIR)) {
     console.log("Added .symballist/ to .gitignore. If .symballist is already tracked, run `git rm --cached -r .symballist` once to stop tracking it.");
   }
+}
+
+export async function initializeWithLanguageSelection(
+  root: string,
+  options: {
+    setupType?: SetupType;
+    languages?: SupportedLanguage[];
+    autoDetectLanguages?: boolean;
+  } = {}
+): Promise<SymballistConfig> {
+  await ensureInitialized(root, options.setupType);
+  const existingConfig = await readConfig(root);
+  const resolvedLanguages = options.languages
+    ?? (options.autoDetectLanguages ? await detectRepoLanguages(root) : null)
+    ?? existingConfig?.languages
+    ?? defaultConfig(root).languages;
+  const config = mergeConfig(root, existingConfig, options.setupType, resolvedLanguages);
+  await writeConfig(root, config);
+  await ensureProfileScaffolding(root, config.languages);
+  await bootstrapAgentInstructions(root, config.setupType, config.languages);
+  return config;
 }
 
 export async function readText(path: string): Promise<string> {
@@ -250,6 +274,74 @@ async function detectSupportedLanguageForPath(absolutePath: string, name: string
   }
 }
 
+export function parseLanguageSelection(rawValue: string): SupportedLanguage[] | "auto" {
+  if (rawValue.trim() === "auto") {
+    return "auto";
+  }
+
+  const requested = rawValue
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  if (requested.length === 0) {
+    throw new Error("Expected a comma-separated language list or auto after --languages.");
+  }
+
+  const allowed = new Set(SUPPORTED_LANGUAGES);
+  const invalid = requested.filter((value) => !allowed.has(value as SupportedLanguage));
+  if (invalid.length > 0) {
+    throw new Error(`Unsupported languages in --languages: ${invalid.join(", ")}.`);
+  }
+
+  return [...new Set(requested)] as SupportedLanguage[];
+}
+
+export async function detectRepoLanguages(root: string): Promise<SupportedLanguage[]> {
+  const detected = new Set<SupportedLanguage>();
+
+  async function walk(current: string): Promise<void> {
+    if (detected.size === SUPPORTED_LANGUAGES.length) {
+      return;
+    }
+
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch (error) {
+      if (isIgnorableFsError(error)) {
+        return;
+      }
+      throw error;
+    }
+
+    for (const entry of entries) {
+      if (detected.size === SUPPORTED_LANGUAGES.length) {
+        return;
+      }
+
+      const absolutePath = join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!SKIP_DIRS.has(entry.name)) {
+          await walk(absolutePath);
+        }
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const language = await detectSupportedLanguageForPath(absolutePath, entry.name);
+      if (language) {
+        detected.add(language);
+      }
+    }
+  }
+
+  await walk(root);
+  return SUPPORTED_LANGUAGES.filter((language) => detected.has(language));
+}
+
 export async function listSourceFiles(
   root: string,
   options: { scope?: RepoScopeControl } = {}
@@ -321,8 +413,8 @@ export async function fileMetadata(path: string): Promise<{ size: number; mtimeM
   }
 }
 
-async function bootstrapAgentInstructions(root: string, setupType: SetupType): Promise<void> {
-  const templates = await loadInstructionTemplates(root, setupType);
+async function bootstrapAgentInstructions(root: string, setupType: SetupType, languages?: SupportedLanguage[]): Promise<void> {
+  const templates = await loadInstructionTemplates(root, setupType, languages);
   await writeFile(appPath(root, BIN_DIR, LOCAL_WINDOWS_WRAPPER), renderWindowsWrapper(), "utf8");
   await writeFile(appPath(root, BIN_DIR, LOCAL_POWERSHELL_WRAPPER), renderPowerShellWrapper(), "utf8");
   await writeFile(appPath(root, BIN_DIR, LOCAL_POSIX_WRAPPER), renderPosixWrapper(), "utf8");
@@ -400,19 +492,63 @@ async function ensureScopeFile(root: string): Promise<void> {
   ].join("\n"), "utf8");
 }
 
-async function loadInstructionTemplates(root: string, setupType: SetupType): Promise<{
+async function ensureProfileScaffolding(root: string, languages: SupportedLanguage[]): Promise<void> {
+  await mkdir(appPath(root, PROFILES_DIR), { recursive: true });
+  for (const language of languages) {
+    const profileRoot = appPath(root, PROFILES_DIR, language);
+    await mkdir(profileRoot, { recursive: true });
+    const files: Array<[string, string]> = [
+      ["agents.md", `<!-- ${language} profile content appended into managed AGENTS.md blocks when this language is enabled. -->\n`],
+      ["claude.md", `<!-- ${language} profile content appended into managed CLAUDE.md blocks when this language is enabled. -->\n`],
+      ["instructions.md", `<!-- ${language} profile content appended into repo-local Symballist instruction files when this language is enabled. -->\n`],
+      ["scope.txt", `# Optional ${language}-specific scope hints for this repo.\n`]
+    ];
+    for (const [name, contents] of files) {
+      const path = appPath(root, PROFILES_DIR, language, name);
+      if (!(await exists(path))) {
+        await writeFile(path, contents, "utf8");
+      }
+    }
+  }
+}
+
+async function loadInstructionTemplates(root: string, setupType: SetupType, languages?: SupportedLanguage[]): Promise<{
   adoptionGuide: string;
   agentsSnippet: string;
   claudeSnippet: string;
 }> {
   const adoptionGuideSource = await readFile(ADOPTION_GUIDE_SOURCE, "utf8");
   const setupTypeNote = buildSetupTypeNote(setupType);
+  const enabledLanguages = languages ?? (await readConfig(root))?.languages ?? defaultConfig(root).languages;
 
   return {
-    adoptionGuide: renderInstructionTemplate(`${setupTypeNote}\n\n${adoptionGuideSource}`, root),
-    agentsSnippet: renderInstructionTemplate(renderManagedSnippet("agents", setupType), root),
-    claudeSnippet: renderInstructionTemplate(renderManagedSnippet("claude", setupType), root)
+    adoptionGuide: renderInstructionTemplate(await appendLanguageProfileContent(root, `${setupTypeNote}\n\n${adoptionGuideSource}`, enabledLanguages, "instructions.md"), root),
+    agentsSnippet: renderInstructionTemplate(await appendLanguageProfileContent(root, renderManagedSnippet("agents", setupType), enabledLanguages, "agents.md"), root),
+    claudeSnippet: renderInstructionTemplate(await appendLanguageProfileContent(root, renderManagedSnippet("claude", setupType), enabledLanguages, "claude.md"), root)
   };
+}
+
+async function appendLanguageProfileContent(
+  root: string,
+  base: string,
+  languages: SupportedLanguage[],
+  profileFile: "agents.md" | "claude.md" | "instructions.md"
+): Promise<string> {
+  const additions: string[] = [];
+  for (const language of languages) {
+    const profilePath = appPath(root, PROFILES_DIR, language, profileFile);
+    const contents = (await readOptionalText(profilePath))?.trim() ?? "";
+    if (!contents || /^<!--[\s\S]*-->$/.test(contents)) {
+      continue;
+    }
+    additions.push(contents);
+  }
+
+  if (additions.length === 0) {
+    return base;
+  }
+
+  return `${base}\n\n${additions.join("\n\n")}`;
 }
 
 function renderInstructionTemplate(template: string, root: string): string {
@@ -421,14 +557,19 @@ function renderInstructionTemplate(template: string, root: string): string {
     .replaceAll("<PROJECT_ROOT>", root);
 }
 
-function mergeConfig(root: string, config: Partial<SymballistConfig> | null | undefined, setupTypeOverride?: SetupType): SymballistConfig {
+function mergeConfig(
+  root: string,
+  config: Partial<SymballistConfig> | null | undefined,
+  setupTypeOverride?: SetupType,
+  languagesOverride?: SupportedLanguage[]
+): SymballistConfig {
   const base = defaultConfig(root);
   return {
     ...base,
     ...config,
     root,
     setupType: setupTypeOverride ?? config?.setupType ?? base.setupType,
-    languages: config?.languages ?? base.languages,
+    languages: languagesOverride ?? config?.languages ?? base.languages,
     embeddings: {
       ...base.embeddings,
       ...(config?.embeddings ?? {})

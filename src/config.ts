@@ -9,8 +9,10 @@ export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
 export const DEFAULT_OLLAMA_EMBED_MODEL = "nomic-embed-text:latest";
 
 export type SetupType = "cli" | "tool" | "hybrid";
+export type SupportedLanguage = "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css";
+export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ["python", "ruby", "html", "markdown", "javascript", "typescript", "yaml", "shell", "dockerfile", "css"];
 
-export const SUPPORTED_EXTENSIONS = new Map<string, "python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "css">([
+export const SUPPORTED_EXTENSIONS = new Map<string, Exclude<SupportedLanguage, "dockerfile">>([
   [".py", "python"],
   [".rb", "ruby"],
   [".html", "html"],
@@ -44,7 +46,7 @@ export type SymballistConfig = {
   version: number;
   root: string;
   setupType: SetupType;
-  languages: Array<"python" | "ruby" | "html" | "markdown" | "javascript" | "typescript" | "yaml" | "shell" | "dockerfile" | "css">;
+  languages: SupportedLanguage[];
   createdAt: string;
   embeddings: {
     enabled: boolean;
@@ -63,7 +65,7 @@ export function defaultConfig(root: string): SymballistConfig {
     version: 4,
     root,
     setupType: "hybrid",
-    languages: ["python", "ruby", "html", "markdown", "javascript", "typescript", "yaml", "shell", "dockerfile", "css"],
+    languages: [...SUPPORTED_LANGUAGES],
     createdAt: new Date().toISOString(),
     embeddings: {
       enabled: false,

@@ -46,6 +46,14 @@ Important distinction:
 - `--setup-type cli`
   - skips tool-definition assets and keeps the integration CLI-only
 
+It now also supports deterministic language selection:
+
+- `--languages auto`
+  - performs a quick repo scan and records the detected supported languages in config
+- `--languages ruby,typescript`
+  - records an explicit enabled-language list
+- enabled languages scaffold matching repo-local profile folders under `.symballist/profiles/`
+
 ## Basic Loop
 
 In `hybrid` or `tool` setups, the generated tool definitions live in:

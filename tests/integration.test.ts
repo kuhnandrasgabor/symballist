@@ -191,6 +191,31 @@ describe("symballist vertical slice", () => {
     expect(toolManifest).toContain("\"name\": \"symballist_status\"");
   });
 
+  test("init can auto-detect enabled languages and scaffold matching profile folders", async () => {
+    const root = await createFixtureRepo();
+
+    await runInit(root, undefined, { autoDetectLanguages: true });
+
+    const config = await readConfig(root);
+    expect(config?.languages).toEqual(["python", "html", "markdown"]);
+    expect(await Bun.file(join(root, ".symballist", "profiles", "python", "agents.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "profiles", "html", "instructions.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "profiles", "markdown", "scope.txt")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "profiles", "ruby", "agents.md")).exists()).toBeFalse();
+  });
+
+  test("init can record an explicit enabled-language list", async () => {
+    const root = await createFixtureRepo();
+
+    await runInit(root, "hybrid", { languages: ["ruby", "typescript"] });
+
+    const config = await readConfig(root);
+    expect(config?.languages).toEqual(["ruby", "typescript"]);
+    expect(await Bun.file(join(root, ".symballist", "profiles", "ruby", "agents.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "profiles", "typescript", "agents.md")).exists()).toBeTrue();
+    expect(await Bun.file(join(root, ".symballist", "profiles", "python", "agents.md")).exists()).toBeFalse();
+  });
+
   test("shell guidance detects bash-like and Windows shells and returns matching entrypoints", () => {
     expect(detectShellFlavor({ SHELL: "/bin/bash" }, "win32")).toBe("posix");
     expect(detectShellFlavor({ PSModulePath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules" }, "win32")).toBe("powershell");
@@ -3188,10 +3213,28 @@ describe("symballist vertical slice", () => {
     expect(parsed.command).toBe("init");
     expect(parsed.root).toBe("D:/Projects/co-ma");
     expect(parsed.setupType).toBe("tool");
+    expect(parsed.languages).toBeNull();
+    expect(parsed.autoDetectLanguages).toBeFalse();
     expect(parsed.error).toBeNull();
 
     const invalid = parseCliArgs(["init", "--setup-type", "weird"]);
     expect(invalid.error).toContain("cli, tool, or hybrid");
+  });
+
+  test("cli args accept init language auto-detection and explicit language lists", () => {
+    const autoParsed = parseCliArgs(["init", "--languages", "auto"]);
+    expect(autoParsed.command).toBe("init");
+    expect(autoParsed.autoDetectLanguages).toBeTrue();
+    expect(autoParsed.languages).toBeNull();
+    expect(autoParsed.error).toBeNull();
+
+    const explicitParsed = parseCliArgs(["init", "--languages", "ruby,typescript"]);
+    expect(explicitParsed.autoDetectLanguages).toBeFalse();
+    expect(explicitParsed.languages).toEqual(["ruby", "typescript"]);
+    expect(explicitParsed.error).toBeNull();
+
+    const invalidParsed = parseCliArgs(["init", "--languages", "ruby,fortran"]);
+    expect(invalidParsed.error).toContain("Unsupported languages");
   });
 
   test("watch can perform an initial index pass and incremental refresh in one-shot mode", async () => {
