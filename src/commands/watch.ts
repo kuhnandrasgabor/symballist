@@ -1,5 +1,5 @@
 import { runIndex, type IndexStats } from "./index.ts";
-import { getIndexCompatibility, getIndexedFiles, getIndexedScopeSignature, openDatabase, recordImpactTrackingEvent } from "../db.ts";
+import { clearWatchOwnership, getIndexCompatibility, getIndexedFiles, getIndexedScopeSignature, openDatabase, recordImpactTrackingEvent, updateWatchOwnership } from "../db.ts";
 import { detectIndexFreshness, type IndexFreshness } from "../freshness.ts";
 import { readConfig } from "../fs.ts";
 
@@ -67,55 +67,79 @@ export async function runWatch(root: string, options: RunWatchOptions = {}): Pro
   const progress = options.progress ?? false;
   const config = await readConfig(root);
   const events: WatchEvent[] = [];
+  const startedAt = new Date().toISOString();
 
-  for (let cycle = 1; cycle <= cycleLimit; cycle += 1) {
-    const before = await inspectWatchState(root);
-    const shouldIndex = before.indexedFileCount === 0 || before.freshness.stale || before.requiresRebuild;
-
-    let stats: IndexStats | null = null;
-    let reason: WatchEvent["reason"] = "already_fresh";
-    if (shouldIndex) {
-      reason = before.indexedFileCount === 0 ? "initial_index" : before.requiresRebuild ? "stale_index" : "stale_index";
-      stats = await runIndex(root, {
-        progress,
-        emitStats: false,
-        rebuild: before.requiresRebuild
-      });
-    }
-
-    const after = shouldIndex ? await inspectWatchState(root) : before;
-    const event: WatchEvent = {
-      event: shouldIndex ? "indexed" : "idle",
-      reason,
-      cycle,
+  const heartbeat = async (timestamp: string): Promise<void> => {
+    const db = await openDatabase(root);
+    updateWatchOwnership(db, {
+      pid: process.pid,
+      startedAt,
+      lastHeartbeatAt: timestamp,
       intervalMs,
-      indexedFileCountBefore: before.indexedFileCount,
-      indexFreshnessBefore: before.freshness,
-      indexFreshnessAfter: after.freshness,
-      stats,
-      timestamp: new Date().toISOString()
-    };
+      once: options.once === true
+    });
+    db.close();
+  };
 
-    if (config?.impactTracking?.enabled) {
-      const db = await openDatabase(root);
-      recordImpactTrackingEvent(db, {
-        command: "watch",
-        timestamp: event.timestamp,
-        payloadChars: JSON.stringify(event).length,
-        compact: false,
-        staleIndex: event.indexFreshnessBefore.stale
-      });
-      db.close();
+  await heartbeat(startedAt);
+
+  try {
+    for (let cycle = 1; cycle <= cycleLimit; cycle += 1) {
+      await heartbeat(new Date().toISOString());
+      const before = await inspectWatchState(root);
+      const shouldIndex = before.indexedFileCount === 0 || before.freshness.stale || before.requiresRebuild;
+
+      let stats: IndexStats | null = null;
+      let reason: WatchEvent["reason"] = "already_fresh";
+      if (shouldIndex) {
+        reason = before.indexedFileCount === 0 ? "initial_index" : before.requiresRebuild ? "stale_index" : "stale_index";
+        stats = await runIndex(root, {
+          progress,
+          emitStats: false,
+          rebuild: before.requiresRebuild
+        });
+      }
+
+      const after = shouldIndex ? await inspectWatchState(root) : before;
+      const event: WatchEvent = {
+        event: shouldIndex ? "indexed" : "idle",
+        reason,
+        cycle,
+        intervalMs,
+        indexedFileCountBefore: before.indexedFileCount,
+        indexFreshnessBefore: before.freshness,
+        indexFreshnessAfter: after.freshness,
+        stats,
+        timestamp: new Date().toISOString()
+      };
+
+      await heartbeat(event.timestamp);
+
+      if (config?.impactTracking?.enabled) {
+        const db = await openDatabase(root);
+        recordImpactTrackingEvent(db, {
+          command: "watch",
+          timestamp: event.timestamp,
+          payloadChars: JSON.stringify(event).length,
+          compact: false,
+          staleIndex: event.indexFreshnessBefore.stale
+        });
+        db.close();
+      }
+
+      console.log(JSON.stringify(event, null, 2));
+      events.push(event);
+
+      if (cycle === cycleLimit) {
+        break;
+      }
+
+      await Bun.sleep(intervalMs);
     }
-
-    console.log(JSON.stringify(event, null, 2));
-    events.push(event);
-
-    if (cycle === cycleLimit) {
-      break;
-    }
-
-    await Bun.sleep(intervalMs);
+  } finally {
+    const db = await openDatabase(root);
+    clearWatchOwnership(db);
+    db.close();
   }
 
   return events;

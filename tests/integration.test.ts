@@ -12,7 +12,7 @@ import { summarizeRetrievalQuality } from "../src/commands/resultQuality.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runWatch } from "../src/commands/watch.ts";
-import { CURRENT_INDEX_FORMAT_VERSION, buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, openDatabase, searchSymbols } from "../src/db.ts";
+import { CURRENT_INDEX_FORMAT_VERSION, buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, getWatchOwnershipStatus, openDatabase, searchSymbols, updateWatchOwnership } from "../src/db.ts";
 import { buildEmbeddingText } from "../src/embeddings.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { readConfig, writeConfig } from "../src/fs.ts";
@@ -1306,6 +1306,16 @@ describe("symballist vertical slice", () => {
         newFiles: number;
         deletedFiles: number;
       };
+      watchOwnership: {
+        present: boolean;
+        active: boolean;
+        stale: boolean;
+        pid: number | null;
+        startedAt: string | null;
+        lastHeartbeatAt: string | null;
+        intervalMs: number | null;
+        mode: "once" | "continuous" | null;
+      };
       changeAwareness: {
         sinceIndex: {
           changedFiles: number;
@@ -1315,6 +1325,11 @@ describe("symballist vertical slice", () => {
           newPaths: string[];
           deletedPaths: string[];
           truncated: boolean;
+        };
+        symbolChangesSinceIndex: {
+          addedCount: number;
+          removedCount: number;
+          changedCount: number;
         };
         sinceGitHead: {
           available: boolean;
@@ -1362,6 +1377,8 @@ describe("symballist vertical slice", () => {
     expect(status.indexCompatibility.indexedIndexFormatVersion).toBe(CURRENT_INDEX_FORMAT_VERSION);
     expect(status.indexCompatibility.requiresRebuild).toBeFalse();
     expect(status.indexFreshness.stale).toBeFalse();
+    expect(status.watchOwnership.present).toBeFalse();
+    expect(status.watchOwnership.active).toBeFalse();
     expect(status.changeAwareness.sinceIndex.changedFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.newFiles).toBe(0);
     expect(status.changeAwareness.sinceIndex.deletedFiles).toBe(0);
@@ -3451,8 +3468,46 @@ describe("symballist vertical slice", () => {
 
     const db = await openDatabase(root);
     const refreshed = searchSymbols(db, "slugify", 5);
+    const watchOwnership = getWatchOwnershipStatus(db);
     db.close();
     expect(refreshed.some((result) => result.name === "slugify")).toBeTrue();
+    expect(watchOwnership.present).toBeFalse();
+    expect(watchOwnership.active).toBeFalse();
+  });
+
+  test("status surfaces stale watch ownership metadata when a watch heartbeat is orphaned", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    updateWatchOwnership(db, {
+      pid: 99999,
+      startedAt: "2026-04-01T10:00:00.000Z",
+      lastHeartbeatAt: "2026-04-01T10:00:00.000Z",
+      intervalMs: 2000,
+      once: false
+    });
+    db.close();
+
+    const output = await captureConsoleLog(async () => {
+      await runStatus(root);
+    });
+    const status = JSON.parse(output) as {
+      watchOwnership: {
+        present: boolean;
+        active: boolean;
+        stale: boolean;
+        pid: number | null;
+        mode: "once" | "continuous" | null;
+      };
+    };
+
+    expect(status.watchOwnership.present).toBeTrue();
+    expect(status.watchOwnership.active).toBeFalse();
+    expect(status.watchOwnership.stale).toBeTrue();
+    expect(status.watchOwnership.pid).toBe(99999);
+    expect(status.watchOwnership.mode).toBe("continuous");
   });
 
   test("opt-in impact tracking summarizes local workflow outcomes without storing raw query text", async () => {

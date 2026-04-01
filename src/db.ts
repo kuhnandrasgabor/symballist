@@ -37,8 +37,10 @@ const INDEX_SCOPE_SIGNATURE_KEY = "index_scope_signature";
 const IMPACT_SUMMARY_KEY = "impact_tracking_summary";
 const IMPACT_LAST_EVENT_KEY = "impact_tracking_last_event";
 const IMPACT_LAST_FLOW_EVENT_KEY = "impact_tracking_last_flow_event";
+const WATCH_OWNERSHIP_KEY = "active_watch_ownership";
 const MAX_SYMBOL_CHANGE_SAMPLES = 20;
 const IMPACT_SEQUENCE_WINDOW_MS = 30 * 60 * 1000;
+const WATCH_HEARTBEAT_GRACE_MS = 5000;
 export const CURRENT_EMBEDDING_PROVIDER = "ollama";
 
 export type IndexedFileRow = {
@@ -79,6 +81,25 @@ export type IndexCompatibility = {
 export type EmbeddingSummary = {
   totalEmbeddings: number;
   matchingEmbeddings: number;
+};
+
+type StoredWatchOwnership = {
+  pid: number;
+  startedAt: string;
+  lastHeartbeatAt: string;
+  intervalMs: number;
+  once: boolean;
+};
+
+export type WatchOwnershipStatus = {
+  present: boolean;
+  active: boolean;
+  stale: boolean;
+  pid: number | null;
+  startedAt: string | null;
+  lastHeartbeatAt: string | null;
+  intervalMs: number | null;
+  mode: "once" | "continuous" | null;
 };
 
 export type EmbeddableSymbolRow = {
@@ -685,6 +706,73 @@ function writeLastImpactFlowEvent(db: Database, event: ImpactTrackingEvent): voi
     VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(IMPACT_LAST_FLOW_EVENT_KEY, JSON.stringify(event));
+}
+
+function readStoredWatchOwnership(db: Database): StoredWatchOwnership | null {
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(WATCH_OWNERSHIP_KEY) as { value?: string } | null;
+  if (!row?.value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(row.value) as Partial<StoredWatchOwnership>;
+    if (!Number.isFinite(Number(parsed.pid)) || !parsed.startedAt || !parsed.lastHeartbeatAt || !Number.isFinite(Number(parsed.intervalMs))) {
+      return null;
+    }
+    return {
+      pid: Number(parsed.pid),
+      startedAt: parsed.startedAt,
+      lastHeartbeatAt: parsed.lastHeartbeatAt,
+      intervalMs: Number(parsed.intervalMs),
+      once: parsed.once === true
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function updateWatchOwnership(db: Database, ownership: StoredWatchOwnership): void {
+  db.query(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(WATCH_OWNERSHIP_KEY, JSON.stringify(ownership));
+}
+
+export function clearWatchOwnership(db: Database): void {
+  db.query("DELETE FROM metadata WHERE key = ?").run(WATCH_OWNERSHIP_KEY);
+}
+
+export function getWatchOwnershipStatus(db: Database, now = Date.now()): WatchOwnershipStatus {
+  const stored = readStoredWatchOwnership(db);
+  if (!stored) {
+    return {
+      present: false,
+      active: false,
+      stale: false,
+      pid: null,
+      startedAt: null,
+      lastHeartbeatAt: null,
+      intervalMs: null,
+      mode: null
+    };
+  }
+
+  const heartbeatMs = Date.parse(stored.lastHeartbeatAt);
+  const ageMs = Number.isFinite(heartbeatMs) ? Math.max(0, now - heartbeatMs) : Number.POSITIVE_INFINITY;
+  const activeThresholdMs = Math.max(stored.intervalMs * 3, WATCH_HEARTBEAT_GRACE_MS);
+  const active = ageMs <= activeThresholdMs;
+
+  return {
+    present: true,
+    active,
+    stale: !active,
+    pid: stored.pid,
+    startedAt: stored.startedAt,
+    lastHeartbeatAt: stored.lastHeartbeatAt,
+    intervalMs: stored.intervalMs,
+    mode: stored.once ? "once" : "continuous"
+  };
 }
 
 function isFlowTrackingCommand(command: ImpactCommandName): boolean {

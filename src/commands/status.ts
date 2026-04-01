@@ -1,5 +1,5 @@
 import { APP_DIR, CONFIG_FILE, DB_FILE, SUPPORTED_EXTENSIONS, appPath } from "../config.ts";
-import { CURRENT_INDEX_FORMAT_VERSION, CURRENT_SCHEMA_VERSION, getImpactTrackingSummary, getIndexCompatibility, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, openDatabase, recordImpactTrackingEvent } from "../db.ts";
+import { CURRENT_INDEX_FORMAT_VERSION, CURRENT_SCHEMA_VERSION, getImpactTrackingSummary, getIndexCompatibility, getIndexedFiles, getLatestSymbolChangeSummary, getLikelyGraphRoots, getPossibleOrphanCandidates, getStatusSummary, getWatchOwnershipStatus, openDatabase, recordImpactTrackingEvent } from "../db.ts";
 import { summarizeEmbeddingSupport } from "../embeddings.ts";
 import { detectGitHeadFileChanges, detectIndexFileChanges, detectIndexFreshness, summarizeFileChanges } from "../freshness.ts";
 import { exists, readConfig, readRepoScopeControl } from "../fs.ts";
@@ -110,6 +110,16 @@ export async function runStatus(root: string): Promise<void> {
     storage: "repo_local_metadata",
     summary: null as ReturnType<typeof getImpactTrackingSummary> | null
   };
+  let watchOwnership = {
+    present: false,
+    active: false,
+    stale: false,
+    pid: null as number | null,
+    startedAt: null as string | null,
+    lastHeartbeatAt: null as string | null,
+    intervalMs: null as number | null,
+    mode: null as "once" | "continuous" | null
+  };
 
   if (dbExists) {
     const db = await openDatabase(root);
@@ -122,6 +132,7 @@ export async function runStatus(root: string): Promise<void> {
       possibleOrphans: getPossibleOrphanCandidates(db)
     };
     embeddings = summarizeEmbeddingSupport(db, config);
+    watchOwnership = getWatchOwnershipStatus(db);
     indexedFileCount = summary.indexedFiles;
     indexedSymbols = summary.indexedSymbols;
     fallbackSymbols = summary.fallbackSymbols;
@@ -179,7 +190,8 @@ export async function runStatus(root: string): Promise<void> {
         embeddings,
         indexFreshness: freshness,
         changeAwareness,
-        graphAwareness
+        graphAwareness,
+        watchOwnership
       };
       impactTracking.summary = recordImpactTrackingEvent(db, {
         command: "status",
@@ -227,6 +239,7 @@ export async function runStatus(root: string): Promise<void> {
     indexFreshness: freshness,
     changeAwareness,
     graphAwareness,
+    watchOwnership,
     impactTracking
   }, null, 2));
 }
