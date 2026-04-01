@@ -3242,6 +3242,44 @@ describe("symballist vertical slice", () => {
     expect(details?.endLine).toBeGreaterThan(agentConfig?.startLine ?? 0);
   });
 
+  test("oversized javascript files recover top-level classes instead of a single file fallback", async () => {
+    const root = await createFixtureRepo();
+    const oversizedSource = [
+      "import * as utils from './utils.js';",
+      "",
+      "class ClusteringCard {",
+      "  initialize() {",
+      "    return utils.ready();",
+      "  }",
+      "}",
+      "",
+      "export default ClusteringCard;",
+      "",
+      "// filler",
+      "// filler\n".repeat(5000)
+    ].join("\n");
+
+    await writeFile(join(root, "big_component.js"), oversizedSource, "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const results = searchSymbols(db, "ClusteringCard", 10);
+    const clusteringCard = results.find((result) => result.name === "ClusteringCard");
+    const fileFallback = results.find((result) => result.path === "big_component.js" && result.kind === "file");
+    const details = clusteringCard ? getSymbolById(db, clusteringCard.id) : null;
+    db.close();
+
+    expect(clusteringCard).toBeDefined();
+    expect(clusteringCard?.kind).toBe("class");
+    expect(clusteringCard?.startLine).toBe(3);
+    expect(clusteringCard?.extraction).toBe("recovered");
+    expect(clusteringCard?.trustLevel).toBe("medium");
+    expect(fileFallback).toBeUndefined();
+    expect(details?.body).toContain("class ClusteringCard");
+    expect(details?.endLine).toBeGreaterThan(clusteringCard?.startLine ?? 0);
+  });
+
   test("cli args accept an explicit root path", () => {
     const parsed = parseCliArgs(["query", "greet", "--root", "D:/Projects/co-ma", "--limit", "3", "--kind", "class,function"]);
     expect(parsed.command).toBe("query");

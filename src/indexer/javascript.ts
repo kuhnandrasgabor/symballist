@@ -17,6 +17,11 @@ tsxParser.setLanguage(Typescript.tsx);
 const MAX_TREE_SITTER_SOURCE_CHARS = 32000;
 const SCRIPT_IMPORT_CANDIDATE_EXTENSIONS = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".css"];
 
+type LineIndex = {
+  lines: string[];
+  starts: number[];
+};
+
 type UsageTarget = {
   targetPath: string;
   labelPrefix: string;
@@ -56,6 +61,204 @@ function fullFileSpan(source: string): Pick<SymbolRecord, "startLine" | "startCo
     endLine,
     endColumn
   };
+}
+
+function buildLineIndex(source: string): LineIndex {
+  const lines = source.split(/\r?\n/);
+  const starts: number[] = [];
+  let cursor = 0;
+
+  for (const line of lines) {
+    starts.push(cursor);
+    cursor += line.length;
+    if (source[cursor] === "\r" && source[cursor + 1] === "\n") {
+      cursor += 2;
+    } else if (source[cursor] === "\n") {
+      cursor += 1;
+    }
+  }
+
+  return { lines, starts };
+}
+
+function lineStartOffset(index: LineIndex, lineNumber: number): number {
+  return index.starts[lineNumber - 1] ?? 0;
+}
+
+function lineEndOffset(source: string, index: LineIndex, lineNumber: number): number {
+  if (lineNumber >= index.starts.length) {
+    return source.length;
+  }
+  return index.starts[lineNumber] - (source[index.starts[lineNumber] - 2] === "\r" ? 2 : 1);
+}
+
+function sliceLines(source: string, index: LineIndex, startLine: number, endLine: number): string {
+  const start = lineStartOffset(index, startLine);
+  const end = lineEndOffset(source, index, endLine);
+  return source.slice(start, Math.max(start, end)).trim();
+}
+
+function statementBalance(line: string): number {
+  let balance = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let escaped = false;
+
+  for (const char of line) {
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (!inDouble && !inTemplate && char === "'" ) {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (!inSingle && !inTemplate && char === "\"") {
+      inDouble = !inDouble;
+      continue;
+    }
+    if (!inSingle && !inDouble && char === "`") {
+      inTemplate = !inTemplate;
+      continue;
+    }
+    if (inSingle || inDouble || inTemplate) {
+      continue;
+    }
+    if (char === "{" || char === "[" || char === "(") {
+      balance += 1;
+    } else if (char === "}" || char === "]" || char === ")") {
+      balance -= 1;
+    }
+  }
+
+  return balance;
+}
+
+function nextScriptTopLevelBoundary(index: LineIndex, startLine: number): number {
+  let braceDepth = 0;
+  let sawOpeningBrace = false;
+
+  for (let lineNumber = startLine; lineNumber <= index.lines.length; lineNumber += 1) {
+    const line = index.lines[lineNumber - 1] ?? "";
+    const balance = statementBalance(line);
+    if (!sawOpeningBrace && line.includes("{")) {
+      sawOpeningBrace = true;
+    }
+    braceDepth += balance;
+    if (sawOpeningBrace && braceDepth <= 0) {
+      return lineNumber;
+    }
+  }
+
+  return index.lines.length;
+}
+
+function recoverOversizedScriptSymbols(path: string, language: "javascript" | "typescript", source: string, availablePaths: Set<string>): SymbolRecord[] {
+  const index = buildLineIndex(source);
+  const symbols: SymbolRecord[] = [];
+  let lineNumber = 1;
+
+  while (lineNumber <= index.lines.length) {
+    const line = index.lines[lineNumber - 1] ?? "";
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("//")) {
+      lineNumber += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith("import ")) {
+      let endLine = lineNumber;
+      let balance = statementBalance(line);
+      while (endLine < index.lines.length) {
+        const current = index.lines[endLine - 1] ?? "";
+        const currentTrimmed = current.trimEnd();
+        const shouldContinue = balance > 0 || (!currentTrimmed.endsWith(";") && !currentTrimmed.includes(" from "));
+        if (!shouldContinue) {
+          break;
+        }
+        endLine += 1;
+        balance += statementBalance(index.lines[endLine - 1] ?? "");
+      }
+
+      const statement = sliceLines(source, index, lineNumber, endLine);
+      if (statement) {
+        symbols.push({
+          path,
+          language,
+          kind: "import",
+          name: statement,
+          signature: statement,
+          body: statement,
+          doc: `Recovered from oversized ${language} file via lightweight top-level scan.`,
+          fallback: false,
+          relations: extractImportRelations(statement, path, availablePaths),
+          startLine: lineNumber,
+          startColumn: 1,
+          endLine,
+          endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+        });
+      }
+
+      lineNumber = endLine + 1;
+      continue;
+    }
+
+    const classMatch = trimmed.match(/^(?:export\s+default\s+|export\s+)?class\s+([A-Za-z_$][A-Za-z0-9_$]*)(.*)$/);
+    if (classMatch) {
+      const [, name, suffix] = classMatch;
+      const endLine = nextScriptTopLevelBoundary(index, lineNumber);
+      const body = sliceLines(source, index, lineNumber, endLine);
+      symbols.push({
+        path,
+        language,
+        kind: "class",
+        name,
+        signature: `class ${name}${suffix.replace(/\s*{$/, "").trim()}`,
+        body,
+        doc: `Recovered from oversized ${language} file via lightweight top-level scan.`,
+        fallback: false,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine,
+        endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+      });
+      lineNumber = endLine + 1;
+      continue;
+    }
+
+    const functionMatch = trimmed.match(/^(?:export\s+default\s+|export\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*(\(.*)$/);
+    if (functionMatch) {
+      const [, name, signatureTail] = functionMatch;
+      const endLine = nextScriptTopLevelBoundary(index, lineNumber);
+      const body = sliceLines(source, index, lineNumber, endLine);
+      symbols.push({
+        path,
+        language,
+        kind: "function",
+        name,
+        signature: `${name}${signatureTail.replace(/\s*{$/, "").trim()}`,
+        body,
+        doc: `Recovered from oversized ${language} file via lightweight top-level scan.`,
+        fallback: false,
+        startLine: lineNumber,
+        startColumn: 1,
+        endLine,
+        endColumn: (index.lines[endLine - 1]?.length ?? 0) + 1
+      });
+      lineNumber = endLine + 1;
+      continue;
+    }
+
+    lineNumber += 1;
+  }
+
+  return symbols;
 }
 
 function nodeSpan(node: SyntaxNode): Pick<SymbolRecord, "startLine" | "startColumn" | "endLine" | "endColumn"> {
@@ -430,6 +633,10 @@ function extractScriptSymbols(
   availablePaths: Set<string> = new Set()
 ): SymbolRecord[] {
   if (source.length > MAX_TREE_SITTER_SOURCE_CHARS) {
+    const recovered = recoverOversizedScriptSymbols(path, language, source, availablePaths);
+    if (recovered.length > 0) {
+      return recovered;
+    }
     return fallbackRecord(
       path,
       language,

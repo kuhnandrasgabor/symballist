@@ -938,7 +938,7 @@ function getExtractionDetails(row: { fallback: number | boolean; doc: string | n
     };
   }
 
-  if ((row.doc ?? "").startsWith("Recovered from oversized Python file")) {
+  if ((row.doc ?? "").startsWith("Recovered from oversized ")) {
     return {
       extraction: "recovered",
       trustLevel: "medium"
