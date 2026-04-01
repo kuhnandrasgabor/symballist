@@ -7,6 +7,9 @@ created_date: '2026-04-01 05:40'
 labels:
   - idea
   - ruby
+  - graph
+  - language-specific
+  - any-scale
 dependencies: []
 ---
 

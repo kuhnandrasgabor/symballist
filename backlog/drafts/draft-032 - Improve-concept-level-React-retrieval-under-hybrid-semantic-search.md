@@ -7,6 +7,9 @@ created_date: '2026-04-01 06:11'
 labels:
   - idea
   - retrieval
+  - frontend
+  - embeddings
+  - any-scale
 dependencies: []
 ---
 

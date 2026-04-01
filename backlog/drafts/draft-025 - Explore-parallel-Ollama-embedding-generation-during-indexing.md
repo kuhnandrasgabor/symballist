@@ -8,6 +8,10 @@ labels:
   - idea
   - spike
   - decision
+  - embeddings
+  - indexing
+  - performance
+  - large-repo
 dependencies: []
 ---
 

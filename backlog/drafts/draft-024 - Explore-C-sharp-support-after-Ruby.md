@@ -6,6 +6,9 @@ assignee: []
 created_date: '2026-03-31 19:36'
 labels:
   - idea
+  - csharp
+  - language-specific
+  - any-scale
 dependencies: []
 ---
 
@@ -24,4 +27,3 @@ C# is feasible in the existing architecture, but it is a materially larger and m
   - More symbol shapes to model well before retrieval feels trustworthy.
 - Recommended next action
   - Keep this as the second language-expansion draft after Ruby validates the next parser wave.
-

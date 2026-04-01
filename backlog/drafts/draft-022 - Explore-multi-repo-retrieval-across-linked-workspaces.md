@@ -8,6 +8,9 @@ labels:
   - feature
   - feedback
   - architecture
+  - retrieval
+  - multi-repo
+  - large-repo
 dependencies: []
 ---
 

@@ -8,6 +8,9 @@ labels:
   - idea
   - spike
   - decision
+  - indexing
+  - performance
+  - large-repo
 dependencies: []
 ---
 

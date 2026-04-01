@@ -9,6 +9,10 @@ labels:
   - bug
   - spike
   - decision
+  - embeddings
+  - indexing
+  - performance
+  - large-repo
 dependencies: []
 priority: high
 ---

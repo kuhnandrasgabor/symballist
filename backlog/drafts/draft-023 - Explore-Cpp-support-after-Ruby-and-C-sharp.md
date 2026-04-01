@@ -6,6 +6,9 @@ assignee: []
 created_date: '2026-03-31 19:36'
 labels:
   - idea
+  - cpp
+  - language-specific
+  - any-scale
 dependencies: []
 ---
 
@@ -24,4 +27,3 @@ C++ is the hardest of the remaining language expansions and should stay separate
   - The language surface and extraction ambiguity are both meaningfully harder than Ruby and C#.
 - Recommended next action
   - Keep this as the last expansion wave unless a concrete C++ repo need jumps ahead of priority.
-
