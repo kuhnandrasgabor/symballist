@@ -437,6 +437,35 @@ describe("symballist vertical slice", () => {
     expect(status.supportedLanguages).toContain("typescript");
   });
 
+  test("indexes plain non-exported JavaScript class declarations", async () => {
+    const root = await createFixtureRepo();
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(
+      join(root, "src", "clustering_card.js"),
+      [
+        "class ClusteringCard {",
+        "  render() {",
+        '    return \"card\";',
+        "  }",
+        "}",
+        "",
+        "export default ClusteringCard;"
+      ].join("\n"),
+      "utf8"
+    );
+
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const db = await openDatabase(root);
+    const classResults = searchSymbols(db, buildFtsQuery("ClusteringCard"), 5, { rawQuery: "ClusteringCard" });
+    const methodResults = searchSymbols(db, buildFtsQuery("render"), 5, { rawQuery: "render" });
+    db.close();
+
+    expect(classResults.some((result) => result.language === "javascript" && result.kind === "class" && normalizeRepoPath(result.path) === "src/clustering_card.js")).toBeTrue();
+    expect(methodResults.some((result) => result.language === "javascript" && result.kind === "method" && normalizeRepoPath(result.path) === "src/clustering_card.js")).toBeTrue();
+  });
+
   test("typed queries can match TypeScript parameter types and Python return annotations", async () => {
     const root = await createFixtureRepo();
     await mkdir(join(root, "src"), { recursive: true });

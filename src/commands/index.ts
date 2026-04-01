@@ -172,6 +172,11 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
 
   markCurrentIndexFormat(db);
   setIndexedScopeSignature(db, scope.signature);
+  if (shouldRebuild) {
+    // A full rebuild establishes a fresh baseline, so symbol-change noise from
+    // rebuilding every file should not persist into subsequent status calls.
+    resetLatestSymbolChangeSummary(db);
+  }
 
   if (config?.impactTracking?.enabled) {
     recordImpactTrackingEvent(db, {
