@@ -47,7 +47,7 @@ Usage:
   symballist lookup "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--full] [--compact] [--root PATH]
   symballist graph <id> [--full] [--compact] [--root PATH]
   symballist graph --name <symbol> [--full] [--compact] [--root PATH]
-  symballist show <id> [--full] [--compact] [--root PATH]
+  symballist show <id|symbol> [--full] [--compact] [--root PATH]
   symballist show --name <symbol> [--full] [--compact] [--root PATH]
   symballist query "<text>" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]
 
@@ -89,7 +89,7 @@ function commandUsage(command: string): void {
       console.log("Usage:\n  symballist graph <id> [--full] [--compact] [--root PATH]\n  symballist graph --name <symbol> [--full] [--compact] [--root PATH]\n\nTraversal flow: resolve a known symbol and return grouped graph neighbors such as imports, uses, importedBy, usedBy, and containedIn. Neighbor bodies summarize by default; use --full to expand neighbor bodies inline.");
       return;
     case "show":
-      console.log("Usage:\n  symballist show <id> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
+      console.log("Usage:\n  symballist show <id|symbol> [--full] [--compact] [--root PATH]\n  symballist show --name <symbol> [--full] [--compact] [--root PATH]\n\nInspection flow: resolve a known symbol directly with graph diagnostics, relations, and body presentation. A non-numeric positional value is treated as a symbol name. Large bodies summarize by default; use --full when bodyPresentation says a fuller body is available.");
       return;
     case "query":
       console.log("Usage:\n  symballist query \"<text>\" [--limit N|--top N] [--kind class,function] [--code-only|--docs-only] [--exclude-tests] [--exclude-path TEXT] [--prefer-implementation] [--compact] [--root PATH]\n\nExploration flow: returns ranked candidates plus lightweight fileGroups context for manual inspection. Use this for fuzzy concepts and broader exploration; use lookup when you want the best hit already resolved.");
@@ -314,6 +314,15 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
   if (codeOnly && docsOnly) {
     error = "Choose only one of --code-only or --docs-only.";
+  }
+
+  if (command === "show" && !showName && positionals.length > 0) {
+    const candidate = positionals.join(" ").trim();
+    const numericCandidate = Number(candidate);
+    if (!Number.isInteger(numericCandidate) || numericCandidate <= 0) {
+      showName = candidate;
+      positionals.length = 0;
+    }
   }
 
   return {

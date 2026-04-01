@@ -3657,6 +3657,16 @@ describe("symballist vertical slice", () => {
     const compactShowParsed = parseCliArgs(["show", "--name", "greet", "--compact"]);
     expect(compactShowParsed.compactOutput).toBeTrue();
 
+    const positionalShowParsed = parseCliArgs(["show", "greet"]);
+    expect(positionalShowParsed.showName).toBe("greet");
+    expect(positionalShowParsed.positionals).toEqual([]);
+    expect(positionalShowParsed.error).toBeNull();
+
+    const numericShowParsed = parseCliArgs(["show", "42"]);
+    expect(numericShowParsed.showName).toBeNull();
+    expect(numericShowParsed.positionals).toEqual(["42"]);
+    expect(numericShowParsed.error).toBeNull();
+
     const graphParsed = parseCliArgs(["graph", "--name", "slugify", "--compact"]);
     expect(graphParsed.command).toBe("graph");
     expect(graphParsed.showName).toBe("slugify");
@@ -3704,6 +3714,35 @@ describe("symballist vertical slice", () => {
     });
     expect(output).toContain("symballist graph --name <symbol>");
     expect(output).toContain("Traversal flow");
+  });
+
+  test("show accepts a positional symbol name as shorthand for --name", async () => {
+    const root = await createFixtureRepo();
+    await runInit(root);
+    await runIndex(root, { progress: false });
+
+    const shorthandPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runCli(["show", "greet", "--root", root]);
+    })) as {
+      symbol?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    const explicitPayload = JSON.parse(await captureConsoleLog(async () => {
+      await runCli(["show", "--name", "greet", "--root", root]);
+    })) as {
+      symbol?: {
+        name: string;
+        path: string;
+      };
+    };
+
+    expect(shorthandPayload.symbol?.name).toBe("greet");
+    expect(normalizeRepoPath(shorthandPayload.symbol?.path)).toBe("app.py");
+    expect(explicitPayload.symbol?.name).toBe("greet");
+    expect(normalizeRepoPath(explicitPayload.symbol?.path)).toBe("app.py");
   });
 
   test("query accepts --top as a limit alias without reaching FTS with raw flag text", async () => {
