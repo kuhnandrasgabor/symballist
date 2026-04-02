@@ -1458,6 +1458,17 @@ function syntheticExactLookupRawScore(row: SearchRow, rawQuery: string): number 
       || loweredStrippedSignature.startsWith(`${loweredRawQuery}::`)
       || pathSuffixes.some((suffix) => loweredPath.endsWith(suffix));
 
+    // Perfect fully-qualified signature match: the stripped signature
+    // (e.g. "Sis::V2::Services::Writing::Student") equals the raw query exactly.
+    // Score must be deep enough to override FTS BM25 for same-file methods
+    // whose shorter bodies score higher in BM25.
+    if (
+      (row.kind === "class" || row.kind === "module")
+      && loweredStrippedSignature === loweredRawQuery
+    ) {
+      return -35.0;
+    }
+
     if (
       querySegments.length >= 3
       && hasNamespaceEvidence
@@ -1525,6 +1536,7 @@ export function analyzeQualifiedSymbolMatch(
     && hasNamespaceEvidence
     && (row.kind === "class" || row.kind === "module")
     && loweredName === lastSegment
+    && loweredStrippedSignature !== loweredQuery
   ) {
     return {
       adjustment: -1.5 + definitionBias,
@@ -1548,8 +1560,9 @@ export function analyzeQualifiedSymbolMatch(
   }
 
   if (loweredStrippedSignature === loweredQuery) {
+    const namespaceBoost = hasNamespaceEvidence ? -1.5 : 0;
     return {
-      adjustment: -5.5 + definitionBias,
+      adjustment: -5.5 + definitionBias + namespaceBoost,
       reason: "signature_text",
       confidence: row.kind === "class" || row.kind === "module" ? "exact" : "strong"
     };
