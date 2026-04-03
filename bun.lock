@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "symballist",
@@ -16,6 +17,7 @@
   "trustedDependencies": [
     "tree-sitter-python",
     "tree-sitter",
+    "tree-sitter-ruby",
     "tree-sitter-html",
     "tree-sitter-javascript",
     "tree-sitter-typescript",
