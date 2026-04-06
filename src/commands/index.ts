@@ -1,6 +1,6 @@
 import { deleteFileIndex, getEmbeddingCountForPath, getEmbeddableSymbolsForPath, getIndexCompatibility, getIndexedFiles, markCurrentIndexFormat, openDatabase, rebuildStoredIndex, recordImpactTrackingEvent, replaceFileIndex, resetLatestSymbolChangeSummary, setIndexedScopeSignature } from "../db.ts";
 import { getActiveEmbeddingsConfig, updateEmbeddingsForSymbols } from "../embeddings.ts";
-import { fileMetadata, listSourceFiles, readConfig, readRepoScopeControl, readText } from "../fs.ts";
+import { fileMetadata, isFileNotFoundError, listSourceFiles, readConfig, readRepoScopeControl, readText } from "../fs.ts";
 import { extractSymbols } from "../indexer/index.ts";
 
 export type IndexStats = {
@@ -23,6 +23,9 @@ type ProgressState = {
   lastRenderedLength: number;
   lastLoggedStep: number;
 };
+
+type IndexDatabase = Awaited<ReturnType<typeof openDatabase>>;
+type IndexedFileRow = ReturnType<typeof getIndexedFiles>[number];
 
 function truncateMiddle(value: string, maxLength: number): string {
   if (maxLength <= 0) {
@@ -69,6 +72,22 @@ function renderProgress(current: number, total: number, stats: IndexStats, curre
   console.error(formatProgressLine(current, total, stats, currentPath, 120));
 }
 
+function handleDisappearedFile(
+  db: IndexDatabase,
+  relativePath: string,
+  currentPaths: Set<string>,
+  existingFiles: Map<string, IndexedFileRow>,
+  stats: IndexStats
+): void {
+  currentPaths.delete(relativePath);
+  if (existingFiles.delete(relativePath)) {
+    deleteFileIndex(db, relativePath);
+    stats.removedFiles += 1;
+    return;
+  }
+  stats.skippedFiles += 1;
+}
+
 export async function runIndex(root: string, options: RunIndexOptions = {}): Promise<IndexStats> {
   const progress = options.progress ?? true;
   const emitStats = options.emitStats ?? true;
@@ -88,7 +107,7 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   const files = await listSourceFiles(root, { scope });
   const currentPaths = new Set(files.map((file) => file.relativePath));
   const existingFiles = shouldRebuild
-    ? new Map<string, ReturnType<typeof getIndexedFiles>[number]>()
+    ? new Map<string, IndexedFileRow>()
     : new Map(indexedRowsBeforeRun.map((file) => [file.path, file]));
 
   const stats: IndexStats = {
@@ -108,6 +127,13 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
     const metadata = await fileMetadata(file.absolutePath);
+    if (metadata === null) {
+      handleDisappearedFile(db, file.relativePath, currentPaths, existingFiles, stats);
+      if (progress) {
+        renderProgress(index + 1, files.length, stats, file.relativePath, progressState);
+      }
+      continue;
+    }
     const existing = existingFiles.get(file.relativePath);
     const shouldBackfillEmbeddings = Boolean(
       existing
@@ -137,7 +163,19 @@ export async function runIndex(root: string, options: RunIndexOptions = {}): Pro
       continue;
     }
 
-    const source = await readText(file.absolutePath);
+    let source: string;
+    try {
+      source = await readText(file.absolutePath);
+    } catch (error) {
+      if (isFileNotFoundError(error)) {
+        handleDisappearedFile(db, file.relativePath, currentPaths, existingFiles, stats);
+        if (progress) {
+          renderProgress(index + 1, files.length, stats, file.relativePath, progressState);
+        }
+        continue;
+      }
+      throw error;
+    }
     const symbols = extractSymbols(file.relativePath, file.language, source, { availablePaths: currentPaths });
     stats.indexedSymbols += replaceFileIndex(
       db,

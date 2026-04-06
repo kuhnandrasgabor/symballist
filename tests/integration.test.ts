@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -12,7 +12,7 @@ import { summarizeRetrievalQuality } from "../src/commands/resultQuality.ts";
 import { runShow } from "../src/commands/show.ts";
 import { runStatus } from "../src/commands/status.ts";
 import { runWatch } from "../src/commands/watch.ts";
-import { CURRENT_INDEX_FORMAT_VERSION, analyzeQualifiedSymbolMatch, buildFtsQuery, getBestSymbolByName, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, getWatchOwnershipStatus, openDatabase, searchSymbols, updateWatchOwnership } from "../src/db.ts";
+import { CURRENT_INDEX_FORMAT_VERSION, analyzeQualifiedSymbolMatch, buildFtsQuery, getBestSymbolByName, getIndexedFiles, getRelatedSymbolsForSymbol, getRelationsForSymbol, getSymbolById, getWatchOwnershipStatus, openDatabase, searchSymbols, updateWatchOwnership } from "../src/db.ts";
 import { buildEmbeddingText } from "../src/embeddings.ts";
 import { fileMetadata, listSourceFiles } from "../src/fs.ts";
 import { readConfig, writeConfig } from "../src/fs.ts";
@@ -23,6 +23,7 @@ import { detectShellFlavor, getShellGuidance } from "../src/shell.ts";
 const tempRoots: string[] = [];
 
 afterEach(async () => {
+  mock.restore();
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
     if (root) {
@@ -3955,6 +3956,87 @@ describe("symballist vertical slice", () => {
     expect(refreshed.some((result) => result.name === "slugify")).toBeTrue();
     expect(watchOwnership.present).toBeFalse();
     expect(watchOwnership.active).toBeFalse();
+  });
+
+  test("index tolerates files disappearing during content reads and removes stale indexed entries", async () => {
+    const root = await createFixtureRepo();
+    const transientPath = join(root, "tmp-chat-context-check.js");
+    await writeFile(transientPath, "export const tmpChatContextCheck = () => 'initial';\n", "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false, emitStats: false });
+
+    await writeFile(transientPath, "export const tmpChatContextCheck = () => 'changed';\n", "utf8");
+
+    const originalFsPromises = await import("node:fs/promises");
+    const originalReadFile = originalFsPromises.readFile;
+    mock.module("node:fs/promises", () => ({
+      ...originalFsPromises,
+      readFile: async (path: string | URL | number, ...args: unknown[]) => {
+        if (path === transientPath) {
+          await rm(transientPath, { force: true });
+        }
+        return (originalReadFile as (...innerArgs: unknown[]) => Promise<unknown>)(path, ...args);
+      }
+    }));
+
+    const stats = await runIndex(root, { progress: false, emitStats: false });
+
+    expect(stats.discoveredFiles).toBe(8);
+    expect(stats.indexedFiles).toBe(0);
+    expect(stats.skippedFiles).toBe(7);
+    expect(stats.removedFiles).toBe(1);
+
+    const db = await openDatabase(root);
+    const indexedFiles = getIndexedFiles(db);
+    db.close();
+
+    expect(indexedFiles.some((file) => normalizeRepoPath(file.path) === "tmp-chat-context-check.js")).toBeFalse();
+  });
+
+  test("watch one-shot tolerates files disappearing during content reads", async () => {
+    const root = await createFixtureRepo();
+    const transientPath = join(root, "tmp-chat-context-check.js");
+    await writeFile(transientPath, "export const tmpChatContextCheck = () => 'initial';\n", "utf8");
+    await runInit(root);
+    await runIndex(root, { progress: false, emitStats: false });
+
+    await writeFile(transientPath, "export const tmpChatContextCheck = () => 'changed';\n", "utf8");
+
+    const originalFsPromises = await import("node:fs/promises");
+    const originalReadFile = originalFsPromises.readFile;
+    mock.module("node:fs/promises", () => ({
+      ...originalFsPromises,
+      readFile: async (path: string | URL | number, ...args: unknown[]) => {
+        if (path === transientPath) {
+          await rm(transientPath, { force: true });
+        }
+        return (originalReadFile as (...innerArgs: unknown[]) => Promise<unknown>)(path, ...args);
+      }
+    }));
+
+    const watchOutput = JSON.parse(await captureConsoleLog(async () => {
+      await runWatch(root, { once: true });
+    })) as {
+      event: string;
+      reason: string;
+      stats: {
+        removedFiles: number;
+      } | null;
+      indexFreshnessAfter: {
+        stale: boolean;
+      };
+    };
+
+    expect(watchOutput.event).toBe("indexed");
+    expect(watchOutput.reason).toBe("stale_index");
+    expect(watchOutput.stats?.removedFiles).toBe(1);
+    expect(watchOutput.indexFreshnessAfter.stale).toBeFalse();
+
+    const db = await openDatabase(root);
+    const indexedFiles = getIndexedFiles(db);
+    db.close();
+
+    expect(indexedFiles.some((file) => normalizeRepoPath(file.path) === "tmp-chat-context-check.js")).toBeFalse();
   });
 
   test("status surfaces stale watch ownership metadata when a watch heartbeat is orphaned", async () => {

@@ -49,6 +49,10 @@ function isIgnorableFsError(error: unknown): boolean {
   return error.code === "EPERM" || error.code === "EACCES" || error.code === "ENOENT";
 }
 
+export function isFileNotFoundError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
 export type RepoScopeControl = {
   path: string;
   exists: boolean;
@@ -396,7 +400,7 @@ export async function listSourceFiles(
   return files.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
-export async function fileMetadata(path: string): Promise<{ size: number; mtimeMs: number }> {
+export async function fileMetadata(path: string): Promise<{ size: number; mtimeMs: number } | null> {
   try {
     const details = await stat(path);
     return {
@@ -404,11 +408,8 @@ export async function fileMetadata(path: string): Promise<{ size: number; mtimeM
       mtimeMs: details.mtimeMs
     };
   } catch (error) {
-    if (isIgnorableFsError(error)) {
-      return {
-        size: 0,
-        mtimeMs: 0
-      };
+    if (isFileNotFoundError(error)) {
+      return null;
     }
     throw error;
   }
